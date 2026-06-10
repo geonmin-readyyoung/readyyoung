@@ -262,6 +262,7 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
         <option value="완료">완료</option>
         <option value="진행중">진행중</option>
         <option value="미정">미정</option>
+        <option value="미진행">미진행</option>
       </select>
       <span class="hint">⠿ 드래그로 순서 변경 · 셀 클릭으로 수정</span>
     </div>
@@ -567,7 +568,7 @@ function render(){
 
     prods.forEach(prod => {
       const globalPi = allData.indexOf(prod);
-      const rows = sf ? prod.r.filter(r => (r.st||'미정') === sf) : prod.r;
+      const rows = sf === '미진행' ? prod.r.filter(r => (r.st||'미정') === '미정' || (r.st||'미정') === '진행예정') : sf ? prod.r.filter(r => (r.st||'미정') === sf) : prod.r;
       const p = pct(prod.r);
       const range = GLOBAL_RANGE;
 
