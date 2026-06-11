@@ -196,6 +196,15 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 .btn-save:hover { opacity: 0.82; }
 .btn-save.saved { background: #2e7d32; border-color: #2e7d32; }
 
+/* === inline cell editor popover === */
+.cell-pop { position:fixed; z-index:2000; background:#fff; border:1px solid #d0d0d0; border-radius:8px; padding:10px 12px; box-shadow:0 4px 16px rgba(0,0,0,.13); min-width:160px; max-width:260px; }
+.cell-pop-title { font-size:10px; color:#888; text-transform:uppercase; letter-spacing:.04em; margin-bottom:7px; font-weight:600; }
+.cell-pop select, .cell-pop input { width:100%; padding:5px 8px; font-size:13px; border:0.5px solid #d0d0d0; border-radius:6px; background:#fff; color:#1a1a1a; box-sizing:border-box; }
+.cell-pop-foot { display:flex; justify-content:flex-end; gap:6px; margin-top:9px; }
+.cell-pop-ok { padding:4px 12px; font-size:12px; background:#1a1a1a; color:#fff; border:none; border-radius:5px; cursor:pointer; }
+.cell-pop-cancel { padding:4px 10px; font-size:12px; background:transparent; border:0.5px solid #d0d0d0; border-radius:5px; cursor:pointer; color:#555; }
+.row-item [data-field] { cursor:pointer; }
+.row-item [data-field]:hover { outline:1.5px dashed #bbb; border-radius:3px; }
 .catfilter { display: flex; gap: 6px; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
 .catpill { background: #fff; border: 1px solid var(--color-border-tertiary); border-radius: 999px; padding: 6px 16px; font-size: 13px; cursor: pointer; color: var(--color-text-secondary); }
 .catpill:hover { background: var(--color-background-secondary); }
@@ -622,13 +631,13 @@ function render(){
           <span class="row-drag">⠿</span>
           <span class="row-stage">${r.c||r.sg||'—'}</span>
           <span class="row-sub">${r.s||''}</span>
-          <span class="row-badge-wrap">${bdg(r.st||'미정')}</span>
-          <span class="row-note">${r.m||'—'}</span>
-          <span class="row-date">${r.v||'—'}</span>
-          <span class="row-date">${r.d1||'—'}</span>
-          <span class="row-date">${r.o||'—'}</span>
-          <span class="row-date">${r.d2||'—'}</span>
-          <span class="row-memo">${r.note||'—'}</span>
+          <span class="row-badge-wrap" data-field="st" onclick="cellPop(event,${globalPi},${realRi},'st')">${bdg(r.st||'미정')}</span>
+          <span class="row-note" data-field="m" onclick="cellPop(event,${globalPi},${realRi},'m')">${r.m||'—'}</span>
+          <span class="row-date" data-field="v" onclick="cellPop(event,${globalPi},${realRi},'v')">${r.v||'—'}</span>
+          <span class="row-date" data-field="d1" onclick="cellPop(event,${globalPi},${realRi},'d1')">${r.d1||'—'}</span>
+          <span class="row-date" data-field="o" onclick="cellPop(event,${globalPi},${realRi},'o')">${r.o||'—'}</span>
+          <span class="row-date" data-field="d2" onclick="cellPop(event,${globalPi},${realRi},'d2')">${r.d2||'—'}</span>
+          <span class="row-memo" data-field="note" onclick="cellPop(event,${globalPi},${realRi},'note')">${r.note||'—'}</span>
           ${inlineBar}
           <button class="row-edit-btn" onclick="openModal(${globalPi},${realRi})" title="수정"><span class="edit-ico">✎</span>수정</button>
         </div>`;
@@ -677,8 +686,61 @@ function deleteProd(pi){if(!confirm('이 제품을 삭제하시겠습니까?'))r
 
 function cellEdit(ev,pi,ri){
   if(ev.target.closest('.row-drag')||ev.target.closest('.row-edit-btn')) return;
-  openModal(pi,ri);
+      const tgt=ev.target.closest('[data-field]');
+        if(tgt){ cellPop(ev,pi,ri,tgt.dataset.field); return; }  openModal(pi,ri);
 }
+/* === autoStatus: 날짜 기반 현황 자동 판정 === */
+function autoStatus(r){
+  const _d=s=>{ if(!s)return null; const d=new Date(s); d.setHours(0,0,0,0); return isNaN(d)?null:d; };
+    const sd=_d(r.d1), ed=_d(r.d2);
+      const t=new Date(); t.setHours(0,0,0,0);
+        if(sd&&ed){ if(t<sd)return '진행예정'; if(t>ed)return '완료'; return '진행중'; }
+          if(sd){ return t<sd?'진행예정':'진행중'; }
+            return null;
+            }
+
+            /* === inline cell popover === */
+            let _pop=null;
+            function closePop(){ if(_pop){ _pop.remove(); _pop=null; } }
+            document.addEventListener('mousedown',function(e){ if(_pop&&!_pop.contains(e.target))closePop(); },true);
+
+            function cellPop(ev,pi,ri,field){
+              ev.stopPropagation();
+                closePop();
+                  const r=data()[pi]?.r[ri]; if(!r)return;
+                    const rect=ev.currentTarget.getBoundingClientRect();
+                      const FMAP={'st':{lb:'\ud604\ud669',tp:'select',opts:['\uc644\ub8cc','\uc9c4\ud589\uc911','\uc9c4\ud589\uc608\uc815','\ubbf8\uc815','\ubbf8\uc9c4\ud589'],val:r.st||'\ubbf8\uc815'},'d1':{lb:'\uc2dc\uc791\uc77c',tp:'date',val:r.d1||''},'d2':{lb:'\uc885\ub8cc\uc77c',tp:'date',val:r.d2||''},'o':{lb:'\ubc1c\uc8fc\uc77c',tp:'date',val:r.o||''},'v':{lb:'\uc704\ud0c1\uc0ac',tp:'text',val:r.v||''},'m':{lb:'\ub2f4\ub2f9\uc790',tp:'text',val:r.m||''},'note':{lb:'\ube44\uace0',tp:'text',val:r.note||''}};
+                        const f=FMAP[field]; if(!f)return;
+                          let inn=`<div class="cell-pop-title">${f.lb}</div>`;
+                            if(f.tp==='select'){
+                                inn+=`<select id="_cpf">${f.opts.map(o=>`<option${o===f.val?' selected':''}>${o}</option>`).join('')}</select>`;
+                                  } else {
+                                      inn+=`<input id="_cpf" type="${f.tp}" value="${f.val}">`;
+                                        }
+                                          inn+=`<div class="cell-pop-foot"><button class="cell-pop-cancel" onclick="closePop()">\ucde8\uc18c</button><button class="cell-pop-ok" onclick="savePop(${pi},${ri},'${field}')">\ud655\uc778</button></div>`;
+                                            const pop=document.createElement('div');
+                                              pop.className='cell-pop';
+                                                pop.innerHTML=inn;
+                                                  let top=rect.bottom+4, left=rect.left;
+                                                    const vw=window.innerWidth, vh=window.innerHeight;
+                                                      if(top+130>vh) top=rect.top-134;
+                                                        if(left+250>vw) left=vw-254;
+                                                          pop.style.cssText=`top:${top}px;left:${left}px;`;
+                                                            document.body.appendChild(pop);
+                                                              _pop=pop;
+                                                                const inp=document.getElementById('_cpf');
+                                                                  if(inp){ inp.focus(); if(inp.select)inp.select(); }
+                                                                    inp.addEventListener('keydown',function(e){ if(e.key==='Enter')savePop(pi,ri,field); if(e.key==='Escape')closePop(); });
+                                                                    }
+
+                                                                    function savePop(pi,ri,field){
+                                                                      const r=data()[pi]?.r[ri]; if(!r)return;
+                                                                        const inp=document.getElementById('_cpf'); if(!inp)return;
+                                                                          r[field]=inp.value;
+                                                                            if(field==='d1'||field==='d2'){ const a=autoStatus(r); if(a)r.st=a; }
+                                                                              closePop(); render(); renderKPIs();
+                                                                              }
+
 
 function openModal(pi,ri){
   const r=data()[pi]?.r[ri];if(!r)return;
@@ -714,17 +776,9 @@ function saveModal(){
   r.v=document.getElementById('e-vendor').value;
   r.m=document.getElementById('e-manager').value;
   r.note=document.getElementById('e-note').value;
-  // 시작일/종료일이 모두 있으면 오늘 기준으로 현황 자동 판정
-  const sd=r.d1?new Date(r.d1):null;
-  const ed=r.d2?new Date(r.d2):null;
-  if(sd&&ed&&!isNaN(sd)&&!isNaN(ed)){
-    const t=new Date(); t.setHours(0,0,0,0);
-    sd.setHours(0,0,0,0); ed.setHours(0,0,0,0);
-    if(t<sd) r.st='진행예정';
-    else if(t>ed) r.st='완료';
-    else r.st='진행중';
-  }
-  closeModal();render();renderKPIs();
+    // 날짜 기반 현황 자동 판정
+      const _auto=autoStatus(r); if(_auto)r.st=_auto;
+      closeModal();render();renderKPIs();
 }
 function openCatModal(cat){catEditTarget=cat;document.getElementById('e-cat-name').value=cat;document.getElementById('cat-modal-wrap').classList.remove('hidden');}
 function closeCatModal(){document.getElementById('cat-modal-wrap').classList.add('hidden');catEditTarget=null;}
