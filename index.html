@@ -144,6 +144,8 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 .dot-wip { background: #185FA5; }
 .dot-tbd { background: #888780; }
 .dot-soon { background: #D9970F; }
+.b-none { background: #FEE2E2; color: #991B1B; }
+.dot-none { background: #DC2626; }
 
 /* 모달 */
 #modal-wrap,#cat-modal-wrap,#prod-modal-wrap,#row-modal-wrap { position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center; }
@@ -420,8 +422,8 @@ function data(){return tab==='dev'?DEV:PROD;}
 function pct(r){return r.length?Math.round(r.filter(x=>x.st==='완료').length/r.length*100):0;}
 function progColor(p){return p===100?'#3B6D11':p>0?'#185FA5':'#B4B2A9';}
 function bdg(st){
-  const cls=st==='완료'?'b-done':st==='진행중'?'b-wip':st==='진행예정'?'b-soon':'b-tbd';
-  const dcls=st==='완료'?'dot-done':st==='진행중'?'dot-wip':st==='진행예정'?'dot-soon':'dot-tbd';
+  const cls=st==='완료'?'b-done':st==='진행중'?'b-wip':st==='진행예정'?'b-soon':st==='미진행'?'b-none':'b-tbd';
+  const dcls=st==='완료'?'dot-done':st==='진행중'?'dot-wip':st==='진행예정'?'dot-soon':st==='미진행'?'dot-none':'dot-tbd';
   return `<span class="badge ${cls}"><span class="dot ${dcls}"></span>${st}</span>`;
 }
 
