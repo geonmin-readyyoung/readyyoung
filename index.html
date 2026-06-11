@@ -794,67 +794,46 @@ function openProdModal(pi,cat){
       const isEdit=(pi!==null);
         document.getElementById('prod-modal-title').textContent=isEdit?'제품 수정':'제품 추가';
           document.getElementById('e-prod-name').value=isEdit?data()[pi].p:'';
-            // 복제 UI 동적 주입 (추가 모드일 때만)
-              let cloneWrap=document.getElementById('_clone-wrap');
-                if(!cloneWrap){
-                    cloneWrap=document.createElement('div');
-                        cloneWrap.id='_clone-wrap';
-                            const nameField=document.getElementById('e-prod-name').closest('.field');
-                                nameField.parentNode.insertBefore(cloneWrap,nameField);
-                                  }
-                                    if(isEdit){
-                                        cloneWrap.innerHTML='';
-                                            cloneWrap.style.display='none';
-                                              } else {
-                                                  const allProds=data();
-                                                      const catProds=allProds.filter(p=>p.category===cat);
-                                                          if(catProds.length>0){
-                                                                let opts='<option value="">없음 (빈 제품으로 시작)</option>';
-                                                                      catProds.forEach((p,i)=>{ opts+=`<option value="${allProds.indexOf(p)}">${p.p}</option>`; });
-                                                                            cloneWrap.style.display='';
-                                                                                              cloneWrap.style.display='';
-                                                                                                          var h='<div style="border:1px solid #e5e5e5;border-radius:8px;padding:10px 12px;margin-bottom:10px;background:#fafaf9">';
-                                                                                                                      h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#555;font-weight:500">';
-                                                                                                                                  h+='<input type="checkbox" id="_cchk" style="width:auto;margin:0" onchange="var w=document.getElementById(\'_csel_w\');w.style.display=this.checked?\'\':\' none\'"> ';
-                                                                                                                                              h+='기존 제품 항목 복제하기</label>';
-                                                                                                                                                          h+='<div id="_csel_w" style="display:none;margin-top:8px">';
-                                                                                                                                                                      h+='<select id="_csel" style="width:100%;padding:6px 8px;font-size:13px;border:0.5px solid #d0d0d0;border-radius:6px;background:#fff;color:#1a1a1a;box-sizing:border-box">'+opts+'</select>';
-                                                                                                                                                                                  h+='<p style="font-size:11px;color:#888;margin-top:4px">선택한 제품의 단계 목록을 복사합니다 (날짜, 담당자 초기화)</p>';
-                                                                                                                                                                                              h+='</div></div>';
-                                                                                                                                                                                                          cloneWrap.innerHTML=h;
-                                                                                      } else {
-                                                                                            cloneWrap.innerHTML='';
-                                                                                                  cloneWrap.style.display='none';
+            let cloneWrap=document.getElementById('_clone-wrap');
+              if(!cloneWrap){cloneWrap=document.createElement('div');cloneWrap.id='_clone-wrap';const nf=document.getElementById('e-prod-name').closest('.field');nf.parentNode.insertBefore(cloneWrap,nf);}
+                if(isEdit){cloneWrap.innerHTML='';cloneWrap.style.display='none';}
+                  else{
+                      const allP=data();const catP=allP.filter(function(p){return p.category===cat;});
+                          if(catP.length>0){
+                                let opts='<option value="">없음 (빈 제품으로 시작)</option>';
+                                      catP.forEach(function(p){opts+='<option value="'+allP.indexOf(p)+'">'+p.p+'</option>';});
+                                            var h='<div style="border:1px solid #e5e5e5;border-radius:8px;padding:10px 12px;margin-bottom:10px;background:#fafaf9">';
+                                                  h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#555;font-weight:500">';
+                                                        h+='<input type="checkbox" id="_cchk" style="width:auto;margin:0" onchange="document.getElementById(\'_csel_w\').style.display=this.checked?\'\':\' none\'"> ';
+                                                              h+='기존 제품 항목 복제하기</label>';
+                                                                    h+='<div id="_csel_w" style="display:none;margin-top:8px">';
+                                                                          h+='<select id="_csel" style="width:100%;padding:6px 8px;font-size:13px;border:0.5px solid #d0d0d0;border-radius:6px;background:#fff;color:#1a1a1a;box-sizing:border-box">'+opts+'</select>';
+                                                                                h+='<p style="font-size:11px;color:#888;margin-top:4px">선택한 제품의 단계 목록을 복사합니다 (날짜, 담당자 초기화)</p>';
+                                                                                      h+='</div></div>';
+                                                                                            cloneWrap.innerHTML=h;cloneWrap.style.display='';
+                                                                                                }else{cloneWrap.innerHTML='';cloneWrap.style.display='none';}
+                                                                                                  }
+                                                                                                    document.getElementById('prod-modal-wrap').classList.remove('hidden');
+                                                                                                      setTimeout(function(){document.getElementById('e-prod-name').focus();},50);
                                                                                                       }
-                                                                                                        }
-                                                                                                          document.getElementById('prod-modal-wrap').classList.remove('hidden');
-                                                                                                            setTimeout(()=>document.getElementById('e-prod-name').focus(),50);
-                                                                                                            }
-                                                                                                            function closeProdModal(){document.getElementById('prod-modal-wrap').classList.add('hidden');prodEditTarget=null;prodAddCat=null;}
-                                                                                                            function saveProdModal(){
-                                                                                                              const n=document.getElementById('e-prod-name').value.trim();if(!n){alert('제품명을 입력하세요');return;}
-                                                                                                                if(prodEditTarget!==null){DEV[prodEditTarget].p=n;PROD[prodEditTarget].p=n;}
-                                                                                                                  else{
-                                                                                                                      const chk=document.getElementById('_clone-chk');
-                                                                                                                          const sel=document.getElementById('_clone-sel');
-                                                                                                                              let newDevRows=[], newProdRows=[];
-                                                                                                                                  if(chk&&chk.checked&&sel&&sel.value!==''){
-                                                                                                                                        const srcPi=parseInt(sel.value);
-                                                                                                                                              if(tab==='dev'){
-                                                                                                                                                      newDevRows=DEV[srcPi].r.map(r=>({c:r.c,s:r.s,st:'미정',d1:'',d2:'',v:'',m:'',note:''}));
-                                                                                                                                                              newProdRows=[];
-                                                                                                                                                                    } else {
-                                                                                                                                                                            newDevRows=[];
-                                                                                                                                                                                    newProdRows=PROD[srcPi].r.map(r=>({sg:r.sg,st:'미정',o:'',d2:'',v:'',m:''}));
-                                                                                                                                                                                          }
-                                                                                                                                                                                              }
-                                                                                                                                                                                                  DEV.push({p:n,category:prodAddCat,r:newDevRows});
-                                                                                                                                                                                                      PROD.push({p:n,category:prodAddCat,r:newProdRows});
-                                                                                                                                                                                                        }
-                                                                                                                                                                                                          closeProdModal();render();
-                                                                                                                                                                                                          }
-                                                                                                                                                                                                          
-}
+                                                                                                      function closeProdModal(){document.getElementById('prod-modal-wrap').classList.add('hidden');prodEditTarget=null;prodAddCat=null;}
+                                                                                                      function saveProdModal(){
+                                                                                                        const n=document.getElementById('e-prod-name').value.trim();if(!n){alert('제품명을 입력하세요');return;}
+                                                                                                          if(prodEditTarget!==null){DEV[prodEditTarget].p=n;PROD[prodEditTarget].p=n;}
+                                                                                                            else{
+                                                                                                                const chk=document.getElementById('_cchk');
+                                                                                                                    const sel=document.getElementById('_csel');
+                                                                                                                        let newDev=[],newProd=[];
+                                                                                                                            if(chk&&chk.checked&&sel&&sel.value!==''){
+                                                                                                                                  const si=parseInt(sel.value);
+                                                                                                                                        if(tab==='dev'){newDev=DEV[si].r.map(function(r){return {c:r.c,s:r.s,st:'미정',d1:'',d2:'',v:'',m:'',note:''};});}
+                                                                                                                                              else{newProd=PROD[si].r.map(function(r){return {sg:r.sg,st:'미정',o:'',d2:'',v:'',m:''};});}
+                                                                                                                                                  }
+                                                                                                                                                      DEV.push({p:n,category:prodAddCat,r:newDev});
+                                                                                                                                                          PROD.push({p:n,category:prodAddCat,r:newProd});
+                                                                                                                                                            }
+                                                                                                                                                              closeProdModal();render();
+                                                                                                                                                              }
 function openRowModal(pi){rowAddTarget=pi;document.getElementById('e-row-stage').value='';document.getElementById('e-row-sub').value='';document.getElementById('row-modal-wrap').classList.remove('hidden');}
 function closeRowModal(){document.getElementById('row-modal-wrap').classList.add('hidden');rowAddTarget=null;}
 function saveRowModal(){
