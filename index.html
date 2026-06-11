@@ -692,7 +692,7 @@ function cellEdit(ev,pi,ri){
 /* === autoStatus: 날짜 기반 현황 자동 판정 === */
 function autoStatus(r){
   const _d=s=>{ if(!s)return null; const d=new Date(s); d.setHours(0,0,0,0); return isNaN(d)?null:d; };
-    const sd=_d(r.d1), ed=_d(r.d2);
+    const sd=_d(r.d1||r.o), ed=_d(r.d2);
       const t=new Date(); t.setHours(0,0,0,0);
         if(sd&&ed){ if(t<sd)return '진행예정'; if(t>ed)return '완료'; return '진행중'; }
           if(sd){ return t<sd?'진행예정':'진행중'; }
@@ -737,7 +737,7 @@ function autoStatus(r){
                                                                       const r=data()[pi]?.r[ri]; if(!r)return;
                                                                         const inp=document.getElementById('_cpf'); if(!inp)return;
                                                                           r[field]=inp.value;
-                                                                            if(field==='d1'||field==='d2'){ const a=autoStatus(r); if(a)r.st=a; }
+                                                                                        if(field==='d1'||field==='d2'||field==='o'){ const a=autoStatus(r); if(a)r.st=a; }
                                                                               closePop(); render(); renderKPIs();
                                                                               }
 
