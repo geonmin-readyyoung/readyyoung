@@ -192,6 +192,9 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 .badge-live { background: #e6f4ea; color: #1e7e34; }
 .btn-addprod { background: #fff; border: 1px solid var(--color-border-secondary); border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; color: var(--color-text-primary); }
 .btn-addprod:hover { background: var(--color-background-secondary); }
+.btn-save { background: var(--color-text-primary); border: 1px solid var(--color-border-primary); border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; color: #fff; font-weight: 500; transition: opacity .15s; }
+.btn-save:hover { opacity: 0.82; }
+.btn-save.saved { background: #2e7d32; border-color: #2e7d32; }
 
 .catfilter { display: flex; gap: 6px; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
 .catpill { background: #fff; border: 1px solid var(--color-border-tertiary); border-radius: 999px; padding: 6px 16px; font-size: 13px; cursor: pointer; color: var(--color-text-secondary); }
@@ -238,7 +241,7 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
     <div class="header-right">
       <span class="badge badge-today">오늘 6/4</span>
       <span class="badge badge-live">● 실시간 연결됨</span>
-      <button class="btn-addprod" onclick="openProdModal(null,CATEGORIES[0])">+ 제품 추가</button>
+      <button class="btn-save" onclick="saveData()" id="btn-save">💾 저장</button>
     </div>
   </div>
 
@@ -763,6 +766,34 @@ function exportCSV(){
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download=`pharmatique_${tab}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
 }
 
+/* ===== localStorage 저장/로드 ===== */
+const STORAGE_KEY = 'pharmatique_data';
+
+function saveData() {
+  const payload = { DEV: DEV, PROD: PROD, CATEGORIES: CATEGORIES };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      const btn = document.getElementById('btn-save');
+        if (btn) {
+            const orig = btn.textContent;
+                btn.textContent = '✓ 저장완료';
+                    btn.classList.add('saved');
+                        setTimeout(() => { btn.textContent = orig; btn.classList.remove('saved'); }, 1800);
+                          }
+                          }
+
+                          function loadData() {
+                            try {
+                                const raw = localStorage.getItem(STORAGE_KEY);
+                                    if (!raw) return false;
+                                        const payload = JSON.parse(raw);
+                                            if (payload.DEV) { DEV.length = 0; payload.DEV.forEach(d => DEV.push(d)); }
+                                                if (payload.PROD) { PROD.length = 0; payload.PROD.forEach(d => PROD.push(d)); }
+                                                    if (payload.CATEGORIES) { CATEGORIES.length = 0; payload.CATEGORIES.forEach(c => CATEGORIES.push(c)); }
+                                                        return true;
+                                                          } catch(e) { return false; }
+                                                          }
+
+                                                          loadData();
 renderCatFilter();renderKPIs();render();
 </script>
 </body>
