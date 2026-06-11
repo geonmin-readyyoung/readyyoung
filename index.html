@@ -849,49 +849,49 @@ function openProdModal(pi,cat){
 function openRowModal(pi){rowAddTarget=pi;document.getElementById('e-row-stage').value='';document.getElementById('e-row-sub').value='';document.getElementById('row-modal-wrap').classList.remove('hidden');}
 function closeRowModal(){document.getElementById('row-modal-wrap').classList.add('hidden');rowAddTarget=null;}
 function saveRowModal(){
-  const s=document.getElementById('e-row-stage').value.trim();if(!s){alert('단계명을 입력하세요');return;}
-  const sub=document.getElementById('e-row-sub').value.trim();
-  if(tab==='dev')data()[rowAddTarget].r.push({c:s,s:sub,st:'미정',d1:'',d2:'',v:'',m:''});
-  else data()[rowAddTarget].r.push({sg:s,o:sub,st:'미정',d2:'',v:'',m:''});
-  closeRowModal();render();
+const s=document.getElementById('e-row-stage').value.trim();if(!s){alert('단계명을 입력하세요');return;}
+const sub=document.getElementById('e-row-sub').value.trim();
+if(tab==='dev')data()[rowAddTarget].r.push({c:s,s:sub,st:'미정',d1:'',d2:'',v:'',m:''});
+else data()[rowAddTarget].r.push({sg:s,o:sub,st:'미정',d2:'',v:'',m:''});
+closeRowModal();render();
 }
 
 function exportCSV(){
-  const d=data();
-  const rows=[tab==='dev'?['제품','카테고리','단계','세부','현황','시작일','종료일','위탁사','담당자']:['제품','카테고리','차수','현황','출하일','종료일','위탁사','담당자']];
-  d.forEach(prod=>{prod.r.forEach(r=>{rows.push(tab==='dev'?[prod.p,prod.category,r.c,r.s,r.st,r.d1,r.d2,r.v,r.m]:[prod.p,prod.category,r.sg,r.st,r.o,r.d2,r.v,r.m]);});});
-  const csv=rows.map(r=>r.map(c=>`"${(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download=`pharmatique_${tab}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+const d=data();
+const rows=[tab==='dev'?['제품','카테고리','단계','세부','현황','시작일','종료일','위탁사','담당자']:['제품','카테고리','차수','현황','출하일','종료일','위탁사','담당자']];
+d.forEach(prod=>{prod.r.forEach(r=>{rows.push(tab==='dev'?[prod.p,prod.category,r.c,r.s,r.st,r.d1,r.d2,r.v,r.m]:[prod.p,prod.category,r.sg,r.st,r.o,r.d2,r.v,r.m]);});});
+const csv=rows.map(r=>r.map(c=>`"${(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download=`pharmatique_${tab}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
 }
 
 /* ===== localStorage 저장/로드 ===== */
 const STORAGE_KEY = 'pharmatique_data';
 
 function saveData() {
-  const payload = { DEV: DEV, PROD: PROD, CATEGORIES: CATEGORIES };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-      const btn = document.getElementById('btn-save');
-        if (btn) {
-            const orig = btn.textContent;
-                btn.textContent = '✓ 저장완료';
-                    btn.classList.add('saved');
-                        setTimeout(() => { btn.textContent = orig; btn.classList.remove('saved'); }, 1800);
-                          }
-                          }
+const payload = { DEV: DEV, PROD: PROD, CATEGORIES: CATEGORIES };
+localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+const btn = document.getElementById('btn-save');
+if (btn) {
+const orig = btn.textContent;
+btn.textContent = '✓ 저장완료';
+btn.classList.add('saved');
+setTimeout(() => { btn.textContent = orig; btn.classList.remove('saved'); }, 1800);
+}
+}
 
-                          function loadData() {
-                            try {
-                                const raw = localStorage.getItem(STORAGE_KEY);
-                                    if (!raw) return false;
-                                        const payload = JSON.parse(raw);
-                                            if (payload.DEV) { DEV.length = 0; payload.DEV.forEach(d => DEV.push(d)); }
-                                                if (payload.PROD) { PROD.length = 0; payload.PROD.forEach(d => PROD.push(d)); }
-                                                    if (payload.CATEGORIES) { CATEGORIES.length = 0; payload.CATEGORIES.forEach(c => CATEGORIES.push(c)); }
-                                                        return true;
-                                                          } catch(e) { return false; }
-                                                          }
+function loadData() {
+try {
+const raw = localStorage.getItem(STORAGE_KEY);
+if (!raw) return false;
+const payload = JSON.parse(raw);
+if (payload.DEV) { DEV.length = 0; payload.DEV.forEach(d => DEV.push(d)); }
+if (payload.PROD) { PROD.length = 0; payload.PROD.forEach(d => PROD.push(d)); }
+if (payload.CATEGORIES) { CATEGORIES.length = 0; payload.CATEGORIES.forEach(c => CATEGORIES.push(c)); }
+return true;
+} catch(e) { return false; }
+}
 
-                                                          loadData();
+loadData();
 renderCatFilter();renderKPIs();render();
 </script>
 </body>
