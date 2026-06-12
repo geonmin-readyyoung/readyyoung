@@ -737,7 +737,7 @@ function autoStatus(r){
                                                                       const r=data()[pi]?.r[ri]; if(!r)return;
                                                                         const inp=document.getElementById('_cpf'); if(!inp)return;
                                                                           r[field]=inp.value;
-                                                                                        if(field==='d1'||field==='d2'||field==='o'){ const a=autoStatus(r); if(a)r.st=a; }
+                                                                                                    if(field==='d1'||field==='d2'||field==='o'){ const a=autoStatus(r); if(a!==null)r.st=a; }
                                                                               closePop(); render(); renderKPIs();
                                                                               }
 
@@ -777,7 +777,7 @@ function saveModal(){
   r.m=document.getElementById('e-manager').value;
   r.note=document.getElementById('e-note').value;
     // 날짜 기반 현황 자동 판정
-      const _auto=autoStatus(r); if(_auto)r.st=_auto;
+        const _auto=autoStatus(r); if(_auto!==null)r.st=_auto;
       closeModal();render();renderKPIs();
 }
 function openCatModal(cat){catEditTarget=cat;document.getElementById('e-cat-name').value=cat;document.getElementById('cat-modal-wrap').classList.remove('hidden');}
