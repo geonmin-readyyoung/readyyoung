@@ -635,7 +635,7 @@ function render(){
           <span class="row-date" data-field="v" onclick="cellPop(event,${globalPi},${realRi},'v')">${r.v||'—'}</span>
           <span class="row-date" data-field="d1" onclick="cellPop(event,${globalPi},${realRi},'d1')">${r.d1||'—'}</span>
           <span class="row-date" data-field="d2" onclick="cellPop(event,${globalPi},${realRi},'d2')">${r.d2||'—'}</span>
-          ${tab==='prod'?`<span class="row-date" data-field="qty" onclick="cellPop(event,${globalPi},${realRi},'qty')">${r.qty||'—'}</span>`:''}
+          ${tab==='prod'?'<span class="row-date" data-field="qty" onclick="cellPop(event,'+globalPi+','+realRi+",\'qty\')">"+(r.qty||'—')+'</span>':''}
           <span class="row-memo" data-field="note" onclick="cellPop(event,${globalPi},${realRi},'note')">${r.note||'—'}</span>
           ${inlineBar}
           <button class="row-edit-btn" onclick="openModal(${globalPi},${realRi})" title="수정"><span class="edit-ico">✎</span>수정</button>
