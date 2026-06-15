@@ -296,7 +296,7 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
         <select id="e-status"><option>진행예정</option><option>진행중</option><option>완료</option><option>미정</option><option>미진행</option></select>
       </div>
       <div class="field" id="f-start"><label id="l-start">시작일</label><input type="date" id="e-start" min="1000-01-01" max="9999-12-31"></div>
-      <div class="field"><label>종료일</label><input type="date" id="e-end" min="1000-01-01" max="9999-12-31"></div>
+      <div class="field"><label id="l-end">종료일</label><input type="date" id="e-end" min="1000-01-01" max="9999-12-31"></div>
       <div class="field"><label>위탁사</label><input type="text" id="e-vendor" placeholder="—"></div>
       <div class="field"><label>담당자</label><input type="text" id="e-manager" placeholder="—"></div>
       <div class="field"><label>비고</label><textarea id="e-note" rows="2" placeholder="—"></textarea></div>
@@ -610,8 +610,8 @@ function render(){
         <span class="col-header-cell" style="width:88px;white-space:nowrap;text-align:center">현황</span>
         <span class="col-header-cell" style="width:72px;white-space:nowrap;text-align:center">담당자</span>
         <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">위탁사</span>
-        <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">시작일</span>
-        <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">종료일</span>
+        <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">${tab==='prod'?'발주일':'시작일'}</span>
+        <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">${tab==='prod'?'입고일':'종료일'}</span>
         <span class="col-header-cell" style="width:180px;white-space:nowrap;text-align:center">비고</span>
         ${tlAxis(range)}
         <span class="col-header-cell" style="width:68px"></span>
@@ -706,7 +706,7 @@ function autoStatus(r){
                 closePop();
                   const r=data()[pi]?.r[ri]; if(!r)return;
                     const rect=ev.currentTarget.getBoundingClientRect();
-                      const FMAP={'st':{lb:'\ud604\ud669',tp:'select',opts:['\uc644\ub8cc','\uc9c4\ud589\uc911','\uc9c4\ud589\uc608\uc815','\ubbf8\uc815','\ubbf8\uc9c4\ud589'],val:r.st||'\ubbf8\uc815'},'d1':{lb:'\uc2dc\uc791\uc77c',tp:'date',val:r.d1||''},'d2':{lb:'\uc885\ub8cc\uc77c',tp:'date',val:r.d2||''},'o':{lb:'\ubc1c\uc8fc\uc77c',tp:'date',val:r.o||''},'v':{lb:'\uc704\ud0c1\uc0ac',tp:'text',val:r.v||''},'m':{lb:'\ub2f4\ub2f9\uc790',tp:'text',val:r.m||''},'note':{lb:'\ube44\uace0',tp:'text',val:r.note||''}};
+                      const FMAP={'st':{lb:'\ud604\ud669',tp:'select',opts:['\uc644\ub8cc','\uc9c4\ud589\uc911','\uc9c4\ud589\uc608\uc815','\ubbf8\uc815','\ubbf8\uc9c4\ud589'],val:r.st||'\ubbf8\uc815'},'d1':{lb:tab==='prod'?'\ubc1c\uc8fc\uc77c':'\uc2dc\uc791\uc77c',tp:'date',val:r.d1||''},'d2':{lb:tab==='prod'?'\uc785\uace0\uc77c':'\uc885\ub8cc\uc77c',tp:'date',val:r.d2||''},'o':{lb:'\ubc1c\uc8fc\uc77c',tp:'date',val:r.o||''},'v':{lb:'\uc704\ud0c1\uc0ac',tp:'text',val:r.v||''},'m':{lb:'\ub2f4\ub2f9\uc790',tp:'text',val:r.m||''},'note':{lb:'\ube44\uace0',tp:'text',val:r.note||''}};
                         const f=FMAP[field]; if(!f)return;
                           let inn=`<div class="cell-pop-title">${f.lb}</div>`;
                             if(f.tp==='select'){
@@ -745,7 +745,7 @@ function openModal(pi,ri){
   document.getElementById('e-stage').value=r.c||r.sg||'';
   document.getElementById('e-sub').value=r.s||'';
   document.getElementById('e-status').value=r.st||'미정';
-  document.getElementById('l-start').textContent=tab==='prod'?'출하일':'시작일';
+  document.getElementById('l-start').textContent=tab==='prod'?'출하일':'시작일';document.getElementById('l-end').textContent=tab==='prod'?'입고일':'종료일';
   document.getElementById('e-start').value=r.d1||'';
   document.getElementById('e-order').value=r.o||'';
   document.getElementById('e-end').value=r.d2||'';
