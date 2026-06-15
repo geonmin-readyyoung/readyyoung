@@ -415,13 +415,13 @@ const DEV = [
 ];
 
 const PROD = [
-  {p:'ExoEGF', category:'연고류', r:[{sg:'1차',st:'완료',o:'',d2:'',v:'',m:''},{sg:'2차',st:'완료',o:'',d2:'',v:'',m:''}]},
-  {p:'ExoEGF Max', category:'연고류', r:[{sg:'1차',st:'완료',o:'',d2:'',v:'',m:''},{sg:'2차',st:'완료',o:'',d2:'',v:'',m:''}]},
-  {p:'Centell ACNE', category:'연고류', r:[{sg:'1차',st:'완료',o:'2026-04-20',d2:'2026-04-27',v:'',m:''},{sg:'2차',st:'완료',o:'',d2:'',v:'',m:''}]},
-  {p:'K Red Calm', category:'연고류', r:[{sg:'1차',st:'완료',o:'2026-04-21',d2:'2026-04-27',v:'그린코스',m:''},{sg:'2차',st:'완료',o:'',d2:'',v:'',m:''}]},
-  {p:'NMN Derma Glow Cream', category:'연고류', r:[{sg:'1차',st:'미정',o:'',d2:'',v:'',m:''}]},
-  {p:'JuveVolume Derma Repair Cream', category:'연고류', r:[{sg:'1차',st:'미정',o:'',d2:'',v:'',m:''}]},
-  {p:'핸드크림', category:'연고류', r:[{sg:'1차',st:'미정',o:'',d2:'',v:'',m:''}]},
+  {p:'ExoEGF', category:'연고류', r:[{sg:'1차',st:'완료',o:'',d2:'',v:'',m:'',qty:''},{sg:'2차',st:'완료',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'ExoEGF Max', category:'연고류', r:[{sg:'1차',st:'완료',o:'',d2:'',v:'',m:'',qty:''},{sg:'2차',st:'완료',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'Centell ACNE', category:'연고류', r:[{sg:'1차',st:'완료',o:'2026-04-20',d2:'2026-04-27',v:'',m:'',qty:''},{sg:'2차',st:'완료',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'K Red Calm', category:'연고류', r:[{sg:'1차',st:'완료',o:'2026-04-21',d2:'2026-04-27',v:'그린코스',m:'',qty:''},{sg:'2차',st:'완료',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'NMN Derma Glow Cream', category:'연고류', r:[{sg:'1차',st:'미정',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'JuveVolume Derma Repair Cream', category:'연고류', r:[{sg:'1차',st:'미정',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'핸드크림', category:'연고류', r:[{sg:'1차',st:'미정',o:'',d2:'',v:'',m:'',qty:''}]},
 ];
 
 
@@ -612,6 +612,7 @@ function render(){
         <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">위탁사</span>
         <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">${tab==='prod'?'발주일':'시작일'}</span>
         <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">${tab==='prod'?'입고일':'종료일'}</span>
+        ${tab==='prod'?'<span class="col-header-cell" style="width:72px;white-space:nowrap;text-align:center">발주량</span>':''}
         <span class="col-header-cell" style="width:180px;white-space:nowrap;text-align:center">비고</span>
         ${tlAxis(range)}
         <span class="col-header-cell" style="width:68px"></span>
@@ -634,6 +635,7 @@ function render(){
           <span class="row-date" data-field="v" onclick="cellPop(event,${globalPi},${realRi},'v')">${r.v||'—'}</span>
           <span class="row-date" data-field="d1" onclick="cellPop(event,${globalPi},${realRi},'d1')">${r.d1||'—'}</span>
           <span class="row-date" data-field="d2" onclick="cellPop(event,${globalPi},${realRi},'d2')">${r.d2||'—'}</span>
+          ${tab==='prod'?`<span class="row-date" data-field="qty" onclick="cellPop(event,${globalPi},${realRi},'qty')">${r.qty||'—'}</span>`:''}
           <span class="row-memo" data-field="note" onclick="cellPop(event,${globalPi},${realRi},'note')">${r.note||'—'}</span>
           ${inlineBar}
           <button class="row-edit-btn" onclick="openModal(${globalPi},${realRi})" title="수정"><span class="edit-ico">✎</span>수정</button>
@@ -707,7 +709,7 @@ function autoStatus(r){
                 closePop();
                   const r=data()[pi]?.r[ri]; if(!r)return;
                     const rect=ev.currentTarget.getBoundingClientRect();
-                      const FMAP={'st':{lb:'\ud604\ud669',tp:'select',opts:['\uc644\ub8cc','\uc9c4\ud589\uc911','\uc9c4\ud589\uc608\uc815','\ubbf8\uc815','\ubbf8\uc9c4\ud589'],val:r.st||'\ubbf8\uc815'},'d1':{lb:tab==='prod'?'\ubc1c\uc8fc\uc77c':'\uc2dc\uc791\uc77c',tp:'date',val:r.d1||''},'d2':{lb:tab==='prod'?'\uc785\uace0\uc77c':'\uc885\ub8cc\uc77c',tp:'date',val:r.d2||''},'o':{lb:'\ubc1c\uc8fc\uc77c',tp:'date',val:r.o||''},'v':{lb:'\uc704\ud0c1\uc0ac',tp:'text',val:r.v||''},'m':{lb:'\ub2f4\ub2f9\uc790',tp:'text',val:r.m||''},'note':{lb:'\ube44\uace0',tp:'text',val:r.note||''}};
+                      const FMAP={'st':{lb:'\ud604\ud669',tp:'select',opts:['\uc644\ub8cc','\uc9c4\ud589\uc911','\uc9c4\ud589\uc608\uc815','\ubbf8\uc815','\ubbf8\uc9c4\ud589'],val:r.st||'\ubbf8\uc815'},'d1':{lb:tab==='prod'?'\ubc1c\uc8fc\uc77c':'\uc2dc\uc791\uc77c',tp:'date',val:r.d1||''},'d2':{lb:tab==='prod'?'\uc785\uace0\uc77c':'\uc885\ub8cc\uc77c',tp:'date',val:r.d2||''},'o':{lb:'\ubc1c\uc8fc\uc77c',tp:'date',val:r.o||''},'v':{lb:'\uc704\ud0c1\uc0ac',tp:'text',val:r.v||''},'m':{lb:'\ub2f4\ub2f9\uc790',tp:'text',val:r.m||''},'qty':{lb:'발주량',tp:'text',val:r.qty||''},'note':{lb:'\ube44\uace0',tp:'text',val:r.note||''}};
                         const f=FMAP[field]; if(!f)return;
                           let inn=`<div class="cell-pop-title">${f.lb}</div>`;
                             if(f.tp==='select'){
@@ -838,7 +840,7 @@ function saveRowModal(){
 const s=document.getElementById('e-row-stage').value.trim();if(!s){alert('단계명을 입력하세요');return;}
 const sub=document.getElementById('e-row-sub').value.trim();
 if(tab==='dev')data()[rowAddTarget].r.push({c:s,s:sub,st:'미정',d1:'',d2:'',v:'',m:''});
-else data()[rowAddTarget].r.push({sg:s,o:sub,st:'미정',d2:'',v:'',m:''});
+else data()[rowAddTarget].r.push({sg:s,o:sub,st:'미정',d2:'',v:'',m:'',qty:''};
 closeRowModal();render();
 }
 
