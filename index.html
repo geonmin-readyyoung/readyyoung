@@ -471,13 +471,13 @@ function getGlobalDateRange(){
     })
   })
   const valid=dates.filter(d=>!isNaN(d))
-  const today=new Date() today.setHours(0,0,0,0)
+  const today=new Date(); today.setHours(0,0,0,0)
   valid.push(today)
   let min, max
   if(valid.length<2){
     const base=valid[0]||today
-    min=new Date(base) min.setDate(min.getDate()-15)
-    max=new Date(base) max.setDate(max.getDate()+15)
+    min=new Date(base); min.setDate(min.getDate()-15)
+    max=new Date(base); max.setDate(max.getDate()+15)
   } else {
     min=new Date(Math.min(...valid))
     max=new Date(Math.max(...valid))
