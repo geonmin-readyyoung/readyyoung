@@ -446,7 +446,7 @@ function tlAxis(range){
     return '<span class="col-header-cell tl-axis-cell" style="flex:1white-space:nowrap">타임라인</span>'
   }
   const fmt = d => (d.getMonth()+1)+'/'+d.getDate()
-  const today = new Date() today.setHours(0,0,0,0)
+  const today = new Date(); today.setHours(0,0,0,0)
   const totalMs = (range.max - range.min) || 86400000
   let tp = ((today - range.min) / totalMs * 100)
   tp = Math.max(0, Math.min(100, tp))
