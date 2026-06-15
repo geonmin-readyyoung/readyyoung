@@ -840,7 +840,7 @@ function saveRowModal(){
 const s=document.getElementById('e-row-stage').value.trim();if(!s){alert('단계명을 입력하세요');return;}
 const sub=document.getElementById('e-row-sub').value.trim();
 if(tab==='dev')data()[rowAddTarget].r.push({c:s,s:sub,st:'미정',d1:'',d2:'',v:'',m:''});
-else data()[rowAddTarget].r.push({sg:s,o:sub,st:'미정',d2:'',v:'',m:'',qty:''};
+else data()[rowAddTarget].r.push({sg:s,o:sub,st:'미정',d2:'',v:'',m:'',qty:''});
 closeRowModal();render();
 }
 
