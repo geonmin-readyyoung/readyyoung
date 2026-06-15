@@ -693,6 +693,7 @@ function autoStatus(r){
       const t=new Date(); t.setHours(0,0,0,0);
         if(sd&&ed){ if(t<sd)return '진행예정'; if(t>ed)return '완료'; return '진행중'; }
           if(sd){ return t<sd?'진행예정':'진행중'; }
+          if(ed){ return t>ed?'완료':'진행중'; }
             return null;
             }
 
