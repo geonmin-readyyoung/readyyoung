@@ -712,7 +712,7 @@ function autoStatus(r){
                             if(f.tp==='select'){
                                 inn+=`<select id="_cpf">${f.opts.map(o=>`<option${o===f.val?' selected':''}>${o}</option>`).join('')}</select>`;
                                   } else {
-                                                                                                                  inn+=`<input id="_cpf" type="text" ${f.tp==='date'?'placeholder="YYYY-MM-DD" maxlength="10"':''} value="${f.val}">`;
+                                                                                                                  inn+=`<input id="_cpf" type="${f.tp==='date'?'date':'text'}" ${f.tp==='date'?'min="1000-01-01" max="9999-12-31"':''} value="${f.val}">`;
                                         }
                                           inn+=`<div class="cell-pop-foot"><button class="cell-pop-cancel" onclick="closePop()">\ucde8\uc18c</button><button class="cell-pop-ok" onclick="savePop(${pi},${ri},'${field}')">\ud655\uc778</button></div>`;
                                             const pop=document.createElement('div');
