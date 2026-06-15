@@ -612,7 +612,7 @@ function render(){
         <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">위탁사</span>
         <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">${tab==='prod'?'발주일':'시작일'}</span>
         <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">${tab==='prod'?'입고일':'종료일'}</span>
-        ${tab==='prod'?'<span class="col-header-cell" style="width:72px;white-space:nowrap;text-align:center">발주량</span>':''}
+        <span class="col-header-cell" style="width:72px;white-space:nowrap;text-align:center;display:${tab==='prod'?'':'none'}">발주량</span>
         <span class="col-header-cell" style="width:180px;white-space:nowrap;text-align:center">비고</span>
         ${tlAxis(range)}
         <span class="col-header-cell" style="width:68px"></span>
@@ -635,7 +635,7 @@ function render(){
           <span class="row-date" data-field="v" onclick="cellPop(event,${globalPi},${realRi},'v')">${r.v||'—'}</span>
           <span class="row-date" data-field="d1" onclick="cellPop(event,${globalPi},${realRi},'d1')">${r.d1||'—'}</span>
           <span class="row-date" data-field="d2" onclick="cellPop(event,${globalPi},${realRi},'d2')">${r.d2||'—'}</span>
-          ${tab==='prod'?'<span class="row-date" data-field="qty" onclick="cellPop(event,'+globalPi+','+realRi+",\'qty\')">"+(r.qty||'—')+'</span>':''}
+          <span class="row-date" data-field="qty" onclick="if(tab==='prod')cellPop(event,${globalPi},${realRi},'qty')" style="display:${tab==='prod'?'':'none'}">${r.qty||'—'}</span>
           <span class="row-memo" data-field="note" onclick="cellPop(event,${globalPi},${realRi},'note')">${r.note||'—'}</span>
           ${inlineBar}
           <button class="row-edit-btn" onclick="openModal(${globalPi},${realRi})" title="수정"><span class="edit-ico">✎</span>수정</button>
