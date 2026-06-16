@@ -566,6 +566,10 @@ function toggleProd(el){
     const pi = Number(card.id.replace("pc-",""));
     const isCollapsed = card.classList.toggle("collapsed");
     if(isCollapsed){ collapsedProds.add(pi); } else { collapsedProds.delete(pi); }
+  // 접기/펼치기 상태 즉시 자동저장
+  const _cp = JSON.parse(localStorage.getItem('pharmatique_data') || '{}');
+  _cp.COLLAPSED = Array.from(collapsedProds);
+  localStorage.setItem('pharmatique_data', JSON.stringify(_cp));
 }
 
 function render(){
