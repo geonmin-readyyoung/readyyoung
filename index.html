@@ -462,14 +462,20 @@ function tlAxis(range){
 }
 function getGlobalDateRange(){
   const dates=[];
+  const activeDates=[];
   data().forEach(prod=>{
     prod.r.forEach(r=>{
       if(r.d1)dates.push(new Date(r.d1));
       if(r.o)dates.push(new Date(r.o));
       if(r.d2)dates.push(new Date(r.d2));
+      if(r.st==='진행중'){
+        if(r.d1)activeDates.push(new Date(r.d1));
+        if(r.o)activeDates.push(new Date(r.o));
+      }
     });
   });
   const valid=dates.filter(d=>!isNaN(d));
+  const activeValid=activeDates.filter(d=>!isNaN(d));
   const today=new Date(); today.setHours(0,0,0,0);
   valid.push(today);
   let min, max;
@@ -478,7 +484,7 @@ function getGlobalDateRange(){
     min=new Date(base); min.setDate(min.getDate()-15);
     max=new Date(base); max.setDate(max.getDate()+15);
   } else {
-    min=new Date(Math.min(...valid));
+    min=activeValid.length>0?new Date(Math.min(...activeValid)):new Date(Math.min(...valid));
     max=new Date(Math.max(...valid));
   }
   const span=max-min || 86400000;
