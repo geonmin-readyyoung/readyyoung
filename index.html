@@ -521,14 +521,15 @@ if(range && st !== '완료'){
 const barColor = st==='진행중' ? '#e8a56a' : '#ccc';
 const borderColor = st==='진행중' ? '#e8734a' : '#bbb';
 const startD = r.d1 ? new Date(r.d1) : r.o ? new Date(r.o) : null;
-const endD = r.d2 ? new Date(r.d2) : startD;
+// 종료일 없으면: 오늘까지 (진행중) 또는 시작일 그대로 (미정 등)
+const endD = r.d2 ? new Date(r.d2) : (st==='진행중' ? today : startD);
 if(startD && !isNaN(startD)){
 const totalMs = range.max - range.min || 86400000;
 const leftPct = Math.max(0, ((startD - range.min) / totalMs * 100));
 const rawWidth = endD ? ((endD - startD) / totalMs * 100) : 0;
-const widthPct = Math.max(rawWidth, 4);
+const widthPct = Math.max(rawWidth, 1);
 const clampedWidth = Math.min(widthPct, 100 - leftPct);
-barHtml = `<div class="row-tl-bar" style="left:${leftPct.toFixed(1)}%;width:${clampedWidth.toFixed(1)}%;background:${barColor};border:1px solid ${borderColor};" title="${r.d1||r.o||'?'} ~ ${r.d2||'?'}"></div>`;
+barHtml = `<div class="row-tl-bar" style="left:${leftPct.toFixed(1)}%;width:${clampedWidth.toFixed(1)}%;background:${barColor};border:1px solid ${borderColor};" title="${r.d1||r.o||'?'} ~ ${r.d2||'오늘'}"></div>`;
 }
 }
 
