@@ -650,6 +650,7 @@ function render(){
           <span class="row-memo" data-field="note" onclick="cellPop(event,${globalPi},${realRi},'note')">${r.note||'—'}</span>
           ${inlineBar}
           <button class="row-edit-btn" onclick="openModal(${globalPi},${realRi})" title="수정"><span class="edit-ico">✎</span>수정</button>
+<button class="row-del-btn" onclick="deleteRow(event,${globalPi},${realRi})" title="삭제">✕</button>
         </div>`;
       });
 
@@ -691,7 +692,14 @@ function dropRow(e,pi,ri){
   rows.splice(ri,0,src);
   window.dragSrc=null;render();
 }
-function deleteRow(pi,ri){if(!confirm('이 항목을 삭제하시겠습니까?'))return;data()[pi].r.splice(ri,1);render();}
+function deleteRow(ev,pi,ri){
+  ev.stopPropagation();
+  const r=data()[pi]?.r[ri];
+  const label=(r?.c||r?.sg||'이 항목');
+  if(!confirm(`"${label}"을(를) 삭제하시겠습니까?\n\n삭제된 항목은 복구할 수 없습니다.`))return;
+  data()[pi].r.splice(ri,1);
+  render();renderKPIs();
+}
 function deleteProd(pi){if(!confirm('이 제품을 삭제하시겠습니까?'))return;DEV.splice(pi,1);PROD.splice(pi,1);render();}
 
 function cellEdit(ev,pi,ri){
