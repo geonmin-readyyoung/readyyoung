@@ -703,7 +703,7 @@ function deleteRow(ev,pi,ri){
 function deleteProd(pi){if(!confirm('이 제품을 삭제하시겠습니까?'))return;DEV.splice(pi,1);PROD.splice(pi,1);render();}
 
 function cellEdit(ev,pi,ri){
-  if(ev.target.closest('.row-drag')||ev.target.closest('.row-edit-btn')) return;
+  if(ev.target.closest('.row-drag')||ev.target.closest('.row-edit-btn')||ev.target.closest('.row-del-btn')) return;
       const tgt=ev.target.closest('[data-field]');
         if(tgt){ cellPop(ev,pi,ri,tgt.dataset.field); return; }  openModal(pi,ri);
 }
