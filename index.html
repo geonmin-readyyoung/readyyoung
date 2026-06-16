@@ -10,7 +10,7 @@
   --color-text-primary: #1a1a1a;
   --color-text-secondary: #555;
   --color-text-tertiary: #888;
-  --color-background-primary: #fff;
+  --color-background-primary: #fff;h
   --color-background-secondary: #f5f5f5;
   --color-border-tertiary: #e5e5e5;
   --color-border-secondary: #d0d0d0;
@@ -862,7 +862,7 @@ const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+
 const STORAGE_KEY = 'pharmatique_data';
 
 function saveData() {
-const payload = { DEV: DEV, PROD: PROD, CATEGORIES: CATEGORIES };
+const payload = { DEV: DEV, PROD: PROD, CATEGORIES: CATEGORIES, COLLAPSED: Array.from(collapsedProds) };
 localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 const btn = document.getElementById('btn-save');
 if (btn) {
@@ -881,6 +881,7 @@ const payload = JSON.parse(raw);
 if (payload.DEV) { DEV.length = 0; payload.DEV.forEach(d => DEV.push(d)); }
 if (payload.PROD) { PROD.length = 0; payload.PROD.forEach(d => PROD.push(d)); }
 if (payload.CATEGORIES) { CATEGORIES.length = 0; payload.CATEGORIES.forEach(c => CATEGORIES.push(c)); }
+if (payload.COLLAPSED) { collapsedProds.clear(); payload.COLLAPSED.forEach(i => collapsedProds.add(i)); }
 return true;
 } catch(e) { return false; }
 }
