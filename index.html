@@ -463,27 +463,26 @@ function tlAxis(range){
 }
 function getGlobalDateRange(){
 const dates=[];
+const today=new Date(); today.setHours(0,0,0,0);
 data().forEach(prod=>{
 prod.r.forEach(r=>{
+// 완료 항목은 범위 계산에서 제외
+if((r.st||'미정')==='완료') return;
 if(r.d1)dates.push(new Date(r.d1));
 if(r.o)dates.push(new Date(r.o));
 if(r.d2)dates.push(new Date(r.d2));
 });
 });
 const valid=dates.filter(d=>!isNaN(d));
-const today=new Date(); today.setHours(0,0,0,0);
-valid.push(today);
-let min, max;
-if(valid.length<2){
-const base=valid[0]||today;
-min=new Date(base); min.setDate(min.getDate()-15);
-max=new Date(base); max.setDate(max.getDate()+15);
-} else {
-min=new Date(Math.min(...valid));
-max=new Date(Math.max(...valid));
+// 날짜 있는 항목이 없으면 오늘 기준 ±30일
+if(!valid.length){
+return {min:new Date(today.getTime()-30*86400000), max:new Date(today.getTime()+30*86400000)};
 }
+valid.push(today);
+const min=new Date(Math.min(...valid));
+const max=new Date(Math.max(...valid));
 const span=max-min || 86400000;
-const pad=Math.max(span*0.08, 7*86400000);
+const pad=Math.max(span*0.05, 3*86400000);
 return {min:new Date(min.getTime()-pad), max:new Date(max.getTime()+pad)};
 }
 function getProdDateRange(prod){
