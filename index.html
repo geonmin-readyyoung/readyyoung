@@ -462,35 +462,29 @@ function tlAxis(range){
       </span>`;
 }
 function getGlobalDateRange(){
-  const dates=[];
-  const activeDates=[];
-  data().forEach(prod=>{
-    prod.r.forEach(r=>{
-      if(r.d1)dates.push(new Date(r.d1));
-      if(r.o)dates.push(new Date(r.o));
-      if(r.d2)dates.push(new Date(r.d2));
-      if(r.st==='진행중'){
-        if(r.d1)activeDates.push(new Date(r.d1));
-        if(r.o)activeDates.push(new Date(r.o));
-      }
-    });
-  });
-  const valid=dates.filter(d=>!isNaN(d));
-  const activeValid=activeDates.filter(d=>!isNaN(d));
-  const today=new Date(); today.setHours(0,0,0,0);
-  valid.push(today);
-  let min, max;
-  if(valid.length<2){
-    const base=valid[0]||today;
-    min=new Date(base); min.setDate(min.getDate()-15);
-    max=new Date(base); max.setDate(max.getDate()+15);
-  } else {
-    min=activeValid.length>0?new Date(Math.min(...activeValid)):new Date(Math.min(...valid));
-    max=new Date(Math.max(...valid));
-  }
-  const span=max-min || 86400000;
-  const pad=Math.max(span*0.08, 7*86400000);
-  return {min:new Date(min.getTime()-pad), max:new Date(max.getTime()+pad)};
+const dates=[];
+data().forEach(prod=>{
+prod.r.forEach(r=>{
+if(r.d1)dates.push(new Date(r.d1));
+if(r.o)dates.push(new Date(r.o));
+if(r.d2)dates.push(new Date(r.d2));
+});
+});
+const valid=dates.filter(d=>!isNaN(d));
+const today=new Date(); today.setHours(0,0,0,0);
+valid.push(today);
+let min, max;
+if(valid.length<2){
+const base=valid[0]||today;
+min=new Date(base); min.setDate(min.getDate()-15);
+max=new Date(base); max.setDate(max.getDate()+15);
+} else {
+min=new Date(Math.min(...valid));
+max=new Date(Math.max(...valid));
+}
+const span=max-min || 86400000;
+const pad=Math.max(span*0.08, 7*86400000);
+return {min:new Date(min.getTime()-pad), max:new Date(max.getTime()+pad)};
 }
 function getProdDateRange(prod){
   const dates=[];
@@ -529,7 +523,7 @@ function buildInlineBar(r, range){
   let barHtml = '';
   if(range){
     const startD = r.d1 ? new Date(r.d1) : r.o ? new Date(r.o) : null;
-    const endD = r.d2 ? new Date(r.d2) : (today > startD ? today : startD);
+    const endD = r.d2 ? new Date(r.d2) : startD;
     if(startD && !isNaN(startD)){
       const totalMs = range.max - range.min || 86400000;
       const leftPct = Math.max(0, ((startD - range.min) / totalMs * 100));
