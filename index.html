@@ -295,7 +295,8 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
       <div class="field"><label>현황</label>
         <select id="e-status"><option>진행예정</option><option>진행중</option><option>완료</option><option>미정</option><option>미진행</option></select>
       </div>
-      <div class="field" id="f-start"><label id="l-start">시작일</label><input type="date" id="e-start" min="1000-01-01" max="9999-12-31"></div>
+      <div class="field" id="f-order" style="display:none"><label>발주일</label><input type="date" id="e-order" min="1000-01-01" max="9999-12-31"></div>
+<div class="field" id="f-start"><label id="l-start">시작일</label><input type="date" id="e-start" min="1000-01-01" max="9999-12-31"></div>
       <div class="field"><label id="l-end">종료일</label><input type="date" id="e-end" min="1000-01-01" max="9999-12-31"></div>
       <div class="field"><label>위탁사</label><input type="text" id="e-vendor" placeholder="—"></div>
       <div class="field"><label>담당자</label><input type="text" id="e-manager" placeholder="—"></div>
@@ -759,6 +760,7 @@ function openModal(pi,ri){
   document.getElementById('e-sub').value=r.s||'';
   document.getElementById('e-status').value=r.st||'미정';
   document.getElementById('l-start').textContent=tab==='prod'?'출하일':'시작일';document.getElementById('l-end').textContent=tab==='prod'?'입고일':'종료일';
+document.getElementById('f-order').style.display=tab==='prod'?'':'none';
   document.getElementById('e-start').value=r.d1||'';
   document.getElementById('e-order').value=r.o||'';
   document.getElementById('e-end').value=r.d2||'';
