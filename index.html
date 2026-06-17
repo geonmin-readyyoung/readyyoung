@@ -352,7 +352,9 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 </div>
 <script>
 const CATEGORIES = ['연고류', '마스크팩류'];
-const collapsedProds = new Set();
+const collapsedDev = new Set();
+const collapsedProd = new Set();
+function collapsedProds(){ return tab==='dev'?collapsedDev:collapsedProd; }
 
 const DEV = [
   {p:'ExoEGF', category:'연고류', r:[
@@ -561,10 +563,11 @@ function toggleProd(el){
     if(!card) return;
     const pi = Number(card.id.replace("pc-",""));
     const isCollapsed = card.classList.toggle("collapsed");
-    if(isCollapsed){ collapsedProds.add(pi); } else { collapsedProds.delete(pi); }
+    if(isCollapsed){ collapsedProds().add(pi); } else { collapsedProds().delete(pi); }
   // 접기/펼치기 상태 즉시 자동저장
   const _cp = JSON.parse(localStorage.getItem('pharmatique_data') || '{}');
-  _cp.COLLAPSED = Array.from(collapsedProds);
+  _cp.COLLAPSED_DEV = Array.from(collapsedDev);
+  _cp.COLLAPSED_PROD = Array.from(collapsedProd);
   localStorage.setItem('pharmatique_data', JSON.stringify(_cp));
 }
 
@@ -592,7 +595,7 @@ function render(){
       const p = pct(prod.r);
       const range = GLOBAL_RANGE;
 
-    html += `<div class="product-card${collapsedProds.has(globalPi)?' collapsed':''}" id="pc-${globalPi}" ondragover="event.preventDefault();this.classList.add('prod-drag-over')" ondragleave="this.classList.remove('prod-drag-over')" ondrop="dropProd(event,${globalPi})">
+    html += `<div class="product-card${collapsedProds().has(globalPi)?' collapsed':''}" id="pc-${globalPi}" ondragover="event.preventDefault();this.classList.add('prod-drag-over')" ondragleave="this.classList.remove('prod-drag-over')" ondrop="dropProd(event,${globalPi})">
         <div class="product-header">
           <span class="product-header-drag" draggable="true" ondragstart="dragProd(event,${globalPi})" title="드래그하여 순서 변경">⠿</span>
           <span class="product-name" onclick="toggleProd(this)" style="cursor:pointer"><span class="prod-chevron">▾</span>${prod.p}</span>
@@ -881,7 +884,7 @@ const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+
 const STORAGE_KEY = 'pharmatique_data';
 
 function saveData() {
-const payload = { DEV: DEV, PROD: PROD, CATEGORIES: CATEGORIES, COLLAPSED: Array.from(collapsedProds) };
+const payload = { DEV: DEV, PROD: PROD, CATEGORIES: CATEGORIES, COLLAPSED_DEV: Array.from(collapsedDev), COLLAPSED_PROD: Array.from(collapsedProd) };
 localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 const btn = document.getElementById('btn-save');
 if (btn) {
@@ -900,7 +903,10 @@ const payload = JSON.parse(raw);
 if (payload.DEV) { DEV.length = 0; payload.DEV.forEach(d => DEV.push(d)); }
 if (payload.PROD) { PROD.length = 0; payload.PROD.forEach(d => PROD.push(d)); }
 if (payload.CATEGORIES) { CATEGORIES.length = 0; payload.CATEGORIES.forEach(c => CATEGORIES.push(c)); }
-if (payload.COLLAPSED) { collapsedProds.clear(); payload.COLLAPSED.forEach(i => collapsedProds.add(i)); }
+if (payload.COLLAPSED_DEV) { collapsedDev.clear(); payload.COLLAPSED_DEV.forEach(i => collapsedDev.add(i)); }
+    if (payload.COLLAPSED_PROD) { collapsedProd.clear(); payload.COLLAPSED_PROD.forEach(i => collapsedProd.add(i)); }
+    // 구버전 호환
+    if (payload.COLLAPSED && !payload.COLLAPSED_DEV) { collapsedDev.clear(); payload.COLLAPSED.forEach(i => collapsedDev.add(i)); }
 return true;
 } catch(e) { return false; }
 }
