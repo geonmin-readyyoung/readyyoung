@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>파마티크 진행현황</title>
+<title>íë§í°í¬ ì§ííí©</title>
 <style>
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -43,7 +43,7 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 .csv-btn { margin-left: auto; display: flex; align-items: center; gap: 5px; padding: 5px 12px; font-size: 13px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: transparent; color: var(--color-text-secondary); cursor: pointer; }
 .csv-btn:hover { background: var(--color-background-secondary); }
 
-/* 카테고리 */
+/* ì¹´íê³ ë¦¬ */
 .cat-section { margin-bottom: 24px; }
 .cat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 0 4px; }
 .cat-title { font-size: 16px; font-weight: 600; color: var(--color-text-primary); }
@@ -53,7 +53,7 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 .btn-add-prod { font-size: 12px; padding: 4px 10px; border: 0.5px solid var(--color-border-secondary); border-radius: 6px; background: #fff; color: var(--color-text-secondary); cursor: pointer; }
 .btn-add-prod:hover { background: var(--color-background-secondary); }
 
-/* 제품 카드 */
+/* ì í ì¹´ë */
 .product-card { background: #fff; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); margin-bottom: 8px; overflow: hidden; }
 .product-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #fafafa; border-bottom: 0.5px solid var(--color-border-tertiary); }
 .product-header-drag { color: #ccc; cursor: grab; font-size: 14px; flex-shrink: 0; }
@@ -70,7 +70,7 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 .btn-del-prod { font-size: 11px; padding: 3px 8px; border: 0.5px solid #f5c4b8; border-radius: 5px; background: #fff; color: var(--color-accent); cursor: pointer; }
 .btn-del-prod:hover { background: var(--color-accent-light); }
 
-/* 행 */
+/* í */
 .row-item { display: flex; align-items: center; border-top: 0.5px solid var(--color-border-tertiary); transition: background .1s; cursor: pointer; }
 .row-drag { cursor: grab; }
 .row-edit-btn { cursor: pointer; }
@@ -87,7 +87,7 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 .row-note { font-size: 11px; color: var(--color-text-tertiary); width: 72px; padding: 10px 8px; flex-shrink: 0; box-sizing: border-box; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-memo { font-size: 11px; color: var(--color-text-tertiary); width: 180px; padding: 10px 8px; flex-shrink: 0; box-sizing: border-box; text-align: center; white-space: normal; word-break: break-word; line-height: 1.4; }
 
-/* 인라인 타임라인 바 */
+/* ì¸ë¼ì¸ íìë¼ì¸ ë° */
 .row-tl-wrap {
   flex: 1;
   min-width: 120px;
@@ -105,7 +105,7 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
   position: relative;
   overflow: visible;
 }
-/* 오늘 기준선 */
+/* ì¤ë ê¸°ì¤ì  */
 .row-tl-today {
     position: absolute;
     top: -5px;
@@ -118,7 +118,7 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
     background: transparent;
     z-index: 3;
 }
-/* 간트 바 */
+/* ê°í¸ ë° */
 .row-tl-bar {
   position: absolute;
   top: 0;
@@ -127,13 +127,13 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
   z-index: 1;
 }
 
-/* 편집/삭제 버튼 */
+/* í¸ì§/ì­ì  ë²í¼ */
 .row-edit-btn { display: inline-flex; align-items: center; gap: 5px; background: #fff; border: 1px solid var(--color-border-secondary); cursor: pointer; padding: 5px 11px; color: var(--color-text-secondary); font-size: 12px; line-height: 1; border-radius: 8px; flex-shrink: 0; margin-left: 10px; white-space: nowrap; width: 58px; justify-content: center; }
 .row-edit-btn:hover { background: #fff5f0; border-color: #e8734a; color: #e8734a; }
 .row-del-btn { background: transparent; border: none; cursor: pointer; padding: 6px 5px; color: #ccc; font-size: 12px; border-radius: 4px; flex-shrink: 0; margin-right: 4px; }
 .row-del-btn:hover { color: var(--color-accent); background: var(--color-accent-light); }
 
-/* 배지 */
+/* ë°°ì§ */
 .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 500; white-space: nowrap; }
 .b-done { background: #EAF3DE; color: #27500A; }
 .b-wip { background: #E6F1FB; color: #0C447C; }
@@ -147,7 +147,7 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 .b-none { background: #FEE2E2; color: #991B1B; }
 .dot-none { background: #DC2626; }
 
-/* 모달 */
+/* ëª¨ë¬ */
 #modal-wrap,#cat-modal-wrap,#prod-modal-wrap,#row-modal-wrap { position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center; }
 #modal-wrap.hidden,#cat-modal-wrap.hidden,#prod-modal-wrap.hidden,#row-modal-wrap.hidden { display:none; }
 .modal-bg { background:rgba(0,0,0,0.4);position:fixed;inset:0;display:flex;align-items:center;justify-content:center; }
@@ -161,7 +161,7 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 .btn-sec { padding:6px 14px;font-size:13px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:transparent;cursor:pointer;color:var(--color-text-primary); }
 .btn-pri { padding:6px 14px;font-size:13px;border:0.5px solid var(--color-border-primary);border-radius:var(--border-radius-md);background:var(--color-text-primary);color:#fff;cursor:pointer; }
 .hidden { display:none; }
-/* 컬럼 헤더 행 */
+/* ì»¬ë¼ í¤ë í */
 .col-header {
   display: flex;
   align-items: center;
@@ -235,22 +235,24 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 .prod-chevron { display: inline-block; margin-right: 6px; font-size:14px; color: var(--color-text-tertiary); transition: transform 0.15s ease; }
 .product-card.collapsed .prod-chevron { transform: rotate(-90deg); }
 .product-card.collapsed .card-rows { display: none; }
+/* product drag-over highlight */
+.product-card.prod-drag-over { outline: 2px dashed #e8734a; background: #fff8f5; }
 
 </style>
 </head>
 <body>
-<h2 class="sr-only">파마티크 제품 진행현황 관리</h2>
+<h2 class="sr-only">íë§í°í¬ ì í ì§ííí© ê´ë¦¬</h2>
 
 <div class="wrap">
   <div class="header">
     <div class="header-left">
-      <h1>파마티크 진행현황</h1>
-      <p class="header-sub">2026년 6월 4일 기준</p>
+      <h1>íë§í°í¬ ì§ííí©</h1>
+      <p class="header-sub">2026ë 6ì 4ì¼ ê¸°ì¤</p>
     </div>
     <div class="header-right">
-      <span class="badge badge-today">오늘 6/4</span>
-      <span class="badge badge-live">● 실시간 연결됨</span>
-      <button class="btn-save" onclick="saveData()" id="btn-save">💾 저장</button>
+      <span class="badge badge-today">ì¤ë 6/4</span>
+      <span class="badge badge-live">â ì¤ìê° ì°ê²°ë¨</span>
+      <button class="btn-save" onclick="saveData()" id="btn-save">ð¾ ì ì¥</button>
     </div>
   </div>
 
@@ -259,27 +261,27 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
   <div class="catfilter" id="catfilter"></div>
 
   <div class="nav-pills">
-    <button class="pill on" onclick="switchTab('dev',this)">개발 일정</button>
-    <button class="pill" onclick="switchTab('prod',this)">생산 일정</button>
+    <button class="pill on" onclick="switchTab('dev',this)">ê°ë° ì¼ì </button>
+    <button class="pill" onclick="switchTab('prod',this)">ìì° ì¼ì </button>
   </div>
 
   <div class="legendbar">
     <div class="legend">
-      <span class="lg"><i class="lg-sw" style="background:#3B6D11"></i>완료</span>
-      <span class="lg"><i class="lg-sw" style="background:#e8a56a"></i>진행중</span>
-      <span class="lg"><i class="lg-sw" style="background:#ccc"></i>미정</span>
-      <span class="lg"><i class="lg-sw" style="background:#DC2626"></i>미진행</span>
-            <span class="lg"><i class="lg-sw" style="background:#e03131"></i>오늘</span>
+      <span class="lg"><i class="lg-sw" style="background:#3B6D11"></i>ìë£</span>
+      <span class="lg"><i class="lg-sw" style="background:#e8a56a"></i>ì§íì¤</span>
+      <span class="lg"><i class="lg-sw" style="background:#ccc"></i>ë¯¸ì </span>
+      <span class="lg"><i class="lg-sw" style="background:#DC2626"></i>ë¯¸ì§í</span>
+            <span class="lg"><i class="lg-sw" style="background:#e03131"></i>ì¤ë</span>
     </div>
     <div class="legend-right">
       <select id="sf" onchange="render()" class="sf-hidden">
-        <option value="">전체</option>
-        <option value="완료">완료</option>
-        <option value="진행중">진행중</option>
-        <option value="미정">미정</option>
-        <option value="미진행">미진행</option>
+        <option value="">ì ì²´</option>
+        <option value="ìë£">ìë£</option>
+        <option value="ì§íì¤">ì§íì¤</option>
+        <option value="ë¯¸ì ">ë¯¸ì </option>
+        <option value="ë¯¸ì§í">ë¯¸ì§í</option>
       </select>
-      <span class="hint">⠿ 드래그로 순서 변경 · 셀 클릭으로 수정</span>
+      <span class="hint">â ¿ ëëê·¸ë¡ ìì ë³ê²½ Â· ì í´ë¦­ì¼ë¡ ìì </span>
     </div>
   </div>
 
@@ -289,21 +291,21 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 <div id="modal-wrap" class="hidden">
   <div class="modal-bg">
     <div class="modal-box">
-      <h3 id="modal-title">항목 수정</h3>
-      <div class="field"><label>단계</label><input type="text" id="e-stage" placeholder="—"></div>
-      <div class="field"><label>세부</label><input type="text" id="e-sub" placeholder="—"></div>
-      <div class="field"><label>현황</label>
-        <select id="e-status"><option>진행예정</option><option>진행중</option><option>완료</option><option>미정</option><option>미진행</option></select>
+      <h3 id="modal-title">í­ëª© ìì </h3>
+      <div class="field"><label>ë¨ê³</label><input type="text" id="e-stage" placeholder="â"></div>
+      <div class="field"><label>ì¸ë¶</label><input type="text" id="e-sub" placeholder="â"></div>
+      <div class="field"><label>íí©</label>
+        <select id="e-status"><option>ì§íìì </option><option>ì§íì¤</option><option>ìë£</option><option>ë¯¸ì </option><option>ë¯¸ì§í</option></select>
       </div>
-      <div class="field" id="f-order" style="display:none"><label>발주일</label><input type="date" id="e-order" min="1000-01-01" max="9999-12-31"></div>
-<div class="field" id="f-start"><label id="l-start">시작일</label><input type="date" id="e-start" min="1000-01-01" max="9999-12-31"></div>
-      <div class="field"><label id="l-end">종료일</label><input type="date" id="e-end" min="1000-01-01" max="9999-12-31"></div>
-      <div class="field"><label>위탁사</label><input type="text" id="e-vendor" placeholder="—"></div>
-      <div class="field"><label>담당자</label><input type="text" id="e-manager" placeholder="—"></div>
-      <div class="field"><label>비고</label><textarea id="e-note" rows="2" placeholder="—"></textarea></div>
+      <div class="field" id="f-order" style="display:none"><label>ë°ì£¼ì¼</label><input type="date" id="e-order" min="1000-01-01" max="9999-12-31"></div>
+<div class="field" id="f-start"><label id="l-start">ììì¼</label><input type="date" id="e-start" min="1000-01-01" max="9999-12-31"></div>
+      <div class="field"><label id="l-end">ì¢ë£ì¼</label><input type="date" id="e-end" min="1000-01-01" max="9999-12-31"></div>
+      <div class="field"><label>ìíì¬</label><input type="text" id="e-vendor" placeholder="â"></div>
+      <div class="field"><label>ë´ë¹ì</label><input type="text" id="e-manager" placeholder="â"></div>
+      <div class="field"><label>ë¹ê³ </label><textarea id="e-note" rows="2" placeholder="â"></textarea></div>
       <div class="modal-footer">
-        <button class="btn-sec" onclick="closeModal()">취소</button>
-        <button class="btn-pri" onclick="saveModal()">저장</button>
+        <button class="btn-sec" onclick="closeModal()">ì·¨ì</button>
+        <button class="btn-pri" onclick="saveModal()">ì ì¥</button>
       </div>
     </div>
   </div>
@@ -312,11 +314,11 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 <div id="cat-modal-wrap" class="hidden">
   <div class="modal-bg">
     <div class="modal-box">
-      <h3>카테고리 수정</h3>
-      <div class="field"><label>카테고리명</label><input type="text" id="e-cat-name" placeholder="카테고리명"></div>
+      <h3>ì¹´íê³ ë¦¬ ìì </h3>
+      <div class="field"><label>ì¹´íê³ ë¦¬ëª</label><input type="text" id="e-cat-name" placeholder="ì¹´íê³ ë¦¬ëª"></div>
       <div class="modal-footer">
-        <button class="btn-sec" onclick="closeCatModal()">취소</button>
-        <button class="btn-pri" onclick="saveCatModal()">저장</button>
+        <button class="btn-sec" onclick="closeCatModal()">ì·¨ì</button>
+        <button class="btn-pri" onclick="saveCatModal()">ì ì¥</button>
       </div>
     </div>
   </div>
@@ -325,11 +327,11 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 <div id="prod-modal-wrap" class="hidden">
   <div class="modal-bg">
     <div class="modal-box">
-      <h3 id="prod-modal-title">제품 추가</h3>
-      <div class="field"><label>제품명</label><input type="text" id="e-prod-name" placeholder="제품명"></div>
+      <h3 id="prod-modal-title">ì í ì¶ê°</h3>
+      <div class="field"><label>ì íëª</label><input type="text" id="e-prod-name" placeholder="ì íëª"></div>
       <div class="modal-footer">
-        <button class="btn-sec" onclick="closeProdModal()">취소</button>
-        <button class="btn-pri" onclick="saveProdModal()">저장</button>
+        <button class="btn-sec" onclick="closeProdModal()">ì·¨ì</button>
+        <button class="btn-pri" onclick="saveProdModal()">ì ì¥</button>
       </div>
     </div>
   </div>
@@ -338,91 +340,91 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 <div id="row-modal-wrap" class="hidden">
   <div class="modal-bg">
     <div class="modal-box">
-      <h3>항목 추가</h3>
-      <div class="field"><label>단계</label><input type="text" id="e-row-stage" placeholder="단계명"></div>
-      <div class="field"><label>세부</label><input type="text" id="e-row-sub" placeholder="세부 (선택)"></div>
+      <h3>í­ëª© ì¶ê°</h3>
+      <div class="field"><label>ë¨ê³</label><input type="text" id="e-row-stage" placeholder="ë¨ê³ëª"></div>
+      <div class="field"><label>ì¸ë¶</label><input type="text" id="e-row-sub" placeholder="ì¸ë¶ (ì í)"></div>
       <div class="modal-footer">
-        <button class="btn-sec" onclick="closeRowModal()">취소</button>
-        <button class="btn-pri" onclick="saveRowModal()">저장</button>
+        <button class="btn-sec" onclick="closeRowModal()">ì·¨ì</button>
+        <button class="btn-pri" onclick="saveRowModal()">ì ì¥</button>
       </div>
     </div>
   </div>
 </div>
 <script>
-const CATEGORIES = ['연고류', '마스크팩류'];
+const CATEGORIES = ['ì°ê³ ë¥', 'ë§ì¤í¬í©ë¥'];
 const collapsedProds = new Set();
 
 const DEV = [
-  {p:'ExoEGF', category:'연고류', r:[
-    {c:'제품 처방 설정',s:'',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'임상',s:'',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'문안',s:'튜브',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'문안',s:'단상자',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'문안',s:'RRP',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'POP',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'와블러',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'매대',st:'완료',d1:'',d2:'',v:'',m:''},
+  {p:'ExoEGF', category:'ì°ê³ ë¥', r:[
+    {c:'ì í ì²ë°© ì¤ì ',s:'',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ìì',s:'',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë¬¸ì',s:'íë¸',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë¬¸ì',s:'ë¨ìì',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë¬¸ì',s:'RRP',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'POP',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'ìë¸ë¬',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'ë§¤ë',st:'ìë£',d1:'',d2:'',v:'',m:''},
   ]},
-  {p:'Centell ACNE', category:'연고류', r:[
-    {c:'제품 처방 설정',s:'',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'임상',s:'',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'문안',s:'튜브',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'문안',s:'단상자',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'문안',s:'RRP',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'POP',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'와블러',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'매대',st:'완료',d1:'',d2:'',v:'',m:''},
+  {p:'Centell ACNE', category:'ì°ê³ ë¥', r:[
+    {c:'ì í ì²ë°© ì¤ì ',s:'',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ìì',s:'',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë¬¸ì',s:'íë¸',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë¬¸ì',s:'ë¨ìì',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë¬¸ì',s:'RRP',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'POP',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'ìë¸ë¬',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'ë§¤ë',st:'ìë£',d1:'',d2:'',v:'',m:''},
   ]},
-  {p:'K Red Calm', category:'연고류', r:[
-    {c:'제품 처방 설정',s:'',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'임상',s:'',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'문안',s:'튜브',st:'완료',d1:'',d2:'',v:'그린코스',m:''},
-    {c:'문안',s:'단상자',st:'완료',d1:'',d2:'',v:'그린코스',m:''},
-    {c:'문안',s:'RRP',st:'완료',d1:'',d2:'',v:'그린코스',m:''},
-    {c:'마케팅',s:'POP',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'와블러',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'매대',st:'미정',d1:'',d2:'',v:'',m:''},
+  {p:'K Red Calm', category:'ì°ê³ ë¥', r:[
+    {c:'ì í ì²ë°© ì¤ì ',s:'',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ìì',s:'',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ë¬¸ì',s:'íë¸',st:'ìë£',d1:'',d2:'',v:'ê·¸ë¦°ì½ì¤',m:''},
+    {c:'ë¬¸ì',s:'ë¨ìì',st:'ìë£',d1:'',d2:'',v:'ê·¸ë¦°ì½ì¤',m:''},
+    {c:'ë¬¸ì',s:'RRP',st:'ìë£',d1:'',d2:'',v:'ê·¸ë¦°ì½ì¤',m:''},
+    {c:'ë§ì¼í',s:'POP',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'ìë¸ë¬',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'ë§¤ë',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
   ]},
-  {p:'NMN Derma Glow Cream', category:'연고류', r:[
-    {c:'제품 처방 설정',s:'',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'임상',s:'',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'문안',s:'튜브',st:'진행중',d1:'2026-04-10',d2:'',v:'그린코스',m:''},
-    {c:'문안',s:'단상자',st:'진행중',d1:'2026-04-10',d2:'',v:'그린코스',m:''},
-    {c:'문안',s:'RRP',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'POP',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'와블러',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'매대',st:'미정',d1:'',d2:'',v:'',m:''},
+  {p:'NMN Derma Glow Cream', category:'ì°ê³ ë¥', r:[
+    {c:'ì í ì²ë°© ì¤ì ',s:'',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ìì',s:'',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë¬¸ì',s:'íë¸',st:'ì§íì¤',d1:'2026-04-10',d2:'',v:'ê·¸ë¦°ì½ì¤',m:''},
+    {c:'ë¬¸ì',s:'ë¨ìì',st:'ì§íì¤',d1:'2026-04-10',d2:'',v:'ê·¸ë¦°ì½ì¤',m:''},
+    {c:'ë¬¸ì',s:'RRP',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'POP',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'ìë¸ë¬',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'ë§¤ë',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
   ]},
-  {p:'JuveVolume Derma Repair Cream', category:'연고류', r:[
-    {c:'제품 처방 설정',s:'',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'임상',s:'',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'문안',s:'튜브',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'문안',s:'단상자',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'문안',s:'RRP',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'POP',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'와블러',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'매대',st:'미정',d1:'',d2:'',v:'',m:''},
+  {p:'JuveVolume Derma Repair Cream', category:'ì°ê³ ë¥', r:[
+    {c:'ì í ì²ë°© ì¤ì ',s:'',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ìì',s:'',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë¬¸ì',s:'íë¸',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë¬¸ì',s:'ë¨ìì',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë¬¸ì',s:'RRP',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'POP',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'ìë¸ë¬',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'ë§¤ë',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
   ]},
-  {p:'핸드크림', category:'연고류', r:[
-    {c:'제품 처방 설정',s:'',st:'완료',d1:'',d2:'',v:'',m:''},
-    {c:'임상',s:'',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'문안',s:'튜브',st:'진행중',d1:'2026-04-10',d2:'',v:'그린코스',m:''},
-    {c:'문안',s:'단상자',st:'진행중',d1:'2026-04-10',d2:'',v:'그린코스',m:''},
-    {c:'문안',s:'RRP',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'POP',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'와블러',st:'미정',d1:'',d2:'',v:'',m:''},
-    {c:'마케팅',s:'매대',st:'미정',d1:'',d2:'',v:'',m:''},
+  {p:'í¸ëí¬ë¦¼', category:'ì°ê³ ë¥', r:[
+    {c:'ì í ì²ë°© ì¤ì ',s:'',st:'ìë£',d1:'',d2:'',v:'',m:''},
+    {c:'ìì',s:'',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë¬¸ì',s:'íë¸',st:'ì§íì¤',d1:'2026-04-10',d2:'',v:'ê·¸ë¦°ì½ì¤',m:''},
+    {c:'ë¬¸ì',s:'ë¨ìì',st:'ì§íì¤',d1:'2026-04-10',d2:'',v:'ê·¸ë¦°ì½ì¤',m:''},
+    {c:'ë¬¸ì',s:'RRP',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'POP',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'ìë¸ë¬',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
+    {c:'ë§ì¼í',s:'ë§¤ë',st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''},
   ]},
 ];
 
 const PROD = [
-  {p:'ExoEGF', category:'연고류', r:[{sg:'1차',st:'완료',o:'',d2:'',v:'',m:'',qty:''},{sg:'2차',st:'완료',o:'',d2:'',v:'',m:'',qty:''}]},
-  {p:'ExoEGF Max', category:'연고류', r:[{sg:'1차',st:'완료',o:'',d2:'',v:'',m:'',qty:''},{sg:'2차',st:'완료',o:'',d2:'',v:'',m:'',qty:''}]},
-  {p:'Centell ACNE', category:'연고류', r:[{sg:'1차',st:'완료',o:'2026-04-20',d2:'2026-04-27',v:'',m:'',qty:''},{sg:'2차',st:'완료',o:'',d2:'',v:'',m:'',qty:''}]},
-  {p:'K Red Calm', category:'연고류', r:[{sg:'1차',st:'완료',o:'2026-04-21',d2:'2026-04-27',v:'그린코스',m:'',qty:''},{sg:'2차',st:'완료',o:'',d2:'',v:'',m:'',qty:''}]},
-  {p:'NMN Derma Glow Cream', category:'연고류', r:[{sg:'1차',st:'미정',o:'',d2:'',v:'',m:'',qty:''}]},
-  {p:'JuveVolume Derma Repair Cream', category:'연고류', r:[{sg:'1차',st:'미정',o:'',d2:'',v:'',m:'',qty:''}]},
-  {p:'핸드크림', category:'연고류', r:[{sg:'1차',st:'미정',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'ExoEGF', category:'ì°ê³ ë¥', r:[{sg:'1ì°¨',st:'ìë£',o:'',d2:'',v:'',m:'',qty:''},{sg:'2ì°¨',st:'ìë£',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'ExoEGF Max', category:'ì°ê³ ë¥', r:[{sg:'1ì°¨',st:'ìë£',o:'',d2:'',v:'',m:'',qty:''},{sg:'2ì°¨',st:'ìë£',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'Centell ACNE', category:'ì°ê³ ë¥', r:[{sg:'1ì°¨',st:'ìë£',o:'2026-04-20',d2:'2026-04-27',v:'',m:'',qty:''},{sg:'2ì°¨',st:'ìë£',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'K Red Calm', category:'ì°ê³ ë¥', r:[{sg:'1ì°¨',st:'ìë£',o:'2026-04-21',d2:'2026-04-27',v:'ê·¸ë¦°ì½ì¤',m:'',qty:''},{sg:'2ì°¨',st:'ìë£',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'NMN Derma Glow Cream', category:'ì°ê³ ë¥', r:[{sg:'1ì°¨',st:'ë¯¸ì ',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'JuveVolume Derma Repair Cream', category:'ì°ê³ ë¥', r:[{sg:'1ì°¨',st:'ë¯¸ì ',o:'',d2:'',v:'',m:'',qty:''}]},
+  {p:'í¸ëí¬ë¦¼', category:'ì°ê³ ë¥', r:[{sg:'1ì°¨',st:'ë¯¸ì ',o:'',d2:'',v:'',m:'',qty:''}]},
 ];
 
 
@@ -432,18 +434,18 @@ const PROD = [
 let tab = 'dev', activeCat = 'ALL', editTarget = null, catEditTarget = null, prodEditTarget = null, prodAddCat = null, rowAddTarget = null;
 
 function data(){return tab==='dev'?DEV:PROD;}
-function pct(r){return r.length?Math.round(r.filter(x=>x.st==='완료').length/r.length*100):0;}
+function pct(r){return r.length?Math.round(r.filter(x=>x.st==='ìë£').length/r.length*100):0;}
 function progColor(p){return p===100?'#3B6D11':p>0?'#185FA5':'#B4B2A9';}
 function bdg(st){
-  const cls=st==='완료'?'b-done':st==='진행중'?'b-wip':st==='진행예정'?'b-soon':st==='미진행'?'b-none':'b-tbd';
-  const dcls=st==='완료'?'dot-done':st==='진행중'?'dot-wip':st==='진행예정'?'dot-soon':st==='미진행'?'dot-none':'dot-tbd';
+  const cls=st==='ìë£'?'b-done':st==='ì§íì¤'?'b-wip':st==='ì§íìì '?'b-soon':st==='ë¯¸ì§í'?'b-none':'b-tbd';
+  const dcls=st==='ìë£'?'dot-done':st==='ì§íì¤'?'dot-wip':st==='ì§íìì '?'dot-soon':st==='ë¯¸ì§í'?'dot-none':'dot-tbd';
   return `<span class="badge ${cls}"><span class="dot ${dcls}"></span>${st}</span>`;
 }
 
-/* 제품 내 날짜 범위 계산 */
+/* ì í ë´ ë ì§ ë²ì ê³ì° */
 function tlAxis(range){
   if(!range){
-    return '<span class="col-header-cell tl-axis-cell" style="flex:1;white-space:nowrap">타임라인</span>';
+    return '<span class="col-header-cell tl-axis-cell" style="flex:1;white-space:nowrap">íìë¼ì¸</span>';
   }
   const fmt = d => (d.getMonth()+1)+'/'+d.getDate();
   const today = new Date(); today.setHours(0,0,0,0);
@@ -455,7 +457,7 @@ function tlAxis(range){
         <span class="tl-axis">
           <span class="tl-axis-inner">
             <span class="tl-axis-start">${fmt(range.min)}</span>
-                        ${showToday ? `<span class="tl-axis-legend"><span class="tl-axis-legend-tri"></span>= 오늘</span>` : ''}
+                        ${showToday ? `<span class="tl-axis-legend"><span class="tl-axis-legend-tri"></span>= ì¤ë</span>` : ''}
             <span class="tl-axis-end">${fmt(range.max)}</span>
           </span>
         </span>
@@ -466,15 +468,15 @@ const dates=[];
 const today=new Date(); today.setHours(0,0,0,0);
 data().forEach(prod=>{
 prod.r.forEach(r=>{
-// 완료 항목은 범위 계산에서 제외
-if((r.st||'미정')==='완료') return;
+// ìë£ í­ëª©ì ë²ì ê³ì°ìì ì ì¸
+if((r.st||'ë¯¸ì ')==='ìë£') return;
 if(r.d1)dates.push(new Date(r.d1));
 if(r.o)dates.push(new Date(r.o));
 if(r.d2)dates.push(new Date(r.d2));
 });
 });
 const valid=dates.filter(d=>!isNaN(d));
-// 날짜 있는 항목이 없으면 오늘 기준 ±30일
+// ë ì§ ìë í­ëª©ì´ ìì¼ë©´ ì¤ë ê¸°ì¤ Â±30ì¼
 if(!valid.length){
 return {min:new Date(today.getTime()-30*86400000), max:new Date(today.getTime()+30*86400000)};
 }
@@ -497,12 +499,12 @@ function getProdDateRange(prod){
   return {min:new Date(Math.min(...valid)), max:new Date(Math.max(...valid))};
 }
 
-/* 인라인 타임라인 바 HTML 생성 */
+/* ì¸ë¼ì¸ íìë¼ì¸ ë° HTML ìì± */
 function buildInlineBar(r, range){
 const today = new Date();
 today.setHours(0,0,0,0);
 
-// 오늘 위치 계산
+// ì¤ë ìì¹ ê³ì°
 let todayPct = null;
 if(range){
 const totalMs = range.max - range.min || 86400000;
@@ -514,22 +516,22 @@ const todayLine = range
 ? `<div class="row-tl-today" style="left:${todayPct.toFixed(1)}%"></div>`
 : `<div class="row-tl-today" style="left:100%"></div>`;
 
-// 완료 항목은 바 표시 안 함
-const st = r.st || '미정';
+// ìë£ í­ëª©ì ë° íì ì í¨
+const st = r.st || 'ë¯¸ì ';
 let barHtml = '';
-if(range && st !== '완료'){
-const barColor = st==='진행중' ? '#e8a56a' : '#ccc';
-const borderColor = st==='진행중' ? '#e8734a' : '#bbb';
+if(range && st !== 'ìë£'){
+const barColor = st==='ì§íì¤' ? '#e8a56a' : '#ccc';
+const borderColor = st==='ì§íì¤' ? '#e8734a' : '#bbb';
 const startD = r.d1 ? new Date(r.d1) : r.o ? new Date(r.o) : null;
-// 종료일 없으면: 오늘까지 (진행중) 또는 시작일 그대로 (미정 등)
-const endD = r.d2 ? new Date(r.d2) : (st==='진행중' ? today : startD);
+// ì¢ë£ì¼ ìì¼ë©´: ì¤ëê¹ì§ (ì§íì¤) ëë ììì¼ ê·¸ëë¡ (ë¯¸ì  ë±)
+const endD = r.d2 ? new Date(r.d2) : (st==='ì§íì¤' ? today : startD);
 if(startD && !isNaN(startD)){
 const totalMs = range.max - range.min || 86400000;
 const leftPct = Math.max(0, ((startD - range.min) / totalMs * 100));
 const rawWidth = endD ? ((endD - startD) / totalMs * 100) : 0;
 const widthPct = Math.max(rawWidth, 1);
 const clampedWidth = Math.min(widthPct, 100 - leftPct);
-barHtml = `<div class="row-tl-bar" style="left:${leftPct.toFixed(1)}%;width:${clampedWidth.toFixed(1)}%;background:${barColor};border:1px solid ${borderColor};" title="${r.d1||r.o||'?'} ~ ${r.d2||'오늘'}"></div>`;
+barHtml = `<div class="row-tl-bar" style="left:${leftPct.toFixed(1)}%;width:${clampedWidth.toFixed(1)}%;background:${barColor};border:1px solid ${borderColor};" title="${r.d1||r.o||'?'} ~ ${r.d2||'ì¤ë'}"></div>`;
 }
 }
 
@@ -543,16 +545,16 @@ ${barHtml}
 function renderKPIs(){
   const all=data();
   const rows=all.flatMap(p=>p.r);
-  const total=rows.length,done=rows.filter(r=>r.st==='완료').length,wip=rows.filter(r=>r.st==='진행중').length,tbd=rows.filter(r=>r.st==='미정').length;
+  const total=rows.length,done=rows.filter(r=>r.st==='ìë£').length,wip=rows.filter(r=>r.st==='ì§íì¤').length,tbd=rows.filter(r=>r.st==='ë¯¸ì ').length;
   const prodCount=all.length;
   const catCount=CATEGORIES.length;
   document.getElementById('kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-label">전체 항목</div><div class="kpi-val">${total}</div></div>
-    <div class="kpi"><div class="kpi-label">완료</div><div class="kpi-val" style="color:#27600A">${done}</div></div>
-    <div class="kpi"><div class="kpi-label">진행중</div><div class="kpi-val" style="color:#C77D2E">${wip}</div></div>
-    <div class="kpi"><div class="kpi-label">미정</div><div class="kpi-val" style="color:#888">${tbd}</div></div>
-    <div class="kpi"><div class="kpi-label">제품 수</div><div class="kpi-val">${prodCount}</div></div>
-    <div class="kpi"><div class="kpi-label">카테고리</div><div class="kpi-val">${catCount}</div></div>`;
+    <div class="kpi"><div class="kpi-label">ì ì²´ í­ëª©</div><div class="kpi-val">${total}</div></div>
+    <div class="kpi"><div class="kpi-label">ìë£</div><div class="kpi-val" style="color:#27600A">${done}</div></div>
+    <div class="kpi"><div class="kpi-label">ì§íì¤</div><div class="kpi-val" style="color:#C77D2E">${wip}</div></div>
+    <div class="kpi"><div class="kpi-label">ë¯¸ì </div><div class="kpi-val" style="color:#888">${tbd}</div></div>
+    <div class="kpi"><div class="kpi-label">ì í ì</div><div class="kpi-val">${prodCount}</div></div>
+    <div class="kpi"><div class="kpi-label">ì¹´íê³ ë¦¬</div><div class="kpi-val">${catCount}</div></div>`;
 }
 function toggleProd(el){
     const card = el.closest(".product-card");
@@ -560,7 +562,7 @@ function toggleProd(el){
     const pi = Number(card.id.replace("pc-",""));
     const isCollapsed = card.classList.toggle("collapsed");
     if(isCollapsed){ collapsedProds.add(pi); } else { collapsedProds.delete(pi); }
-  // 접기/펼치기 상태 즉시 자동저장
+  // ì ê¸°/í¼ì¹ê¸° ìí ì¦ì ìëì ì¥
   const _cp = JSON.parse(localStorage.getItem('pharmatique_data') || '{}');
   _cp.COLLAPSED = Array.from(collapsedProds);
   localStorage.setItem('pharmatique_data', JSON.stringify(_cp));
@@ -579,29 +581,29 @@ function render(){
       <div class="cat-header">
         <div class="cat-header-left"><span class="cat-title">${cat}</span></div>
         <div class="cat-actions">
-          <button class="btn-cat-edit" onclick="openCatModal('${cat}')">✏ 카테고리 수정</button>
-          <button class="btn-add-prod" onclick="openProdModal(null,'${cat}')">＋ 제품 추가</button>
+          <button class="btn-cat-edit" onclick="openCatModal('${cat}')">â ì¹´íê³ ë¦¬ ìì </button>
+          <button class="btn-add-prod" onclick="openProdModal(null,'${cat}')">ï¼ ì í ì¶ê°</button>
         </div>
       </div>`;
 
     prods.forEach(prod => {
       const globalPi = allData.indexOf(prod);
-      const rows = sf === '미진행' ? prod.r.filter(r => (r.st||'미정') === '미정' || (r.st||'미정') === '진행예정') : sf ? prod.r.filter(r => (r.st||'미정') === sf) : prod.r;
+      const rows = sf === 'ë¯¸ì§í' ? prod.r.filter(r => (r.st||'ë¯¸ì ') === 'ë¯¸ì ' || (r.st||'ë¯¸ì ') === 'ì§íìì ') : sf ? prod.r.filter(r => (r.st||'ë¯¸ì ') === sf) : prod.r;
       const p = pct(prod.r);
       const range = GLOBAL_RANGE;
 
-    html += `<div class="product-card${collapsedProds.has(globalPi)?' collapsed':''}" id="pc-${globalPi}">
+    html += `<div class="product-card${collapsedProds.has(globalPi)?' collapsed':''}" id="pc-${globalPi}" ondragover="event.preventDefault();this.classList.add('prod-drag-over')" ondragleave="this.classList.remove('prod-drag-over')" ondrop="dropProd(event,${globalPi})">
         <div class="product-header">
-          <span class="product-header-drag" draggable="true" ondragstart="dragProd(event,${globalPi})" title="드래그하여 순서 변경">⠿</span>
-          <span class="product-name" onclick="toggleProd(this)" style="cursor:pointer"><span class="prod-chevron">▾</span>${prod.p}</span>
+          <span class="product-header-drag" draggable="true" ondragstart="dragProd(event,${globalPi})" title="ëëê·¸íì¬ ìì ë³ê²½">â ¿</span>
+          <span class="product-name" onclick="toggleProd(this)" style="cursor:pointer"><span class="prod-chevron">â¾</span>${prod.p}</span>
           <div class="product-prog">
             <span class="prod-pct" style="color:${progColor(p)}">${p}%</span>
             <div class="prod-track"><div class="prod-fill" style="width:${p}%;background:${progColor(p)}"></div></div>
           </div>
           <div class="product-actions">
-            <button class="btn-prod-edit" onclick="openProdModal(${globalPi},null)">✏ 수정</button>
-            <button class="btn-add-row" onclick="openRowModal(${globalPi})">＋ 항목</button>
-            <button class="btn-del-prod" onclick="deleteProd(${globalPi})">삭제</button>
+            <button class="btn-prod-edit" onclick="openProdModal(${globalPi},null)">â ìì </button>
+            <button class="btn-add-row" onclick="openRowModal(${globalPi})">ï¼ í­ëª©</button>
+            <button class="btn-del-prod" onclick="deleteProd(${globalPi})">ì­ì </button>
           </div>
         </div>`;
 
@@ -609,15 +611,15 @@ function render(){
 
       html += `<div class="col-header">
         <span class="col-header-cell" style="width:20px;flex-shrink:0;padding-left:12px;padding-right:0;white-space:nowrap"></span>
-        <span class="col-header-cell" style="width:100px;white-space:nowrap;text-align:center">단계</span>
-        <span class="col-header-cell" style="width:64px;white-space:nowrap;text-align:center">세부</span>
-        <span class="col-header-cell" style="width:88px;white-space:nowrap;text-align:center">현황</span>
-        <span class="col-header-cell" style="width:72px;white-space:nowrap;text-align:center">담당자</span>
-        <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">위탁사</span>
-        <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">${tab==='prod'?'발주일':'시작일'}</span>
-        <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">${tab==='prod'?'입고일':'종료일'}</span>
-        <span class="col-header-cell" style="width:72px;white-space:nowrap;text-align:center;display:${tab==='prod'?'':'none'}">발주량</span>
-        <span class="col-header-cell" style="width:180px;white-space:nowrap;text-align:center">비고</span>
+        <span class="col-header-cell" style="width:100px;white-space:nowrap;text-align:center">ë¨ê³</span>
+        <span class="col-header-cell" style="width:64px;white-space:nowrap;text-align:center">ì¸ë¶</span>
+        <span class="col-header-cell" style="width:88px;white-space:nowrap;text-align:center">íí©</span>
+        <span class="col-header-cell" style="width:72px;white-space:nowrap;text-align:center">ë´ë¹ì</span>
+        <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">ìíì¬</span>
+        <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">${tab==='prod'?'ë°ì£¼ì¼':'ììì¼'}</span>
+        <span class="col-header-cell" style="width:84px;white-space:nowrap;text-align:center">${tab==='prod'?'ìê³ ì¼':'ì¢ë£ì¼'}</span>
+        <span class="col-header-cell" style="width:72px;white-space:nowrap;text-align:center;display:${tab==='prod'?'':'none'}">ë°ì£¼ë</span>
+        <span class="col-header-cell" style="width:180px;white-space:nowrap;text-align:center">ë¹ê³ </span>
         ${tlAxis(range)}
         <span class="col-header-cell" style="width:68px"></span>
       </div>`;
@@ -631,19 +633,19 @@ function render(){
           ondragleave="this.classList.remove('drag-over')"
           ondrop="dropRow(event,${globalPi},${realRi});this.classList.remove('drag-over')"
           onclick="cellEdit(event,${globalPi},${realRi})">
-          <span class="row-drag">⠿</span>
-          <span class="row-stage">${r.c||r.sg||'—'}</span>
+          <span class="row-drag">â ¿</span>
+          <span class="row-stage">${r.c||r.sg||'â'}</span>
           <span class="row-sub">${r.s||''}</span>
-          <span class="row-badge-wrap" data-field="st" onclick="cellPop(event,${globalPi},${realRi},'st')">${bdg(r.st||'미정')}</span>
-          <span class="row-note" data-field="m" onclick="cellPop(event,${globalPi},${realRi},'m')">${r.m||'—'}</span>
-          <span class="row-date" data-field="v" onclick="cellPop(event,${globalPi},${realRi},'v')">${r.v||'—'}</span>
-          <span class="row-date" data-field="d1" onclick="cellPop(event,${globalPi},${realRi},'d1')">${r.d1||'—'}</span>
-          <span class="row-date" data-field="d2" onclick="cellPop(event,${globalPi},${realRi},'d2')">${r.d2||'—'}</span>
-          <span class="row-date" data-field="qty" onclick="if(tab==='prod')cellPop(event,${globalPi},${realRi},'qty')" style="display:${tab==='prod'?'':'none'}">${r.qty||'—'}</span>
-          <span class="row-memo" data-field="note" onclick="cellPop(event,${globalPi},${realRi},'note')">${r.note||'—'}</span>
+          <span class="row-badge-wrap" data-field="st" onclick="cellPop(event,${globalPi},${realRi},'st')">${bdg(r.st||'ë¯¸ì ')}</span>
+          <span class="row-note" data-field="m" onclick="cellPop(event,${globalPi},${realRi},'m')">${r.m||'â'}</span>
+          <span class="row-date" data-field="v" onclick="cellPop(event,${globalPi},${realRi},'v')">${r.v||'â'}</span>
+          <span class="row-date" data-field="d1" onclick="cellPop(event,${globalPi},${realRi},'d1')">${r.d1||'â'}</span>
+          <span class="row-date" data-field="d2" onclick="cellPop(event,${globalPi},${realRi},'d2')">${r.d2||'â'}</span>
+          <span class="row-date" data-field="qty" onclick="if(tab==='prod')cellPop(event,${globalPi},${realRi},'qty')" style="display:${tab==='prod'?'':'none'}">${r.qty||'â'}</span>
+          <span class="row-memo" data-field="note" onclick="cellPop(event,${globalPi},${realRi},'note')">${r.note||'â'}</span>
           ${inlineBar}
-          <button class="row-edit-btn" onclick="openModal(${globalPi},${realRi})" title="수정"><span class="edit-ico">✎</span>수정</button>
-<button class="row-del-btn" onclick="deleteRow(event,${globalPi},${realRi})" title="삭제">✕</button>
+          <button class="row-edit-btn" onclick="openModal(${globalPi},${realRi})" title="ìì "><span class="edit-ico">â</span>ìì </button>
+<button class="row-del-btn" onclick="deleteRow(event,${globalPi},${realRi})" title="ì­ì ">â</button>
         </div>`;
       });
 
@@ -655,7 +657,7 @@ function render(){
     html += `</div>`;
   });
 
-  document.getElementById('list').innerHTML = html || '<div style="padding:3rem;text-align:center;color:#888;font-size:13px">항목이 없습니다</div>';
+  document.getElementById('list').innerHTML = html || '<div style="padding:3rem;text-align:center;color:#888;font-size:13px">í­ëª©ì´ ììµëë¤</div>';
   renderKPIs();
 }
 
@@ -666,16 +668,26 @@ function setCat(c,el){
   render();
 }
 function renderCatFilter(){
-  let h='<button class="catpill'+(activeCat==='ALL'?' on':'')+'" onclick="setCat(\'ALL\',this)">전체</button>';
+  let h='<button class="catpill'+(activeCat==='ALL'?' on':'')+'" onclick="setCat(\'ALL\',this)">ì ì²´</button>';
   CATEGORIES.forEach(c=>{
     h+='<button class="catpill'+(activeCat===c?' on':'')+'" onclick="setCat(\''+c+'\',this)">'+c+'</button>';
   });
-  h+='<button class="catpill catpill-add" onclick="openCatAdd&&openCatAdd()">+ 카테고리 추가</button>';
+  h+='<button class="catpill catpill-add" onclick="openCatAdd&&openCatAdd()">+ ì¹´íê³ ë¦¬ ì¶ê°</button>';
   document.getElementById('catfilter').innerHTML=h;
 }
-function switchTab(t,el){tab=t;document.querySelectorAll('.pill').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderCatFilter();renderKPIs();render();const _t=new Date();document.querySelector('.badge-today').textContent='오늘 '+(_t.getMonth()+1)+'/'+_t.getDate();document.querySelector('.header-sub').textContent=_t.getFullYear()+'년 '+(_t.getMonth()+1)+'월 '+_t.getDate()+'일 기준';}
+function switchTab(t,el){tab=t;document.querySelectorAll('.pill').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderCatFilter();renderKPIs();render();const _t=new Date();document.querySelector('.badge-today').textContent='ì¤ë '+(_t.getMonth()+1)+'/'+_t.getDate();document.querySelector('.header-sub').textContent=_t.getFullYear()+'ë '+(_t.getMonth()+1)+'ì '+_t.getDate()+'ì¼ ê¸°ì¤';}
 
 function dragProd(e,pi){window.dragProdSrc=pi;e.dataTransfer.effectAllowed='move';e.stopPropagation();}
+function dropProd(e,pi){
+  e.preventDefault();
+  e.currentTarget.classList.remove('prod-drag-over');
+  const src=window.dragProdSrc;
+  if(src===undefined||src===null||src===pi)return;
+  const di=src<pi?pi-1:pi;
+  const dv=DEV.splice(src,1)[0]; DEV.splice(di,0,dv);
+  const pv=PROD.splice(src,1)[0]; PROD.splice(di,0,pv);
+  window.dragProdSrc=null; render();
+}
 function dragRow(e,pi,ri){window.dragSrc={pi,ri};e.dataTransfer.effectAllowed='move';e.stopPropagation();}
 function dropRow(e,pi,ri){
   e.preventDefault();
@@ -688,26 +700,26 @@ function dropRow(e,pi,ri){
 function deleteRow(ev,pi,ri){
   ev.stopPropagation();
   const r=data()[pi]?.r[ri];
-  const label=(r?.c||r?.sg||'이 항목');
-  if(!confirm(`"${label}"을(를) 삭제하시겠습니까?\n\n삭제된 항목은 복구할 수 없습니다.`))return;
+  const label=(r?.c||r?.sg||'ì´ í­ëª©');
+  if(!confirm(`"${label}"ì(ë¥¼) ì­ì íìê² ìµëê¹?\n\nì­ì ë í­ëª©ì ë³µêµ¬í  ì ììµëë¤.`))return;
   data()[pi].r.splice(ri,1);
   render();renderKPIs();
 }
-function deleteProd(pi){if(!confirm('이 제품을 삭제하시겠습니까?'))return;DEV.splice(pi,1);PROD.splice(pi,1);render();}
+function deleteProd(pi){if(!confirm('ì´ ì íì ì­ì íìê² ìµëê¹?'))return;DEV.splice(pi,1);PROD.splice(pi,1);render();}
 
 function cellEdit(ev,pi,ri){
   if(ev.target.closest('.row-drag')||ev.target.closest('.row-edit-btn')||ev.target.closest('.row-del-btn')) return;
       const tgt=ev.target.closest('[data-field]');
         if(tgt){ cellPop(ev,pi,ri,tgt.dataset.field); return; }  openModal(pi,ri);
 }
-/* === autoStatus: 날짜 기반 현황 자동 판정 === */
+/* === autoStatus: ë ì§ ê¸°ë° íí© ìë íì  === */
 function autoStatus(r){
   const _d=s=>{ if(!s)return null; const d=new Date(s); d.setHours(0,0,0,0); return isNaN(d)?null:d; };
     const sd=_d(r.d1||r.o), ed=_d(r.d2);
       const t=new Date(); t.setHours(0,0,0,0);
-        if(sd&&ed){ if(t<sd)return '진행예정'; if(t>ed)return '완료'; return '진행중'; }
-          if(sd){ return t<sd?'진행예정':'진행중'; }
-          if(ed){ return t>ed?'완료':'진행중'; }
+        if(sd&&ed){ if(t<sd)return 'ì§íìì '; if(t>ed)return 'ìë£'; return 'ì§íì¤'; }
+          if(sd){ return t<sd?'ì§íìì ':'ì§íì¤'; }
+          if(ed){ return t>ed?'ìë£':'ì§íì¤'; }
             return null;
             }
 
@@ -721,7 +733,7 @@ function autoStatus(r){
                 closePop();
                   const r=data()[pi]?.r[ri]; if(!r)return;
                     const rect=ev.currentTarget.getBoundingClientRect();
-                      const FMAP={'st':{lb:'\ud604\ud669',tp:'select',opts:['\uc644\ub8cc','\uc9c4\ud589\uc911','\uc9c4\ud589\uc608\uc815','\ubbf8\uc815','\ubbf8\uc9c4\ud589'],val:r.st||'\ubbf8\uc815'},'d1':{lb:tab==='prod'?'\ubc1c\uc8fc\uc77c':'\uc2dc\uc791\uc77c',tp:'date',val:r.d1||''},'d2':{lb:tab==='prod'?'\uc785\uace0\uc77c':'\uc885\ub8cc\uc77c',tp:'date',val:r.d2||''},'o':{lb:'\ubc1c\uc8fc\uc77c',tp:'date',val:r.o||''},'v':{lb:'\uc704\ud0c1\uc0ac',tp:'text',val:r.v||''},'m':{lb:'\ub2f4\ub2f9\uc790',tp:'text',val:r.m||''},'qty':{lb:'발주량',tp:'text',val:r.qty||''},'note':{lb:'\ube44\uace0',tp:'text',val:r.note||''}};
+                      const FMAP={'st':{lb:'\ud604\ud669',tp:'select',opts:['\uc644\ub8cc','\uc9c4\ud589\uc911','\uc9c4\ud589\uc608\uc815','\ubbf8\uc815','\ubbf8\uc9c4\ud589'],val:r.st||'\ubbf8\uc815'},'d1':{lb:tab==='prod'?'\ubc1c\uc8fc\uc77c':'\uc2dc\uc791\uc77c',tp:'date',val:r.d1||''},'d2':{lb:tab==='prod'?'\uc785\uace0\uc77c':'\uc885\ub8cc\uc77c',tp:'date',val:r.d2||''},'o':{lb:'\ubc1c\uc8fc\uc77c',tp:'date',val:r.o||''},'v':{lb:'\uc704\ud0c1\uc0ac',tp:'text',val:r.v||''},'m':{lb:'\ub2f4\ub2f9\uc790',tp:'text',val:r.m||''},'qty':{lb:'ë°ì£¼ë',tp:'text',val:r.qty||''},'note':{lb:'\ube44\uace0',tp:'text',val:r.note||''}};
                         const f=FMAP[field]; if(!f)return;
                           let inn=`<div class="cell-pop-title">${f.lb}</div>`;
                             if(f.tp==='select'){
@@ -759,8 +771,8 @@ function openModal(pi,ri){
   editTarget={pi,ri};
   document.getElementById('e-stage').value=r.c||r.sg||'';
   document.getElementById('e-sub').value=r.s||'';
-  document.getElementById('e-status').value=r.st||'미정';
-  document.getElementById('l-start').textContent=tab==='prod'?'출하일':'시작일';document.getElementById('l-end').textContent=tab==='prod'?'입고일':'종료일';
+  document.getElementById('e-status').value=r.st||'ë¯¸ì ';
+  document.getElementById('l-start').textContent=tab==='prod'?'ì¶íì¼':'ììì¼';document.getElementById('l-end').textContent=tab==='prod'?'ìê³ ì¼':'ì¢ë£ì¼';
 document.getElementById('f-order').style.display=tab==='prod'?'':'none';
   document.getElementById('e-start').value=r.d1||'';
   document.getElementById('e-order').value=r.o||'';
@@ -781,7 +793,7 @@ function saveModal(){
   r.d1=document.getElementById('e-start').value;
   r.o=document.getElementById('e-order').value;
   r.d2=document.getElementById('e-end').value;
-  // 연도 4자리 유효성 검증: YYYY-MM-DD 형식이 아니면 비움
+  // ì°ë 4ìë¦¬ ì í¨ì± ê²ì¦: YYYY-MM-DD íìì´ ìëë©´ ë¹ì
   const _ymd=/^\d{4}-\d{2}-\d{2}$/;
   if(r.d1 && !_ymd.test(r.d1)) r.d1='';
   if(r.o && !_ymd.test(r.o)) r.o='';
@@ -789,14 +801,14 @@ function saveModal(){
   r.v=document.getElementById('e-vendor').value;
   r.m=document.getElementById('e-manager').value;
   r.note=document.getElementById('e-note').value;
-    // 날짜 기반 현황 자동 판정
+    // ë ì§ ê¸°ë° íí© ìë íì 
         const _auto=autoStatus(r); if(_auto!==null)r.st=_auto;
       closeModal();render();renderKPIs();
 }
 function openCatModal(cat){catEditTarget=cat;document.getElementById('e-cat-name').value=cat;document.getElementById('cat-modal-wrap').classList.remove('hidden');}
 function closeCatModal(){document.getElementById('cat-modal-wrap').classList.add('hidden');catEditTarget=null;}
 function saveCatModal(){
-  const n=document.getElementById('e-cat-name').value.trim();if(!n){alert('카테고리명을 입력하세요');return;}
+  const n=document.getElementById('e-cat-name').value.trim();if(!n){alert('ì¹´íê³ ë¦¬ëªì ìë ¥íì¸ì');return;}
   const idx=CATEGORIES.indexOf(catEditTarget);
   if(idx>=0){CATEGORIES[idx]=n;DEV.forEach(p=>{if(p.category===catEditTarget)p.category=n;});PROD.forEach(p=>{if(p.category===catEditTarget)p.category=n;});}
   closeCatModal();render();
@@ -805,7 +817,7 @@ function saveCatModal(){
 function openProdModal(pi,cat){
     prodEditTarget=pi;prodAddCat=cat;
       const isEdit=(pi!==null);
-        document.getElementById('prod-modal-title').textContent=isEdit?'제품 수정':'제품 추가';
+        document.getElementById('prod-modal-title').textContent=isEdit?'ì í ìì ':'ì í ì¶ê°';
           document.getElementById('e-prod-name').value=isEdit?data()[pi].p:'';
             let cloneWrap=document.getElementById('_clone-wrap');
               if(!cloneWrap){cloneWrap=document.createElement('div');cloneWrap.id='_clone-wrap';const nf=document.getElementById('e-prod-name').closest('.field');nf.parentNode.insertBefore(cloneWrap,nf);}
@@ -813,15 +825,15 @@ function openProdModal(pi,cat){
                   else{
                       const allP=data();const catP=allP.filter(function(p){return p.category===cat;});
                           if(catP.length>0){
-                                let opts='<option value="">없음 (빈 제품으로 시작)</option>';
+                                let opts='<option value="">ìì (ë¹ ì íì¼ë¡ ìì)</option>';
                                       catP.forEach(function(p){opts+='<option value="'+allP.indexOf(p)+'">'+p.p+'</option>';});
                                             var h='<div style="border:1px solid #e5e5e5;border-radius:8px;padding:10px 12px;margin-bottom:10px;background:#fafaf9">';
                                                   h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#555;font-weight:500">';
                                                         h+='<input type="checkbox" id="_cchk" style="width:auto;margin:0" onchange="document.getElementById(\'_csel_w\').style.display=this.checked?\'\':\' none\'"> ';
-                                                              h+='기존 제품 항목 복제하기</label>';
+                                                              h+='ê¸°ì¡´ ì í í­ëª© ë³µì íê¸°</label>';
                                                                     h+='<div id="_csel_w" style="display:none;margin-top:8px">';
                                                                           h+='<select id="_csel" style="width:100%;padding:6px 8px;font-size:13px;border:0.5px solid #d0d0d0;border-radius:6px;background:#fff;color:#1a1a1a;box-sizing:border-box">'+opts+'</select>';
-                                                                                h+='<p style="font-size:11px;color:#888;margin-top:4px">선택한 제품의 단계 목록을 복사합니다 (날짜, 담당자 초기화)</p>';
+                                                                                h+='<p style="font-size:11px;color:#888;margin-top:4px">ì íí ì íì ë¨ê³ ëª©ë¡ì ë³µì¬í©ëë¤ (ë ì§, ë´ë¹ì ì´ê¸°í)</p>';
                                                                                       h+='</div></div>';
                                                                                             cloneWrap.innerHTML=h;cloneWrap.style.display='';
                                                                                                 }else{cloneWrap.innerHTML='';cloneWrap.style.display='none';}
@@ -831,7 +843,7 @@ function openProdModal(pi,cat){
                                                                                                       }
                                                                                                       function closeProdModal(){document.getElementById('prod-modal-wrap').classList.add('hidden');prodEditTarget=null;prodAddCat=null;}
                                                                                                       function saveProdModal(){
-                                                                                                        const n=document.getElementById('e-prod-name').value.trim();if(!n){alert('제품명을 입력하세요');return;}
+                                                                                                        const n=document.getElementById('e-prod-name').value.trim();if(!n){alert('ì íëªì ìë ¥íì¸ì');return;}
                                                                                                           if(prodEditTarget!==null){DEV[prodEditTarget].p=n;PROD[prodEditTarget].p=n;}
                                                                                                             else{
                                                                                                                 const chk=document.getElementById('_cchk');
@@ -839,8 +851,8 @@ function openProdModal(pi,cat){
                                                                                                                         let newDev=[],newProd=[];
                                                                                                                             if(chk&&chk.checked&&sel&&sel.value!==''){
                                                                                                                                   const si=parseInt(sel.value);
-                                                                                                                                        if(tab==='dev'){newDev=DEV[si].r.map(function(r){return {c:r.c,s:r.s,st:'미정',d1:'',d2:'',v:'',m:'',note:''};});}
-                                                                                                                                              else{newProd=PROD[si].r.map(function(r){return {sg:r.sg,st:'미정',o:'',d2:'',v:'',m:''};});}
+                                                                                                                                        if(tab==='dev'){newDev=DEV[si].r.map(function(r){return {c:r.c,s:r.s,st:'ë¯¸ì ',d1:'',d2:'',v:'',m:'',note:''};});}
+                                                                                                                                              else{newProd=PROD[si].r.map(function(r){return {sg:r.sg,st:'ë¯¸ì ',o:'',d2:'',v:'',m:''};});}
                                                                                                                                                   }
                                                                                                                                                       DEV.push({p:n,category:prodAddCat,r:newDev});
                                                                                                                                                           PROD.push({p:n,category:prodAddCat,r:newProd});
@@ -850,22 +862,22 @@ function openProdModal(pi,cat){
 function openRowModal(pi){rowAddTarget=pi;document.getElementById('e-row-stage').value='';document.getElementById('e-row-sub').value='';document.getElementById('row-modal-wrap').classList.remove('hidden');}
 function closeRowModal(){document.getElementById('row-modal-wrap').classList.add('hidden');rowAddTarget=null;}
 function saveRowModal(){
-const s=document.getElementById('e-row-stage').value.trim();if(!s){alert('단계명을 입력하세요');return;}
+const s=document.getElementById('e-row-stage').value.trim();if(!s){alert('ë¨ê³ëªì ìë ¥íì¸ì');return;}
 const sub=document.getElementById('e-row-sub').value.trim();
-if(tab==='dev')data()[rowAddTarget].r.push({c:s,s:sub,st:'미정',d1:'',d2:'',v:'',m:''});
-else data()[rowAddTarget].r.push({sg:s,o:sub,st:'미정',d2:'',v:'',m:'',qty:''});
+if(tab==='dev')data()[rowAddTarget].r.push({c:s,s:sub,st:'ë¯¸ì ',d1:'',d2:'',v:'',m:''});
+else data()[rowAddTarget].r.push({sg:s,o:sub,st:'ë¯¸ì ',d2:'',v:'',m:'',qty:''});
 closeRowModal();render();
 }
 
 function exportCSV(){
 const d=data();
-const rows=[tab==='dev'?['제품','카테고리','단계','세부','현황','시작일','종료일','위탁사','담당자']:['제품','카테고리','차수','현황','출하일','종료일','위탁사','담당자']];
+const rows=[tab==='dev'?['ì í','ì¹´íê³ ë¦¬','ë¨ê³','ì¸ë¶','íí©','ììì¼','ì¢ë£ì¼','ìíì¬','ë´ë¹ì']:['ì í','ì¹´íê³ ë¦¬','ì°¨ì','íí©','ì¶íì¼','ì¢ë£ì¼','ìíì¬','ë´ë¹ì']];
 d.forEach(prod=>{prod.r.forEach(r=>{rows.push(tab==='dev'?[prod.p,prod.category,r.c,r.s,r.st,r.d1,r.d2,r.v,r.m]:[prod.p,prod.category,r.sg,r.st,r.o,r.d2,r.v,r.m]);});});
 const csv=rows.map(r=>r.map(c=>`"${(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
 const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download=`pharmatique_${tab}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
 }
 
-/* ===== localStorage 저장/로드 ===== */
+/* ===== localStorage ì ì¥/ë¡ë ===== */
 const STORAGE_KEY = 'pharmatique_data';
 
 function saveData() {
@@ -874,7 +886,7 @@ localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 const btn = document.getElementById('btn-save');
 if (btn) {
 const orig = btn.textContent;
-btn.textContent = '✓ 저장완료';
+btn.textContent = 'â ì ì¥ìë£';
 btn.classList.add('saved');
 setTimeout(() => { btn.textContent = orig; btn.classList.remove('saved'); }, 1800);
 }
@@ -894,7 +906,7 @@ return true;
 }
 
 loadData();
-renderCatFilter();renderKPIs();render();const _t=new Date();document.querySelector('.badge-today').textContent='오늘 '+(_t.getMonth()+1)+'/'+_t.getDate();document.querySelector('.header-sub').textContent=_t.getFullYear()+'년 '+(_t.getMonth()+1)+'월 '+_t.getDate()+'일 기준';
+renderCatFilter();renderKPIs();render();const _t=new Date();document.querySelector('.badge-today').textContent='ì¤ë '+(_t.getMonth()+1)+'/'+_t.getDate();document.querySelector('.header-sub').textContent=_t.getFullYear()+'ë '+(_t.getMonth()+1)+'ì '+_t.getDate()+'ì¼ ê¸°ì¤';
 </script>
 </body>
 </html>
