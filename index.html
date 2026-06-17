@@ -900,8 +900,8 @@ try {
 const raw = localStorage.getItem(STORAGE_KEY);
 if (!raw) return false;
 const payload = JSON.parse(raw);
-if (payload.DEV) { DEV.length = 0; payload.DEV.forEach(d => DEV.push(d)); }
-if (payload.PROD) { PROD.length = 0; payload.PROD.forEach(d => PROD.push(d)); }
+if (payload.DEV) { DEV.length = 0; payload.DEV.filter(Boolean).forEach(d => DEV.push(d)); }
+if (payload.PROD) { PROD.length = 0; payload.PROD.filter(Boolean).forEach(d => PROD.push(d)); }
 if (payload.CATEGORIES) { CATEGORIES.length = 0; payload.CATEGORIES.forEach(c => CATEGORIES.push(c)); }
 if (payload.COLLAPSED_DEV) { collapsedDev.clear(); payload.COLLAPSED_DEV.forEach(i => collapsedDev.add(i)); }
     if (payload.COLLAPSED_PROD) { collapsedProd.clear(); payload.COLLAPSED_PROD.forEach(i => collapsedProd.add(i)); }
