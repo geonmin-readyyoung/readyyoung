@@ -811,10 +811,16 @@ function saveModal(){
 function openCatModal(cat){catEditTarget=cat;document.getElementById('e-cat-name').value=cat;document.getElementById('cat-modal-wrap').classList.remove('hidden');}
 function closeCatModal(){document.getElementById('cat-modal-wrap').classList.add('hidden');catEditTarget=null;}
 function saveCatModal(){
-  const n=document.getElementById('e-cat-name').value.trim();if(!n){alert('카테고리명을 입력하세요');return;}
+const n=document.getElementById('e-cat-name').value.trim();if(!n){alert('카테고리명을 입력하세요');return;}
+if(catEditTarget===null){
+  if(CATEGORIES.indexOf(n)>=0){alert('이미 존재하는 카테고리입니다.');return;}
+  CATEGORIES.push(n);
+  document.querySelector('#cat-modal-wrap .modal-box h3').textContent='카테고리 수정';
+}else{
   const idx=CATEGORIES.indexOf(catEditTarget);
   if(idx>=0){CATEGORIES[idx]=n;DEV.forEach(p=>{if(p.category===catEditTarget)p.category=n;});PROD.forEach(p=>{if(p.category===catEditTarget)p.category=n;});}
-  closeCatModal();render();
+}
+closeCatModal();renderCatFilter();render();
 }
 
 function openProdModal(pi,cat){
@@ -912,13 +918,10 @@ return true;
 }
 
 function openCatAdd(){
-  var n=prompt('새 카테고리명을 입력하세요');
-  if(!n||!n.trim())return;
-  n=n.trim();
-  if(CATEGORIES.indexOf(n)>=0){alert('이미 존재하는 카테고리입니다.');return;}
-  CATEGORIES.push(n);
-  renderCatFilter();
-  render();
+  catEditTarget=null;
+  document.getElementById('e-cat-name').value='';
+  document.querySelector('#cat-modal-wrap .modal-box h3').textContent='카테고리 추가';
+  document.getElementById('cat-modal-wrap').classList.remove('hidden');
 }
 loadData();
 renderCatFilter();renderKPIs();render();const _t=new Date();document.querySelector('.badge-today').textContent='오늘 '+(_t.getMonth()+1)+'/'+_t.getDate();document.querySelector('.header-sub').textContent=_t.getFullYear()+'년 '+(_t.getMonth()+1)+'월 '+_t.getDate()+'일 기준';
