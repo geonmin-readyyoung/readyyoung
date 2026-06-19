@@ -357,7 +357,7 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
       <h3 style="font-size:14px;font-weight:500;color:#1a1a1a;margin-bottom:0.75rem">확인</h3>
       <p id="confirm-modal-msg" style="font-size:13px;color:#555;margin-bottom:1rem;white-space:pre-wrap;line-height:1.6"></p>
       <div class="modal-footer">
-        <button class="btn-sec" onclick="closeConfirmModal()">취소</button>
+        <button class="btn-sec" id="confirm-modal-cancel-btn" onclick="closeConfirmModal()">취소</button>
         <button class="btn-pri" onclick="resolveConfirm()" style="background:#e8734a;border-color:#e8734a">확인</button>
       </div>
     </div>
@@ -825,7 +825,7 @@ function saveModal(){
 function openCatModal(cat){catEditTarget=cat;document.getElementById('e-cat-name').value=cat;document.getElementById('cat-modal-title').textContent='카테고리 수정';document.getElementById('btn-cat-del').style.display='';document.getElementById('cat-modal-wrap').classList.remove('hidden');}
 function closeCatModal(){document.getElementById('cat-modal-wrap').classList.add('hidden');catEditTarget=null;}
 function saveCatModal(){
-  const n=document.getElementById('e-cat-name').value.trim();if(!n){alert('카테고리명을 입력하세요');return;}
+  const n=document.getElementById('e-cat-name').value.trim();if(!n){showAlert('카테고리명을 입력하세요');return;}
   const idx=CATEGORIES.indexOf(catEditTarget);
   if(idx>=0){CATEGORIES[idx]=n;DEV.forEach(p=>{if(p.category===catEditTarget)p.category=n;});PROD.forEach(p=>{if(p.category===catEditTarget)p.category=n;});}
   closeCatModal();render();
@@ -860,7 +860,7 @@ function openProdModal(pi,cat){
                                                                                                       }
                                                                                                       function closeProdModal(){document.getElementById('prod-modal-wrap').classList.add('hidden');prodEditTarget=null;prodAddCat=null;}
                                                                                                       function saveProdModal(){
-                                                                                                        const n=document.getElementById('e-prod-name').value.trim();if(!n){alert('제품명을 입력하세요');return;}
+                                                                                                        const n=document.getElementById('e-prod-name').value.trim();if(!n){showAlert('제품명을 입력하세요');return;}
                                                                                                           if(prodEditTarget!==null){DEV[prodEditTarget].p=n;PROD[prodEditTarget].p=n;}
                                                                                                             else{
                                                                                                                 const chk=document.getElementById('_cchk');
@@ -879,7 +879,7 @@ function openProdModal(pi,cat){
 function openRowModal(pi){rowAddTarget=pi;document.getElementById('e-row-stage').value='';document.getElementById('e-row-sub').value='';document.getElementById('row-modal-wrap').classList.remove('hidden');}
 function closeRowModal(){document.getElementById('row-modal-wrap').classList.add('hidden');rowAddTarget=null;}
 function saveRowModal(){
-const s=document.getElementById('e-row-stage').value.trim();if(!s){alert('단계명을 입력하세요');return;}
+const s=document.getElementById('e-row-stage').value.trim();if(!s){showAlert('단계명을 입력하세요');return;}
 const sub=document.getElementById('e-row-sub').value.trim();
 if(tab==='dev')data()[rowAddTarget].r.push({c:s,s:sub,st:'미정',d1:'',d2:'',v:'',m:''});
 else data()[rowAddTarget].r.push({sg:s,o:sub,st:'미정',d2:'',v:'',m:'',qty:''});
@@ -929,7 +929,7 @@ function openCatAdd(){
   var n=prompt('새 카테고리명을 입력하세요');
   if(!n||!n.trim())return;
   n=n.trim();
-  if(CATEGORIES.indexOf(n)>=0){alert('이미 존재하는 카테고리입니다.');return;}
+  if(CATEGORIES.indexOf(n)>=0){showAlert('이미 존재하는 카테고리입니다.');return;}
   CATEGORIES.push(n);
   renderCatFilter();
   render();
@@ -947,6 +947,14 @@ function deleteCat(){
     if(activeCat===catEditTarget)activeCat='ALL';
     closeCatModal();renderCatFilter();render();
   });
+}
+function showAlert(msg){
+  const p=document.getElementById('confirm-modal-msg');
+  const cancelBtn=document.getElementById('confirm-modal-cancel-btn');
+  if(p)p.textContent=msg;
+  if(cancelBtn)cancelBtn.style.display='none';
+  _confirmCb=function(){if(cancelBtn)cancelBtn.style.display='';};
+  document.getElementById('confirm-modal-wrap').classList.remove('hidden');
 }
 let _confirmCb=null;
 function showConfirm(msg,cb){
