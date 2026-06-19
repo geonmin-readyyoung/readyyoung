@@ -314,9 +314,10 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
 <div id="cat-modal-wrap" class="hidden">
   <div class="modal-bg">
     <div class="modal-box">
-      <h3>카테고리 수정</h3>
+      <h3 id="cat-modal-title">카테고리 수정</h3>
       <div class="field"><label>카테고리명</label><input type="text" id="e-cat-name" placeholder="카테고리명"></div>
       <div class="modal-footer">
+        <button class="btn-sec" id="btn-cat-del" onclick="deleteCat()" style="display:none;margin-right:auto;color:#e8734a;border-color:#f5c4b8">🗑 삭제</button>
         <button class="btn-sec" onclick="closeCatModal()">취소</button>
         <button class="btn-pri" onclick="saveCatModal()">저장</button>
       </div>
@@ -808,17 +809,12 @@ function saveModal(){
         const _auto=autoStatus(r); if(_auto!==null)r.st=_auto;
       closeModal();render();renderKPIs();
 }
-function openCatModal(cat){catEditTarget=cat;document.getElementById('e-cat-name').value=cat;document.getElementById('cat-modal-wrap').classList.remove('hidden');}
-function closeCatModal(){document.getElementById('cat-modal-wrap').classList.add('hidden');catEditTarget=null;}
-function saveCatModal(){
-const n=document.getElementById('e-cat-name').value.trim();if(!n){alert('카테고리명을 입력하세요');return;}
-if(catEditTarget===null){
-  if(CATEGORIES.indexOf(n)>=0){alert('이미 존재하는 카테고리입니다.');return;}
-  CATEGORIES.push(n);
-  document.querySelector('#cat-modal-wrap .modal-box h3').textContent='카테고리 수정';
-}else{
-  const idx=CATEGORIES.indexOf(catEditTarget);
-  if(idx>=0){CATEGORIES[idx]=n;DEV.forEach(p=>{if(p.category===catEditTarget)p.category=n;});PROD.forEach(p=>{if(p.category===catEditTarget)p.category=n;});}
+function openCatModal(cat){
+  catEditTarget=cat;
+  document.getElementById('e-cat-name').value=cat;
+  document.getElementById('cat-modal-title').textContent='카테고리 수정';
+  document.getElementById('btn-cat-del').style.display='';
+  document.getElementById('cat-modal-wrap').classList.remove('hidden');
 }
 closeCatModal();renderCatFilter();render();
 }
@@ -920,8 +916,24 @@ return true;
 function openCatAdd(){
   catEditTarget=null;
   document.getElementById('e-cat-name').value='';
-  document.querySelector('#cat-modal-wrap .modal-box h3').textContent='카테고리 추가';
+  document.getElementById('cat-modal-title').textContent='카테고리 추가';
+  document.getElementById('btn-cat-del').style.display='none';
   document.getElementById('cat-modal-wrap').classList.remove('hidden');
+}
+function deleteCat(){
+  if(!catEditTarget)return;
+  const prods = DEV.filter(p=>p.category===catEditTarget);
+  if(prods.length>0){
+    if(!confirm('"'+catEditTarget+'" 카테고리와 하위 제품 '+prods.length+'개를 모두 삭제하시겠습니까?\n\n삭제된 항목은 복구할 수 없습니다.'))return;
+    // DEV, PROD에서 해당 카테고리 제품 제거
+    for(let i=DEV.length-1;i>=0;i--){if(DEV[i].category===catEditTarget){DEV.splice(i,1);PROD.splice(i,1);}}
+  } else {
+    if(!confirm('"'+catEditTarget+'" 카테고리를 삭제하시겠습니까?'))return;
+  }
+  const ci=CATEGORIES.indexOf(catEditTarget);
+  if(ci>=0)CATEGORIES.splice(ci,1);
+  if(activeCat===catEditTarget)activeCat='ALL';
+  closeCatModal();renderCatFilter();render();
 }
 loadData();
 renderCatFilter();renderKPIs();render();const _t=new Date();document.querySelector('.badge-today').textContent='오늘 '+(_t.getMonth()+1)+'/'+_t.getDate();document.querySelector('.header-sub').textContent=_t.getFullYear()+'년 '+(_t.getMonth()+1)+'월 '+_t.getDate()+'일 기준';
