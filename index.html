@@ -351,19 +351,19 @@ body { background: #f7f7f6; font-family: var(--font-sans); }
     </div>
   </div>
 </div>
-
 <div id="confirm-modal-wrap" class="hidden">
   <div class="modal-bg">
     <div class="modal-box" style="width:300px">
-      <h3 id="confirm-modal-title">확인</h3>
-      <p id="confirm-modal-msg" style="font-size:13px;color:#555;margin-bottom:0.5rem;white-space:pre-wrap;line-height:1.6"></p>
+      <h3 style="font-size:14px;font-weight:500;color:#1a1a1a;margin-bottom:0.75rem">확인</h3>
+      <p id="confirm-modal-msg" style="font-size:13px;color:#555;margin-bottom:1rem;white-space:pre-wrap;line-height:1.6"></p>
       <div class="modal-footer">
-        <button class="btn-sec" id="confirm-modal-cancel" onclick="closeConfirmModal()">취소</button>
-        <button class="btn-pri" id="confirm-modal-ok" onclick="resolveConfirm(true)" style="background:#e8734a;border-color:#e8734a">확인</button>
+        <button class="btn-sec" onclick="closeConfirmModal()">취소</button>
+        <button class="btn-pri" onclick="resolveConfirm()" style="background:#e8734a;border-color:#e8734a">확인</button>
       </div>
     </div>
   </div>
 </div>
+
 <script>
 const CATEGORIES = ['연고류', '마스크팩류'];
 const collapsedDev = new Set();
@@ -718,15 +718,16 @@ function deleteRow(ev,pi,ri){
   ev.stopPropagation();
   const r=data()[pi]?.r[ri];
   const label=(r?.c||r?.sg||'이 항목');
-  showConfirm('"'+label+'"을(를) 삭제하시겠습니까?\n삭제된 항목은 복구할 수 없습니다.', function(){
-    data()[pi].r.splice(ri,1);
-    render();renderKPIs();
+  showConfirm('"'+label+'"을(를) 삭제하시겠습니까?\n삭제된 항목은 복구할 수 없습니다.',function(){
+    data()[pi].r.splice(ri,1);render();renderKPIs();
   });
 }
-function deleteProd(pi){
-  showConfirm('이 제품을 삭제하시겠습니까?', function(){
-    DEV.splice(pi,1);PROD.splice(pi,1);render();
-  });
+function deleteProd(pi){showConfirm('이 제품을 삭제하시겠습니까?',function(){DEV.splice(pi,1);PROD.splice(pi,1);render();});}
+
+function cellEdit(ev,pi,ri){
+  if(ev.target.closest('.row-drag')||ev.target.closest('.row-edit-btn')||ev.target.closest('.row-del-btn')) return;
+      const tgt=ev.target.closest('[data-field]');
+        if(tgt){ cellPop(ev,pi,ri,tgt.dataset.field); return; }  openModal(pi,ri);
 }
 /* === autoStatus: 날짜 기반 현황 자동 판정 === */
 function autoStatus(r){
@@ -821,14 +822,13 @@ function saveModal(){
         const _auto=autoStatus(r); if(_auto!==null)r.st=_auto;
       closeModal();render();renderKPIs();
 }
-function openCatModal(cat){
-  catEditTarget=cat;
-  document.getElementById('e-cat-name').value=cat;
-  document.getElementById('cat-modal-title').textContent='카테고리 수정';
-  document.getElementById('btn-cat-del').style.display='';
-  document.getElementById('cat-modal-wrap').classList.remove('hidden');
-}
-closeCatModal();renderCatFilter();render();
+function openCatModal(cat){catEditTarget=cat;document.getElementById('e-cat-name').value=cat;document.getElementById('cat-modal-title').textContent='카테고리 수정';document.getElementById('btn-cat-del').style.display='';document.getElementById('cat-modal-wrap').classList.remove('hidden');}
+function closeCatModal(){document.getElementById('cat-modal-wrap').classList.add('hidden');catEditTarget=null;}
+function saveCatModal(){
+  const n=document.getElementById('e-cat-name').value.trim();if(!n){alert('카테고리명을 입력하세요');return;}
+  const idx=CATEGORIES.indexOf(catEditTarget);
+  if(idx>=0){CATEGORIES[idx]=n;DEV.forEach(p=>{if(p.category===catEditTarget)p.category=n;});PROD.forEach(p=>{if(p.category===catEditTarget)p.category=n;});}
+  closeCatModal();render();
 }
 
 function openProdModal(pi,cat){
@@ -926,11 +926,13 @@ return true;
 }
 
 function openCatAdd(){
-  catEditTarget=null;
-  document.getElementById('e-cat-name').value='';
-  document.getElementById('cat-modal-title').textContent='카테고리 추가';
-  document.getElementById('btn-cat-del').style.display='none';
-  document.getElementById('cat-modal-wrap').classList.remove('hidden');
+  var n=prompt('새 카테고리명을 입력하세요');
+  if(!n||!n.trim())return;
+  n=n.trim();
+  if(CATEGORIES.indexOf(n)>=0){alert('이미 존재하는 카테고리입니다.');return;}
+  CATEGORIES.push(n);
+  renderCatFilter();
+  render();
 }
 function deleteCat(){
   if(!catEditTarget)return;
@@ -938,10 +940,8 @@ function deleteCat(){
   const msg=prods.length>0
     ? '"'+catEditTarget+'" 카테고리와 하위 제품 '+prods.length+'개를 모두 삭제하시겠습니까?\n삭제된 항목은 복구할 수 없습니다.'
     : '"'+catEditTarget+'" 카테고리를 삭제하시겠습니까?';
-  showConfirm(msg, function(){
-    if(prods.length>0){
-      for(let i=DEV.length-1;i>=0;i--){if(DEV[i].category===catEditTarget){DEV.splice(i,1);PROD.splice(i,1);}}
-    }
+  showConfirm(msg,function(){
+    if(prods.length>0){for(let i=DEV.length-1;i>=0;i--){if(DEV[i].category===catEditTarget){DEV.splice(i,1);PROD.splice(i,1);}}}
     const ci=CATEGORIES.indexOf(catEditTarget);
     if(ci>=0)CATEGORIES.splice(ci,1);
     if(activeCat===catEditTarget)activeCat='ALL';
@@ -958,10 +958,10 @@ function closeConfirmModal(){
   document.getElementById('confirm-modal-wrap').classList.add('hidden');
   _confirmCb=null;
 }
-function resolveConfirm(ok){
+function resolveConfirm(){
   const cb=_confirmCb;
   closeConfirmModal();
-  if(ok&&cb){cb();}
+  if(cb)cb();
 }
 loadData();
 renderCatFilter();renderKPIs();render();const _t=new Date();document.querySelector('.badge-today').textContent='오늘 '+(_t.getMonth()+1)+'/'+_t.getDate();document.querySelector('.header-sub').textContent=_t.getFullYear()+'년 '+(_t.getMonth()+1)+'월 '+_t.getDate()+'일 기준';
