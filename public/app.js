@@ -462,6 +462,15 @@ function wireAttendance(){
 }
 const DOW_LABELS=["일","월","화","수","목","금","토"];
 const DOW_ORDER=[1,2,3,4,5,6,0];
+const SHIFT_PRESETS = {
+A:{start:"10:00", end:"20:00", label:"A (10:00~20:00)"},
+B:{start:"13:00", end:"23:00", label:"B (13:00~23:00)"},
+};
+function shiftTypeOf(s){
+if(s.start===SHIFT_PRESETS.A.start && s.end===SHIFT_PRESETS.A.end) return "A";
+if(s.start===SHIFT_PRESETS.B.start && s.end===SHIFT_PRESETS.B.end) return "B";
+return "custom";
+}
 function getSchedule(empId, dow){
   const ws=DB.weeklySchedule||{};
   const e=ws[empId]||{};
@@ -500,31 +509,47 @@ function wireSchedule(){
   });
 }
 function openScheduleForm(empId, dow){
-  const s=getSchedule(empId,dow);
-  const body = `
-    <div class="field"><label>근무 여부</label>
-      <select id="sf_on"><option value="1" ${s.on?"selected":""}>근무</option><option value="0" ${!s.on?"selected":""}>휴무</option></select>
-    </div>
-    <div class="grid2">
-      <div class="field"><label>시작 시간</label><input id="sf_start" type="time" value="${s.start||"09:00"}"></div>
-      <div class="field"><label>종료 시간</label><input id="sf_end" type="time" value="${s.end||"18:00"}"></div>
-    </div>`;
-  modal(`${DOW_LABELS[dow]}요일 근무 설정`, body, [
-    `<button class="btn" onclick="closeModal()">취소</button>`,
-    `<button class="btn primary" onclick="saveScheduleEntry(${empId},${dow})">저장</button>`
-  ]);
+const s=getSchedule(empId,dow);
+const curType=shiftTypeOf(s);
+const body = `
+<div class="field"><label>근무 여부</label>
+<select id="sf_on"><option value="1" ${s.on?"selected":""}>근무</option><option value="0" ${!s.on?"selected":""}>휴무</option></select>
+</div>
+<div class="field"><label>근무 타입</label>
+<select id="sf_type" onchange="onShiftTypeChange()">
+<option value="A" ${curType==="A"?"selected":""}>${SHIFT_PRESETS.A.label}</option>
+<option value="B" ${curType==="B"?"selected":""}>${SHIFT_PRESETS.B.label}</option>
+<option value="custom" ${curType==="custom"?"selected":""}>직접입력</option>
+</select>
+</div>
+<div class="grid2" id="sf_time_wrap" style="${curType==="custom"?"":"display:none"}">
+<div class="field"><label>시작 시간</label><input id="sf_start" type="time" value="${s.start||"09:00"}"></div>
+<div class="field"><label>종료 시간</label><input id="sf_end" type="time" value="${s.end||"18:00"}"></div>
+</div>`;
+modal(`${DOW_LABELS[dow]}요일 근무 설정`, body, [
+`<button class="btn" onclick="closeModal()">취소</button>`,
+`<button class="btn primary" onclick="saveScheduleEntry(${empId},${dow})">저장</button>`
+]);
+}
+function onShiftTypeChange(){
+const t=val("sf_type");
+const wrap=document.getElementById("sf_time_wrap");
+if(wrap) wrap.style.display = t==="custom" ? "" : "none";
 }
 function saveScheduleEntry(empId, dow){
-  const on = val("sf_on")==="1";
-  const start = val("sf_start")||"09:00";
-  const end = val("sf_end")||"18:00";
-  DB.weeklySchedule = DB.weeklySchedule || {};
-  DB.weeklySchedule[empId] = DB.weeklySchedule[empId] || {};
-  DB.weeklySchedule[empId][dow] = {on, start, end};
-  saveDB();
-  closeModal();
-  render();
-  wireSchedule();
+const on = val("sf_on")==="1";
+const type = val("sf_type");
+let start, end;
+if(type==="A"){ start=SHIFT_PRESETS.A.start; end=SHIFT_PRESETS.A.end; }
+else if(type==="B"){ start=SHIFT_PRESETS.B.start; end=SHIFT_PRESETS.B.end; }
+else { start = val("sf_start")||"09:00"; end = val("sf_end")||"18:00"; }
+DB.weeklySchedule = DB.weeklySchedule || {};
+DB.weeklySchedule[empId] = DB.weeklySchedule[empId] || {};
+DB.weeklySchedule[empId][dow] = {on, start, end};
+saveDB();
+closeModal();
+render();
+wireSchedule();
 }
 function applyScheduleToMonth(){
   DB.weeklySchedule = DB.weeklySchedule || {};
