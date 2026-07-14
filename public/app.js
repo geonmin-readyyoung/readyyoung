@@ -83,6 +83,7 @@ function leaveStatusTag(s){ return s==="승인"?'<span class="tag t-ok">승인</
 
 /* =========================== 라우팅 =========================== */
 function setView(v){
+  if(v==="payroll" && !isOwner()) return;
   view=v;
   document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active", b.dataset.view===v));
   render();
@@ -94,6 +95,7 @@ function render(){
   else if(view==="leaves") m.innerHTML=renderLeaves();
   else if(view==="attendance"){ m.innerHTML=renderAttendance(); wireAttendance(); }
   else if(view==="schedule"){ m.innerHTML=renderSchedule(); wireSchedule(); }
+else if(view==="payroll"){ m.innerHTML=renderPayroll(); }
 }
 
 /* =========================== 대시보드 =========================== */
@@ -180,7 +182,7 @@ function renderEmployees(){
     ${list.length? `<table>
       <thead><tr>
         <th class="num" style="width:56px">사번</th><th>이름</th><th>직무</th><th>고용형태</th>
-        <th>팀</th><th>입사일</th>${isOwner()?'<th>급여</th>':""}<th class="num">연차잔여</th><th>상태</th>
+        <th>팀</th><th>입사일</th><th class="num">연차잔여</th><th>상태</th>
       </tr></thead>
       <tbody>${list.map(e=>{
         const s=e.empType==="정규직"?summarizeLeave(e):null;
@@ -191,7 +193,7 @@ function renderEmployees(){
           <td>${esc(e.empType)}</td>
           <td>${esc(e.team||"—")}</td>
           <td>${fmtDate(e.joinDate)}</td>
-          ${isOwner()?`<td>${PAY_LABEL[e.payType]||"—"} ${e.payAmount?`· ${won(e.payAmount)}`:""}</td>`:""}
+          
           <td class="num">${s?`<b>${s.remaining}</b> / ${s.accrued}`:"—"}</td>
           <td>${statusTag(e.status)}</td>
         </tr>`;}).join("")}</tbody>
@@ -217,8 +219,8 @@ function openForm(id){
       <div class="field"><label>입사일 <span class="req">*</span></label><input id="f_join" type="date" min="1950-01-01" max="2099-12-31" value="${(e.joinDate||todayStr()).slice(0,10)}"></div>
       <div class="field"><label>주 근무일 수 <span class="req">*</span></label><select id="f_workdays"><option value="1" ${(e.weeklyWorkDays||5)===1?"selected":""}>1</option><option value="2" ${(e.weeklyWorkDays||5)===2?"selected":""}>2</option><option value="3" ${(e.weeklyWorkDays||5)===3?"selected":""}>3</option><option value="4" ${(e.weeklyWorkDays||5)===4?"selected":""}>4</option><option value="5" ${(e.weeklyWorkDays||5)===5?"selected":""}>5</option><option value="6" ${(e.weeklyWorkDays||5)===6?"selected":""}>6</option><option value="7" ${(e.weeklyWorkDays||5)===7?"selected":""}>7</option></select></div>
       <div class="field"><label>연락처</label><input id="f_phone" value="${esc(e.phone||"")}"></div>
-      ${isOwner()?`<div class="field"><label>급여형태</label><select id="f_paytype">${PAY_TYPES.map(p=>`<option value="${p.value}" ${e.payType===p.value?"selected":""}>${p.label}</option>`).join("")}</select></div><div class="field"><label>급여액</label><input id="f_payamount" type="number" min="0" value="${e.payAmount??""}" placeholder="숫자만 입력"></div>`:""}<div class="field"><label>비자</label><input id="f_visa" value="${esc(e.visa||"")}" placeholder="F-5, F-6 등"></div>
-      <div class="field full"><label>계좌</label><input id="f_bank" value="${esc(e.bankAccount||"")}" placeholder="은행 + 계좌번호"></div>
+      <div class="field"><label>비자</label><input id="f_visa" value="${esc(e.visa||"")}" placeholder="F-5, F-6 등"></div>
+      
       <div class="field full"><label>메모</label><textarea id="f_memo" placeholder="근무패턴 등 자유 메모">${esc(e.memo||"")}</textarea></div>
     </div>
   `, [
@@ -230,6 +232,7 @@ function openForm(id){
 }
 function val(id){ const el=document.getElementById(id); return el?el.value.trim():""; }
 function isOwner(){ return sessionStorage.getItem("hr_role")==="owner"; }
+function updateNavVisibility(){ const p=document.getElementById("navPayroll"); if(p) p.style.display = isOwner()? "" : "none"; }
 function saveEmployee(id){
   const name=val("f_name"), join=val("f_join");
   if(!name){ toast("이름을 입력하세요"); return; }
@@ -238,7 +241,7 @@ function saveEmployee(id){
     employeeNo: val("f_no")?Number(val("f_no")):null,
     name, role:val("f_role"), empType:val("f_type"), team:val("f_team")||null,
     joinDate:join, weeklyWorkDays:val("f_workdays")?Number(val("f_workdays")):null,
-    phone:val("f_phone")||null, visa:val("f_visa")||null, bankAccount:val("f_bank")||null, memo:val("f_memo")||null, ...(isOwner()?{payType:val("f_paytype")||null, payAmount:val("f_payamount")?Number(val("f_payamount")):null}:{}),
+    phone:val("f_phone")||null, visa:val("f_visa")||null, memo:val("f_memo")||null,
   };
   if(id){ Object.assign(DB.employees.find(x=>x.id===id), data); toast("수정했습니다"); }
   else { DB.employees.push({id:nextId(), status:"재직", leaveDate:null, ...data}); toast("등록했습니다"); }
@@ -272,10 +275,10 @@ function openCard(id){
           <dt>직무 / 형태</dt><dd>${esc(e.role)} · ${esc(e.empType)}${e.team?` · ${esc(e.team)}`:""}</dd>
           <dt>상태</dt><dd>${statusTag(e.status)} ${e.leaveDate?`<span class="hint">(퇴사일 ${fmtDate(e.leaveDate)})</span>`:""}</dd>
           <dt>입사일</dt><dd>${fmtDate(e.joinDate)} <span class="hint">(근속 ${s.serviceMonths}개월)</span></dd>
-          ${isOwner()?`<dt>급여</dt><dd>${PAY_LABEL[e.payType]||"—"} ${e.payAmount?`· ${won(e.payAmount)}`:""}</dd>`:""}
+          
           <dt>연락처</dt><dd>${esc(e.phone||"—")}</dd>
           <dt>비자</dt><dd>${esc(e.visa||"—")}</dd>
-          <dt>계좌</dt><dd>${esc(e.bankAccount||"—")}</dd>
+          
           <dt>메모</dt><dd style="font-weight:500; white-space:pre-wrap">${esc(e.memo||"—")}</dd>
         </dl>
       </div>
@@ -560,6 +563,54 @@ function shiftMonth(delta){
   attMonth=y+"-"+String(m).padStart(2,"0"); render();
 }
 
+/* =========================== 급여관리 (약국장 전용) =========================== */
+function renderPayroll(){
+if(!isOwner()){ return `<div class="panel" style="padding:40px;text-align:center;color:var(--muted)">권한이 없습니다.</div>`; }
+const list=[...DB.employees].sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));
+return `
+${headHTML("급여관리","약국장 전용 · 급여·계좌·이메일 관리")}
+<div class="panel"><div class="att-wrap">
+${list.length? `<table>
+<thead><tr><th class="num" style="width:56px">사번</th><th>이름</th><th>직무</th><th>급여형태</th><th class="num">급여액</th><th>계좌</th><th>이메일</th><th>상태</th><th></th></tr></thead>
+<tbody>${list.map(e=>`<tr>
+<td class="num">${e.employeeNo??"—"}</td>
+<td><span class="name">${esc(e.name)}</span></td>
+<td><span class="tag t-ice">${esc(e.role)}</span></td>
+<td>${PAY_LABEL[e.payType]||"—"}</td>
+<td class="num">${e.payAmount?won(e.payAmount):"—"}</td>
+<td>${esc(e.bankAccount||"—")}</td>
+<td>${esc(e.email||"—")}</td>
+<td>${statusTag(e.status)}</td>
+<td class="num"><button class="btn sm" onclick="openPayrollForm(${e.id})">수정</button></td>
+</tr>`).join("")}</tbody>
+</table>`:`<div class="empty"><div class="big">등록된 직원이 없어요</div></div>`}
+</div></div>`;
+}
+function openPayrollForm(id){
+const e=DB.employees.find(x=>x.id===id);
+if(!e) return;
+modal(`${esc(e.name)} 급여정보 수정`, `
+<div class="grid2">
+<div class="field"><label>급여형태</label><select id="p_paytype">${PAY_TYPES.map(p=>`<option value="${p.value}" ${e.payType===p.value?"selected":""}>${p.label}</option>`).join("")}</select></div>
+<div class="field"><label>급여액</label><input id="p_payamount" type="number" min="0" value="${e.payAmount??""}" placeholder="숫자만 입력"></div>
+<div class="field full"><label>계좌</label><input id="p_bank" value="${esc(e.bankAccount||"")}" placeholder="은행 + 계좌번호"></div>
+<div class="field full"><label>이메일</label><input id="p_email" type="email" value="${esc(e.email||"")}" placeholder="example@mail.com"></div>
+</div>
+`, [
+`<button class="btn" onclick="closeModal()">취소</button>`,
+`<button class="btn primary" onclick="savePayroll(${id})">저장</button>`,
+]);
+}
+function savePayroll(id){
+const e=DB.employees.find(x=>x.id===id);
+if(!e) return;
+e.payType = val("p_paytype")||null;
+e.payAmount = val("p_payamount")?Number(val("p_payamount")):null;
+e.bankAccount = val("p_bank")||null;
+e.email = val("p_email")||null;
+saveDB(); closeModal(); render(); toast("급여정보를 저장했습니다");
+}
+
 /* =========================== 공통 UI =========================== */
 function headHTML(title, desc, actions=""){
   return `<div class="head"><div><h1>${title}</h1><div class="desc">${desc}</div></div><div>${actions}</div></div>`;
@@ -604,7 +655,7 @@ function seedSample(){
   base.forEach((b,i)=>DB.employees.push({
     id:nextId(), employeeNo:i+1, name:b[0], role:b[1], empType:b[2], team:b[3]||null,
     status:"재직", leaveDate:null, joinDate:b[4], payType:b[5], payAmount:b[6],
-    phone:null, visa:null, bankAccount:null, memo:null,
+    phone:null, visa:null, bankAccount:null, memo:null, email:null,
   }));
   // 샘플 휴가 몇 건
   const chr=DB.employees.find(e=>e.name==="김지현");
@@ -619,6 +670,7 @@ function doLogin(){
   if(pw===ADMIN_PW || pw===STAFF_PW){
     sessionStorage.setItem("hr_auth","1");
     sessionStorage.setItem("hr_role", pw===ADMIN_PW?"owner":"staff");
+updateNavVisibility();
     document.getElementById("login").classList.add("hidden");
     document.getElementById("app").classList.remove("hidden");
     render();
@@ -629,6 +681,7 @@ function doLogin(){
 async function boot(){
   await loadDB();
   document.getElementById("loginBranch").textContent=BRANCH+" · 인사관리 시스템";
+updateNavVisibility();
   document.getElementById("sideBranch").textContent=BRANCH;
   document.getElementById("loginBtn").onclick=doLogin;
   document.getElementById("pw").addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
@@ -638,6 +691,7 @@ async function boot(){
   document.getElementById("importBtn").onclick=()=>document.getElementById("importFile").click();
   document.getElementById("importFile").onchange=e=>{ if(e.target.files[0]) importData(e.target.files[0]); e.target.value=""; };
   if(sessionStorage.getItem("hr_auth")==="1"){
+updateNavVisibility();
     document.getElementById("login").classList.add("hidden");
     document.getElementById("app").classList.remove("hidden");
     render();
