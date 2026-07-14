@@ -1,0 +1,14 @@
+{
+  "name": "hr-management",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HR management app with Express + PostgreSQL backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.11.5"
+  }
+}
