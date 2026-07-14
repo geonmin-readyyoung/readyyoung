@@ -217,7 +217,7 @@ function openForm(id){
       <div class="field"><label>입사일 <span class="req">*</span></label><input id="f_join" type="date" min="1950-01-01" max="2099-12-31" value="${(e.joinDate||todayStr()).slice(0,10)}"></div>
       <div class="field"><label>주 근무일 수 <span class="req">*</span></label><select id="f_workdays"><option value="1" ${(e.weeklyWorkDays||5)===1?"selected":""}>1</option><option value="2" ${(e.weeklyWorkDays||5)===2?"selected":""}>2</option><option value="3" ${(e.weeklyWorkDays||5)===3?"selected":""}>3</option><option value="4" ${(e.weeklyWorkDays||5)===4?"selected":""}>4</option><option value="5" ${(e.weeklyWorkDays||5)===5?"selected":""}>5</option><option value="6" ${(e.weeklyWorkDays||5)===6?"selected":""}>6</option><option value="7" ${(e.weeklyWorkDays||5)===7?"selected":""}>7</option></select></div>
       <div class="field"><label>연락처</label><input id="f_phone" value="${esc(e.phone||"")}"></div>
-      <div class="field"><label>비자</label><input id="f_visa" value="${esc(e.visa||"")}" placeholder="F-5, F-6 등"></div>
+      ${isOwner()?`<div class="field"><label>급여형태</label><select id="f_paytype">${PAY_TYPES.map(p=>`<option value="${p.value}" ${e.payType===p.value?"selected":""}>${p.label}</option>`).join("")}</select></div><div class="field"><label>급여액</label><input id="f_payamount" type="number" min="0" value="${e.payAmount??""}" placeholder="숫자만 입력"></div>`:""}<div class="field"><label>비자</label><input id="f_visa" value="${esc(e.visa||"")}" placeholder="F-5, F-6 등"></div>
       <div class="field full"><label>계좌</label><input id="f_bank" value="${esc(e.bankAccount||"")}" placeholder="은행 + 계좌번호"></div>
       <div class="field full"><label>메모</label><textarea id="f_memo" placeholder="근무패턴 등 자유 메모">${esc(e.memo||"")}</textarea></div>
     </div>
@@ -238,7 +238,7 @@ function saveEmployee(id){
     employeeNo: val("f_no")?Number(val("f_no")):null,
     name, role:val("f_role"), empType:val("f_type"), team:val("f_team")||null,
     joinDate:join, weeklyWorkDays:val("f_workdays")?Number(val("f_workdays")):null,
-    phone:val("f_phone")||null, visa:val("f_visa")||null, bankAccount:val("f_bank")||null, memo:val("f_memo")||null,
+    phone:val("f_phone")||null, visa:val("f_visa")||null, bankAccount:val("f_bank")||null, memo:val("f_memo")||null, ...(isOwner()?{payType:val("f_paytype")||null, payAmount:val("f_payamount")?Number(val("f_payamount")):null}:{}),
   };
   if(id){ Object.assign(DB.employees.find(x=>x.id===id), data); toast("수정했습니다"); }
   else { DB.employees.push({id:nextId(), status:"재직", leaveDate:null, ...data}); toast("등록했습니다"); }
