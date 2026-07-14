@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>인사관리 - HR Management</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+<div class="card">
+<div class="brand">인사관리</div>
+<div class="sub" id="loginBranch">매장 직원 인사관리 시스템</div>
+<label for="pw">관리자 비밀번호</label>
+<input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호 입력" />
+<button id="loginBtn">로그인</button>
+<div class="err" id="loginErr"></div>
+</div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+<aside>
+<div class="logo">인사관리</div>
+<div class="branch" id="sideBranch"></div>
+<nav id="nav">
+<button data-view="dashboard" class="active"><span class="ico">▤</span> 대시보드</button>
+<button data-view="employees"><span class="ico">👥</span> 직원</button>
+<button data-view="leaves"><span class="ico">🗓</span> 연차·휴가</button>
+<button data-view="attendance"><span class="ico">✔</span> 출근부</button>
+<button data-view="schedule"><span class="ico">⏰</span> 근무표</button>
+</nav>
+<div class="spacer"></div>
+<div class="foot">
+<button id="exportBtn">데이터 백업(내보내기)</button>
+<button id="importBtn">백업 불러오기</button>
+<button id="logoutBtn">로그아웃</button>
+</div>
+</aside>
+<main id="main"></main>
+</div>
+
+<input type="file" id="importFile" accept="application/json" class="hidden" />
+<div id="modalRoot"></div>
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
