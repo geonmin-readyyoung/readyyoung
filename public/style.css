@@ -165,7 +165,7 @@ td .name{font-weight:700}
 .att th.we{color:var(--bad)}
 .att td .cell{width:100%; height:34px; border:0; background:transparent; cursor:pointer; font-weight:700; font-size:12px}
 .att td.on .cell{background:var(--ice-soft); color:var(--navy)}
-.att td.off .cell{color:var(--gray)}
+.att td.off .cell{color:var(--gray)} .att td.shift-off .cell{color:var(--gray)} .att td.shift-A .cell{background:#EAF1FE;color:#1E2761} .att td.shift-B .cell{background:#FBF1DC;color:#B7791F} .att td.shift-custom .cell{background:#E4F5EC;color:#1F9D64}
 .att td.absent .cell{background:var(--bad-bg); color:var(--bad)}
 .att td.sched-on .cell{background:var(--ice-soft); color:var(--navy); opacity:.5}
 .att td.sched-off .cell{color:var(--gray); opacity:.4}
