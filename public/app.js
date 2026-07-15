@@ -486,7 +486,7 @@ function renderSchedule(){
   const body = emps.map(e=>{
     const cells = DOW_ORDER.map(d=>{
       const s=getSchedule(e.id,d);
-      const cls = s.on? "on":"off";
+      const cls = "shift-"+(s.on? shiftTypeOf(s):"off");
       const mark = s.on? `${s.start}~${s.end}`:"휴무";
       return `<td class="${cls}"><button class="cell" data-emp="${e.id}" data-dow="${d}">${mark}</button></td>`;
     }).join("");
