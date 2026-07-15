@@ -478,7 +478,7 @@ function getSchedule(empId, dow){
 }
 function renderSchedule(){
   DB.weeklySchedule = DB.weeklySchedule || {};
-  const emps=DB.employees.filter(e=>e.status!=="퇴사");
+  const emps=DB.employees.filter(e=>e.status!=="퇴사").sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));
   if(!emps.length){
     return headHTML("근무표","반복되는 주간 근무 스케줄을 등록하세요.") + `<div class="panel" style="padding:40px;text-align:center;color:var(--muted)">등록된 직원이 없어요.</div>`;
   }
