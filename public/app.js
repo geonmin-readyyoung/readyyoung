@@ -523,8 +523,8 @@ const body = `
 </select>
 </div>
 <div class="grid2" id="sf_time_wrap" style="${curType==="custom"?"":"display:none"}">
-<div class="field"><label>시작 시간</label><input id="sf_start" type="time" lang="en-GB" value="${s.start||"09:00"}"></div>
-<div class="field"><label>종료 시간</label><input id="sf_end" type="time" lang="en-GB" value="${s.end||"18:00"}"></div>
+<div class="field"><label>시작 시간</label><input id="sf_start" type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" placeholder="09:00" maxlength="5" value="${s.start||"09:00"}"></div>
+<div class="field"><label>종료 시간</label><input id="sf_end" type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" placeholder="18:00" maxlength="5" value="${s.end||"18:00"}"></div>
 </div>`;
 modal(`${DOW_LABELS[dow]}요일 근무 설정`, body, [
 `<button class="btn" onclick="closeModal()">취소</button>`,
@@ -542,7 +542,7 @@ const type=val("sf_type"); const on=type!=="off";
 let start, end;
 if(type==="A"){ start=SHIFT_PRESETS.A.start; end=SHIFT_PRESETS.A.end; }
 else if(type==="B"){ start=SHIFT_PRESETS.B.start; end=SHIFT_PRESETS.B.end; }
-else if(type==="custom"){ start = val("sf_start")||"09:00"; end = val("sf_end")||"18:00"; } else { start="09:00"; end="18:00"; }
+else if(type==="custom"){ const st=val("sf_start"), en=val("sf_end"), tre=/^([01][0-9]|2[0-3]):[0-5][0-9]$/; start = tre.test(st)?st:"09:00"; end = tre.test(en)?en:"18:00"; } else { start="09:00"; end="18:00"; }
 DB.weeklySchedule = DB.weeklySchedule || {};
 DB.weeklySchedule[empId] = DB.weeklySchedule[empId] || {};
 DB.weeklySchedule[empId][dow] = {on, start, end};
