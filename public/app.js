@@ -105,8 +105,8 @@ function renderDashboard(){
   const parttime=active.filter(e=>e.empType==="파트타임").length;
   const pending=DB.leaves.filter(l=>l.status==="대기").length;
   // 이번 달 입사자 / 잔여연차 낮은 직원
-  const lowLeave=active.filter(e=>e.empType==="정규직").map(e=>({e,s:summarizeLeave(e)}))
-    .filter(x=>x.s.remaining<=3).sort((a,b)=>a.s.remaining-b.s.remaining).slice(0,5);
+  const todayDow=new Date().getDay();
+    const todaySchedule=active.map(e=>({e,s:getSchedule(e.id,todayDow)})).filter(x=>x.s.on).sort((a,b)=>(a.s.start||"").localeCompare(b.s.start||""));
   const recent=[...active].sort((a,b)=>(b.joinDate||"").localeCompare(a.joinDate||"")).slice(0,5);
 
   if(emps.length===0){
@@ -142,13 +142,13 @@ function renderDashboard(){
       </tbody></table>
     </div>
     <div class="panel">
-      <div class="p-head"><h2>잔여 연차 주의 (정규직 ≤3일)</h2></div>
-      ${lowLeave.length? `<table><tbody>
-        ${lowLeave.map(({e,s})=>`<tr class="row-click" onclick="openCard(${e.id})">
+      <div class="p-head"><h2>오늘 근무표 (${DOW_LABELS[todayDow]})</h2><button class="btn sm ghost" onclick="setView('schedule')">근무표 전체</button></div>
+      ${todaySchedule.length? `<table><tbody>
+        ${todaySchedule.map(({e,s})=>`<tr class="row-click" onclick="openCard(${e.id})">
           <td><span class="name">${esc(e.name)}</span></td>
-          <td class="num"><b style="color:${s.remaining<=1?'var(--bad)':'var(--warn)'}">${s.remaining}</b> / ${s.accrued}일</td>
+          <td class="num">${s.start}~${s.end}</td>
         </tr>`).join("")}
-      </tbody></table>` : `<div class="empty" style="padding:28px">해당 직원이 없어요.</div>`}
+      </tbody></table>` : `<div class="empty" style="padding:28px">오늘 근무 예정인 직원이 없어요.</div>`}
     </div>
   </div>`;
 }
@@ -322,10 +322,10 @@ function renderLeaves(){
   const regs=DB.employees.filter(e=>e.status==="재직" && e.empType==="정규직")
     .map(e=>({e,s:summarizeLeave(e)}))
     .sort((a,b)=>a.s.remaining-b.s.remaining);
-  const pending=DB.leaves.filter(l=>l.status==="대기");
+  const pending=DB.leaves.filter(l=>l.status==="대기"); const lowLeave=regs.filter(x=>x.s.remaining<=3).slice(0,5);
 
   return `
-  ${headHTML("연차·휴가","정규직 잔여 연차 자동계산 · 휴가 등록/승인", `<button class="btn primary" onclick="openLeaveForm()">＋ 휴가 등록</button>`)}
+  ${headHTML("연차·휴가","정규직 잔여 연차 자동계산 · 휴가 등록/승인", `<button class="btn primary" onclick="openLeaveForm()">＋ 휴가 등록</button>`)}${lowLeave.length?`<div class="panel" style="margin-bottom:20px"><div class="p-head"><h2>잔여 연차 주의 (정규직 ≤3일)</h2></div><table><tbody>${lowLeave.map(({e,s})=>`<tr class="row-click" onclick="openCard(${e.id})"><td><span class="name">${esc(e.name)}</span></td><td class="num"><b style="color:${s.remaining<=1?'var(--bad)':'var(--warn)'}">${s.remaining}</b> / ${s.accrued}일</td></tr>`).join("")}</tbody></table></div>`:""}
   ${pending.length?`<div class="panel" style="margin-bottom:20px">
     <div class="p-head"><h2>승인 대기 ${pending.length}건</h2></div>
     <table><thead><tr><th>직원</th><th>종류</th><th>기간</th><th class="num">일수</th><th></th></tr></thead>
