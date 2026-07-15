@@ -510,13 +510,13 @@ function wireSchedule(){
 }
 function openScheduleForm(empId, dow){
 const s=getSchedule(empId,dow);
-const curType=shiftTypeOf(s);
+const curType=!s.on?"off":shiftTypeOf(s);
 const body = `
-<div class="field"><label>근무 여부</label>
+<div class="field" style="display:none"><label>근무 여부</label>
 <select id="sf_on"><option value="1" ${s.on?"selected":""}>근무</option><option value="0" ${!s.on?"selected":""}>휴무</option></select>
 </div>
 <div class="field"><label>근무 타입</label>
-<select id="sf_type" onchange="onShiftTypeChange()">
+<select id="sf_type" onchange="onShiftTypeChange()"><option value="off" ${curType==="off"?"selected":""}>휴무</option>
 <option value="A" ${curType==="A"?"selected":""}>${SHIFT_PRESETS.A.label}</option>
 <option value="B" ${curType==="B"?"selected":""}>${SHIFT_PRESETS.B.label}</option>
 <option value="custom" ${curType==="custom"?"selected":""}>직접입력</option>
@@ -537,12 +537,12 @@ const wrap=document.getElementById("sf_time_wrap");
 if(wrap) wrap.style.display = t==="custom" ? "" : "none";
 }
 function saveScheduleEntry(empId, dow){
-const on = val("sf_on")==="1";
-const type = val("sf_type");
+const type=val("sf_type"); const on=type!=="off";
+
 let start, end;
 if(type==="A"){ start=SHIFT_PRESETS.A.start; end=SHIFT_PRESETS.A.end; }
 else if(type==="B"){ start=SHIFT_PRESETS.B.start; end=SHIFT_PRESETS.B.end; }
-else { start = val("sf_start")||"09:00"; end = val("sf_end")||"18:00"; }
+else if(type==="custom"){ start = val("sf_start")||"09:00"; end = val("sf_end")||"18:00"; } else { start="09:00"; end="18:00"; }
 DB.weeklySchedule = DB.weeklySchedule || {};
 DB.weeklySchedule[empId] = DB.weeklySchedule[empId] || {};
 DB.weeklySchedule[empId][dow] = {on, start, end};
