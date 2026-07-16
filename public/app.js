@@ -25,7 +25,7 @@ const DEDUCT_TYPES = ["연차","반차(오전)","반차(오후)"];
 /* ---- 상태 ---- */
 let DB = { employees:[], leaves:[], attendance:{}, weeklySchedule:{}, seq:1 };
 let view = "dashboard";
-let attMonth = ymNow();
+let attMonth = ymNow();let leaveViewAll=false;function toggleLeaveViewAll(){ leaveViewAll=!leaveViewAll; render(); }
 
 /* =========================== 저장/로드 =========================== */
 async function loadDB(){
@@ -322,7 +322,7 @@ function renderLeaves(){
   const regs=DB.employees.filter(e=>e.status==="재직" && e.empType==="정규직")
     .map(e=>({e,s:summarizeLeave(e)}))
     .sort((a,b)=>a.s.remaining-b.s.remaining);
-  const pending=DB.leaves.filter(l=>l.status==="대기"); const lowLeave=regs.filter(x=>x.s.remaining<=3).slice(0,5);
+  const pending=DB.leaves.filter(l=>l.status==="대기"); const lowLeave=regs.filter(x=>x.s.remaining<=3).slice(0,5); const twoMoAgo=new Date(); twoMoAgo.setMonth(twoMoAgo.getMonth()-2); const twoMoAgoStr=twoMoAgo.toISOString().slice(0,10); const recentLeaves=[...DB.leaves].filter(l=>leaveViewAll||(l.startDate||"")>=twoMoAgoStr).sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||""));
 
   return `
   ${headHTML("연차·휴가","정규직 잔여 연차 자동계산 · 휴가 등록/승인", `<button class="btn primary" onclick="openLeaveForm()">＋ 휴가 등록</button>`)}${lowLeave.length?`<div class="panel" style="margin-bottom:20px"><div class="p-head"><h2>잔여 연차 주의 (정규직 ≤3일)</h2></div><table><tbody>${lowLeave.map(({e,s})=>`<tr class="row-click" onclick="openCard(${e.id})"><td><span class="name">${esc(e.name)}</span></td><td class="num"><b style="color:${s.remaining<=1?'var(--bad)':'var(--warn)'}">${s.remaining}</b> / ${s.accrued}일</td></tr>`).join("")}</tbody></table></div>`:""}
@@ -338,7 +338,7 @@ function renderLeaves(){
     </tr>`;}).join("")}</tbody></table>
   </div>`:""}
   <div class="panel">
-    <div class="p-head"><h2>정규직 잔여 연차</h2><span class="hint">규칙: 1년 미만 매월 1일(최대 11) · 1년 이상 15일</span></div>
+    <div class="p-head"><h2>최근 휴가 내역</h2><button class="btn sm ghost" onclick="toggleLeaveViewAll()">${leaveViewAll?"최근 2개월만":"전체 보기"}</button></div>${recentLeaves.length?`<div class="att-wrap"><table><thead><tr><th>직원</th><th>종류</th><th>기간</th><th class="num">일수</th><th>상태</th><th></th></tr></thead><tbody>${recentLeaves.map(l=>{const e=DB.employees.find(x=>x.id===l.employeeId)||{};return `<tr><td><span class="name">${esc(e.name||"?")}</span></td><td>${esc(l.leaveType)}</td><td>${fmtDate(l.startDate)}${l.endDate&&l.endDate!==l.startDate?` ~ ${fmtDate(l.endDate)}`:""}</td><td class="num">${l.days}</td><td>${leaveStatusTag(l.status)} <select onchange="setLeaveStatus(${l.id}, this.value)">${LEAVE_STATUSES.map(s=>`<option ${l.status===s?"selected":""}>${s}</option>`).join("")}</select></td><td class="num"><button class="btn sm ghost" onclick="deleteLeave(${l.id},0)">삭제</button></td></tr>`;}).join("")}</tbody></table></div>`:`<div class="empty" style="padding:28px">최근 휴가 기록이 없어요.</div>`}</div><div class="panel"><div class="p-head"><h2>정규직 잔여 연차</h2><span class="hint">규칙: 1년 미만 매월 1일(최대 11) · 1년 이상 15일</span></div>
     <div class="att-wrap">${regs.length?`<table>
       <thead><tr><th>이름</th><th>입사일</th><th class="num">근속(개월)</th><th class="num">발생</th><th class="num">사용</th><th class="num">잔여</th></tr></thead>
       <tbody>${regs.map(({e,s})=>`<tr class="row-click" onclick="openCard(${e.id})">
