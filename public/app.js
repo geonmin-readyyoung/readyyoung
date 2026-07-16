@@ -106,7 +106,7 @@ function renderDashboard(){
   const pending=DB.leaves.filter(l=>l.status==="대기").length;
   // 이번 달 입사자 / 잔여연차 낮은 직원
   const todayDow=new Date().getDay();
-    const todaySchedule=active.map(e=>({e,s:getSchedule(e.id,todayDow)})).filter(x=>x.s.on).sort((a,b)=>(a.s.start||"").localeCompare(b.s.start||""));
+    const todaySchedule=active.map(e=>({e,s:getSchedule(e.id,todayDow)})).filter(x=>x.s.on).sort((a,b)=>(a.e.employeeNo||0)-(b.e.employeeNo||0));
   const recent=[...active].sort((a,b)=>(b.joinDate||"").localeCompare(a.joinDate||"")).slice(0,5);
 
   if(emps.length===0){
