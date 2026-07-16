@@ -33,7 +33,7 @@ async function loadDB(){
     const r = await fetch("/api/db").then(x=>x.json());
     if(r && r.data){ DB = r.data; }
   }catch(e){ /* 최초 실행 = 데이터 없음 */ }
-  DB.employees ||= []; DB.leaves ||= []; DB.attendance ||= {}; DB.weeklySchedule ||= {}; DB.seq ||= 1; migrateEmployeeNoFormat();
+  DB.employees ||= []; DB.leaves ||= []; DB.attendance ||= {}; DB.weeklySchedule ||= {}; DB.seq ||= 1; migrateEmployeeNoFormat(); syncLeaveAttendance();
 }
 let saveT=null;
 function saveDB(){
@@ -392,13 +392,13 @@ function saveLeave(){
     days:Number(val("l_days")||0), startDate:start, endDate:end,
     status:val("l_status"), memo:val("l_memo")||null,
   });
-  saveDB(); closeModal(); render(); toast("휴가를 등록했습니다");
+  syncLeaveAttendance(); saveDB(); closeModal(); render(); toast("휴가를 등록했습니다");
 }
-function setLeaveStatus(id, st){ const l=DB.leaves.find(x=>x.id===id); if(l){ l.status=st; saveDB(); render(); toast(st+" 처리했습니다"); } }
-function deleteLeave(id, empId){ DB.leaves=DB.leaves.filter(x=>x.id!==id); saveDB(); if(document.getElementById("modalRoot").innerHTML && empId){ openCard(empId); } render(); toast("삭제했습니다"); }
+function setLeaveStatus(id, st){ const l=DB.leaves.find(x=>x.id===id); if(l){ l.status=st; syncLeaveAttendance(); saveDB(); render(); toast(st+" 처리했습니다"); } }
+function deleteLeave(id, empId){ DB.leaves=DB.leaves.filter(x=>x.id!==id); syncLeaveAttendance(); saveDB(); if(document.getElementById("modalRoot").innerHTML && empId){ openCard(empId); } render(); toast("삭제했습니다"); }
 
 /* =========================== 출근부 =========================== */
-function attKey(empId, day){ return empId+"|"+day; }
+function attKey(empId, day){ return empId+"|"+day; } function syncLeaveAttendance(){ for(const k in DB.attendance){ if(DB.attendance[k].status==="연차") delete DB.attendance[k]; } DB.leaves.filter(l=>l.leaveType==="연차" && l.status==="승인").forEach(l=>{ const start=new Date(l.startDate+"T00:00:00"), end=new Date((l.endDate||l.startDate)+"T00:00:00"); for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){ const day=d.toISOString().slice(0,10); DB.attendance[attKey(l.employeeId, day)]={employeeId:l.employeeId, date:day, status:"연차"}; } }); }
 function daysInMonth(ym){ const [y,m]=ym.split("-").map(Number); return new Date(y,m,0).getDate(); }
 function renderAttendance(){
   const [y,m]=attMonth.split("-").map(Number);
@@ -421,9 +421,9 @@ function renderAttendance(){
       const st=DB.attendance[attKey(e.id,day)]?.status || "";
       const dow=new Date(y,m-1,d).getDay();
       const sc=(DB.weeklySchedule&&DB.weeklySchedule[e.id])?DB.weeklySchedule[e.id][dow]:null;
-      const cls=st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
+      const cls=st==="연차"?"leave":st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
       if(st==="출근") worked++;
-      const mark=st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
+      const mark=st==="연차"?"연":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
       return `<td class="${cls}${(sc&&sc.on&&sc.close)?" close":""}"${(sc&&sc.on&&sc.close)?` title="마감조 (${sc.start}~${sc.end})"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}</button></td>`;
     }).join("");
     return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked})</span></td>${cells}</tr>`;
@@ -445,14 +445,14 @@ function renderAttendance(){
       <tbody>${body}</tbody>
     </table>`:`<div class="empty"><div class="big">이 달에 표시할 파트타임 직원이 없어요</div><div>직원을 파트타임으로 등록하면 여기에 나타납니다.</div></div>`}
   </div></div>
-  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span>클릭할 때마다: 출근 → 휴무 → 결근 → 없음 순환</span><span style="opacity:.55">연하게 표시된 칸 = 근무표 기준 예정</span></div>`;
+  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span>클릭할 때마다: 출근 → 휴무 → 결근 → 없음 순환</span><span style="opacity:.55">연하게 표시된 칸 = 근무표 기준 예정</span></div>`;
 }
 function wireAttendance(){
   document.querySelectorAll(".att .cell").forEach(btn=>{
     btn.onclick=()=>{
       const emp=Number(btn.dataset.emp), day=btn.dataset.day, key=attKey(emp,day);
       const cur=DB.attendance[key]?.status || "";
-      const nextMap={"":"출근","출근":"휴무","휴무":"결근","결근":""};
+      if(cur==="연차"){ toast("연차는 휴가 등록에서 관리돼요"); return; } const nextMap={"":"출근","출근":"휴무","휴무":"결근","결근":""};
       const nx=nextMap[cur];
       if(nx==="") delete DB.attendance[key];
       else DB.attendance[key]={employeeId:emp, date:day, status:nx};
