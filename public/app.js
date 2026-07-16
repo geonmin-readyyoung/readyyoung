@@ -411,7 +411,7 @@ function renderAttendance(){
     if(e.leaveDate && e.leaveDate.slice(0,10) < first) return false;
     return true;
   });
-  const dayHdr=[];
+  emps.sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));const dayHdr=[];
   for(let d=1; d<=dim; d++){ const dow=new Date(y,m-1,d).getDay(); dayHdr.push({d,we:(dow===0||dow===6)}); }
 
   const body = emps.map(e=>{
