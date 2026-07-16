@@ -20,12 +20,12 @@ const PAY_TYPES = [
 const PAY_LABEL = Object.fromEntries(PAY_TYPES.map(p=>[p.value,p.label]));
 const LEAVE_TYPES = ["연차","반차(오전)","반차(오후)","병가","기타"];
 const LEAVE_STATUSES = ["승인","대기","반려"];
-const DEDUCT_TYPES = ["연차","반차(오전)","반차(오후)"];
+const DEDUCT_TYPES = ["연차","반차(오전)","반차(오후)"]; const LEAVE_ADJ_REASONS = ["근태불량","경조사","포상","오류정정","기타"];
 
 /* ---- 상태 ---- */
 let DB = { employees:[], leaves:[], attendance:{}, weeklySchedule:{}, seq:1 };
 let view = "dashboard";
-let attMonth = ymNow();let leaveViewAll=false;function toggleLeaveViewAll(){ leaveViewAll=!leaveViewAll; render(); }
+let attMonth = ymNow();let leaveViewAll=false;function toggleLeaveViewAll(){ leaveViewAll=!leaveViewAll; render(); }let leaveAdjExpandedId=null;function toggleLeaveAdjRow(empId){ leaveAdjExpandedId=leaveAdjExpandedId===empId?null:empId; render(); }
 
 /* =========================== 저장/로드 =========================== */
 async function loadDB(){
@@ -33,7 +33,7 @@ async function loadDB(){
     const r = await fetch("/api/db").then(x=>x.json());
     if(r && r.data){ DB = r.data; }
   }catch(e){ /* 최초 실행 = 데이터 없음 */ }
-  DB.employees ||= []; DB.leaves ||= []; DB.attendance ||= {}; DB.weeklySchedule ||= {}; DB.seq ||= 1; migrateEmployeeNoFormat(); syncLeaveAttendance();
+  DB.employees ||= []; DB.leaves ||= []; DB.attendance ||= {}; DB.weeklySchedule ||= {}; DB.seq ||= 1; DB.leaveAdjustments ||= []; migrateEmployeeNoFormat(); syncLeaveAttendance();
 }
 let saveT=null;
 function saveDB(){
@@ -70,8 +70,8 @@ function summarizeLeave(emp){
   const used = DB.leaves
     .filter(l=>l.employeeId===emp.id && l.status==="승인" && DEDUCT_TYPES.includes(l.leaveType))
     .reduce((s,l)=>s+Number(l.days||0),0);
-  const remaining = Math.round((accrued - used)*10)/10;
-  return { serviceMonths:monthsSince(emp.joinDate), accrued, used, remaining };
+  const adj = (DB.leaveAdjustments||[]).filter(a=>a.employeeId===emp.id).reduce((s,a)=>s+(a.direction==="추가"?Number(a.days||0):-Number(a.days||0)),0); const remaining = Math.round((accrued - used + adj)*10)/10;
+  return { serviceMonths:monthsSince(emp.joinDate), accrued, used, adj, remaining };
 }
 
 /* =========================== 유틸 =========================== */
@@ -338,18 +338,18 @@ function renderLeaves(){
     </tr>`;}).join("")}</tbody></table>
   </div>`:""}
   <div class="panel">
-    <div class="p-head"><h2>최근 휴가 내역</h2><button class="btn sm ghost" onclick="toggleLeaveViewAll()">${leaveViewAll?"최근 2개월만":"전체 보기"}</button></div>${recentLeaves.length?`<div class="att-wrap"><table><thead><tr><th>직원</th><th>종류</th><th>기간</th><th class="num">일수</th><th>상태</th><th></th></tr></thead><tbody>${recentLeaves.map(l=>{const e=DB.employees.find(x=>x.id===l.employeeId)||{};return `<tr><td><span class="name">${esc(e.name||"?")}</span></td><td>${esc(l.leaveType)}</td><td>${fmtDate(l.startDate)}${l.endDate&&l.endDate!==l.startDate?` ~ ${fmtDate(l.endDate)}`:""}</td><td class="num">${l.days}</td><td>${leaveStatusTag(l.status)} <select onchange="setLeaveStatus(${l.id}, this.value)">${LEAVE_STATUSES.map(s=>`<option ${l.status===s?"selected":""}>${s}</option>`).join("")}</select></td><td class="num"><button class="btn sm ghost" onclick="deleteLeave(${l.id},0)">삭제</button></td></tr>`;}).join("")}</tbody></table></div>`:`<div class="empty" style="padding:28px">최근 휴가 기록이 없어요.</div>`}</div><div class="panel"><div class="p-head"><h2>정규직 잔여 연차</h2><span class="hint">규칙: 1년 미만 매월 1일(최대 11) · 1년 이상 15일</span></div>
+    <div class="p-head"><h2>최근 휴가 내역</h2><button class="btn sm ghost" onclick="toggleLeaveViewAll()">${leaveViewAll?"최근 2개월만":"전체 보기"}</button></div>${recentLeaves.length?`<div class="att-wrap"><table><thead><tr><th>직원</th><th>종류</th><th>기간</th><th class="num">일수</th><th>상태</th><th></th></tr></thead><tbody>${recentLeaves.map(l=>{const e=DB.employees.find(x=>x.id===l.employeeId)||{};return `<tr><td><span class="name">${esc(e.name||"?")}</span></td><td>${esc(l.leaveType)}</td><td>${fmtDate(l.startDate)}${l.endDate&&l.endDate!==l.startDate?` ~ ${fmtDate(l.endDate)}`:""}</td><td class="num">${l.days}</td><td>${leaveStatusTag(l.status)} <select onchange="setLeaveStatus(${l.id}, this.value)">${LEAVE_STATUSES.map(s=>`<option ${l.status===s?"selected":""}>${s}</option>`).join("")}</select></td><td class="num"><button class="btn sm ghost" onclick="deleteLeave(${l.id},0)">삭제</button></td></tr>`;}).join("")}</tbody></table></div>`:`<div class="empty" style="padding:28px">최근 휴가 기록이 없어요.</div>`}</div><div class="panel"><div class="p-head"><h2>직원별 잔여 연차</h2><span class="hint">규칙: 1년 미만 매월 1일(최대 11) · 1년 이상 15일</span></div>
     <div class="att-wrap">${regs.length?`<table>
-      <thead><tr><th>이름</th><th>입사일</th><th class="num">근속(개월)</th><th class="num">발생</th><th class="num">사용</th><th class="num">잔여</th></tr></thead>
+      <thead><tr><th>이름</th><th>입사일</th><th class="num">근속(개월)</th><th class="num">발생</th><th class="num">사용</th><th class="num">차감</th><th class="num">잔여</th><th></th></tr></thead>
       <tbody>${regs.map(({e,s})=>`<tr class="row-click" onclick="openCard(${e.id})">
         <td><span class="name">${esc(e.name)}</span></td>
         <td>${fmtDate(e.joinDate)}</td>
         <td class="num">${s.serviceMonths}</td>
         <td class="num">${s.accrued}</td>
         <td class="num">${s.used}</td>
-        <td class="num"><b style="color:${s.remaining<=1?'var(--bad)':s.remaining<=3?'var(--warn)':'var(--navy)'}">${s.remaining}</b></td>
+        <td class="num">${s.adj?(s.adj>0?'+':'')+s.adj:'-'}</td><td class="num"><b style="color:${s.remaining<=1?'var(--bad)':s.remaining<=3?'var(--warn)':'var(--navy)'}">${s.remaining}</b></td><td class="num"><button class="btn sm ghost" onclick="event.stopPropagation(); toggleLeaveAdjRow(${e.id})">차감/내역</button></td>
       </tr>`).join("")}</tbody>
-    </table>`:`<div class="empty"><div class="big">정규직 재직자가 없어요</div></div>`}</div>
+    </table>`:`<div class="empty"><div class="big">정규직 재직자가 없어요</div></div>`}</div>${leaveAdjExpandedId?renderLeaveAdjPanel((regs.find(r=>r.e.id===leaveAdjExpandedId)||{}).e):""}
   </div>`;
 }
 function openLeaveForm(empId){
@@ -395,7 +395,7 @@ function saveLeave(){
   syncLeaveAttendance(); saveDB(); closeModal(); render(); toast("휴가를 등록했습니다");
 }
 function setLeaveStatus(id, st){ const l=DB.leaves.find(x=>x.id===id); if(l){ l.status=st; syncLeaveAttendance(); saveDB(); render(); toast(st+" 처리했습니다"); } }
-function deleteLeave(id, empId){ DB.leaves=DB.leaves.filter(x=>x.id!==id); syncLeaveAttendance(); saveDB(); if(document.getElementById("modalRoot").innerHTML && empId){ openCard(empId); } render(); toast("삭제했습니다"); }
+function deleteLeave(id, empId){ DB.leaves=DB.leaves.filter(x=>x.id!==id); syncLeaveAttendance(); saveDB(); if(document.getElementById("modalRoot").innerHTML && empId){ openCard(empId); } render(); toast("삭제했습니다"); } function renderLeaveAdjPanel(e){ if(!e) return ""; const list=(DB.leaveAdjustments||[]).filter(a=>a.employeeId===e.id).sort((a,b)=>(b.date||"").localeCompare(a.date||"")); return `<div class="panel" style="margin-top:16px"><div class="p-head"><h2>${esc(e.name)} - 연차 조정</h2><button class="btn sm ghost" onclick="toggleLeaveAdjRow(${e.id})">닫기</button></div><div class="card-grid"><div><div class="p-head"><h2 style="font-size:14px">연차 조정 추가</h2></div><div class="grid2"><div class="field"><label>방향</label><select id="adj_dir"><option value="차감">차감 (-)</option><option value="추가">추가 (+)</option></select></div><div class="field"><label>일수 (0.5 단위)</label><input id="adj_days" type="number" step="0.5" min="0.5" value="1"></div><div class="field"><label>사유 분류</label><select id="adj_reason">${LEAVE_ADJ_REASONS.map(r=>`<option>${r}</option>`).join("")}</select></div><div class="field"><label>적용일</label><input id="adj_date" type="date" value="${todayStr()}"></div><div class="field full"><label>메모</label><input id="adj_memo" placeholder="구체적 사유 (선택)"></div></div><button class="btn primary" style="margin-top:8px" onclick="addLeaveAdjustment(${e.id})">차감/조정 추가</button></div><div><div class="p-head"><h2 style="font-size:14px">차감/조정 내역</h2></div>${list.length?`<div class="att-wrap"><table><tbody>${list.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${a.direction==="추가"?'<span class="tag t-ok">+'+a.days+'일</span>':'<span class="tag t-bad">-'+a.days+'일</span>'}</td><td>${esc(a.reasonType||"")}</td><td class="hint">${esc(a.memo||"")}</td><td class="num"><button class="btn sm ghost" onclick="deleteLeaveAdjustment(${a.id})">삭제</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="hint" style="padding:10px 4px">내역이 없습니다.</div>`}</div></div></div>`; } function addLeaveAdjustment(empId){ const dir=document.getElementById("adj_dir").value; const days=Number(document.getElementById("adj_days").value||0); if(!days){ toast("일수를 입력하세요"); return; } const reason=document.getElementById("adj_reason").value; const date=document.getElementById("adj_date").value||todayStr(); const memo=document.getElementById("adj_memo").value||null; DB.leaveAdjustments=DB.leaveAdjustments||[]; DB.leaveAdjustments.push({id:nextId(), employeeId:empId, direction:dir, days, reasonType:reason, date, memo}); saveDB(); render(); toast("연차를 조정했습니다"); } function deleteLeaveAdjustment(id){ DB.leaveAdjustments=(DB.leaveAdjustments||[]).filter(x=>x.id!==id); saveDB(); render(); toast("삭제했습니다"); }
 
 /* =========================== 출근부 =========================== */
 function attKey(empId, day){ return empId+"|"+day; } function syncLeaveAttendance(){ for(const k in DB.attendance){ if(DB.attendance[k].status==="연차") delete DB.attendance[k]; } DB.leaves.filter(l=>l.leaveType==="연차" && l.status==="승인").forEach(l=>{ let cur=(l.startDate||"").slice(0,10); const endStr=(l.endDate||l.startDate||"").slice(0,10); while(cur && cur<=endStr){ DB.attendance[attKey(l.employeeId, cur)]={employeeId:l.employeeId, date:cur, status:"연차"}; const p=cur.split("-").map(Number); const nd=new Date(Date.UTC(p[0],p[1]-1,p[2]+1)); cur=nd.toISOString().slice(0,10); } }); }
