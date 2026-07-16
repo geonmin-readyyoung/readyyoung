@@ -12,7 +12,7 @@ const STORE_KEY = "hr_db_v1";
 /* ---- 상수 (constants.ts 이식) ---- */
 const ROLES = ["약무","통역","물류","기타"];
 const EMP_TYPES = ["정규직","파트타임"];
-const TEAMS = ["","중국어","일본어"];
+const TEAMS = ["","중국어","일본어"]; function categoryDigit(role,team){ if(role==="약무") return 1; if(role==="통역") return team==="일본어"?3:2; if(role==="물류") return 4; return 9; } function suggestEmployeeNo(role,team,empType,excludeId){ const cat=categoryDigit(role,team); const isReg=empType!=="파트타임"; let max=0; DB.employees.forEach(x=>{ if(x.id===excludeId) return; const n=Number(x.employeeNo); if(!n||n<1000||n>9999) return; if(Math.floor(n/1000)!==cat) return; const hund=Math.floor((n%1000)/100); const reg=hund===0; if(reg!==isReg) return; if(n>max) max=n; }); if(max>0) return max+1; return isReg?cat*1000+1:cat*1000+101; }
 const PAY_TYPES = [
   {value:"MONTHLY",label:"월급"},{value:"MONTHLY_NET",label:"세후월급"},
   {value:"HOURLY",label:"시급"},{value:"DAILY",label:"일급"},
@@ -154,13 +154,13 @@ function renderDashboard(){
 }
 
 /* =========================== 직원 목록 =========================== */
-let empFilter={q:"",role:"",empType:"",status:"재직"};
+let empFilter={q:"",role:"",empType:"",status:"재직",team:""};
 function renderEmployees(){
   const f=empFilter;
   let list=DB.employees.filter(e=>
     (!f.q || e.name.includes(f.q) || String(e.employeeNo||"").includes(f.q)) &&
     (!f.role || e.role===f.role) &&
-    (!f.empType || e.empType===f.empType) &&
+    (!f.empType || e.empType===f.empType) && (!f.team || e.team===f.team) &&
     (!f.status || e.status===f.status)
   ).sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));
 
@@ -169,7 +169,7 @@ function renderEmployees(){
   <div class="toolbar">
     <input type="text" placeholder="이름·사번 검색" value="${esc(f.q)}" oninput="empFilter.q=this.value; softRerender()" style="min-width:180px">
     <select onchange="empFilter.role=this.value; render()"><option value="">직무 전체</option>${ROLES.map(r=>`<option ${f.role===r?"selected":""}>${r}</option>`).join("")}</select>
-    <select onchange="empFilter.empType=this.value; render()"><option value="">고용형태 전체</option>${EMP_TYPES.map(r=>`<option ${f.empType===r?"selected":""}>${r}</option>`).join("")}</select>
+    <select onchange="empFilter.empType=this.value; render()"><option value="">고용형태 전체</option>${EMP_TYPES.map(r=>`<option ${f.empType===r?"selected":""}>${r}</option>`).join("")}</select><select onchange="empFilter.team=this.value; render()"><option value="">언어 전체</option><option value="중국어" ${f.team==="중국어"?"selected":""}>통역-중국어</option><option value="일본어" ${f.team==="일본어"?"selected":""}>통역-일본어</option></select>
     <select onchange="empFilter.status=this.value; render()">
       <option value="재직" ${f.status==="재직"?"selected":""}>재직</option>
       <option value="퇴사" ${f.status==="퇴사"?"selected":""}>퇴사</option>
@@ -191,7 +191,7 @@ function renderEmployees(){
           <td><span class="name">${esc(e.name)}</span></td>
           <td><span class="tag t-ice">${esc(e.role)}</span></td>
           <td>${esc(e.empType)}</td>
-          <td>${esc(e.team||"—")}</td>
+          <td>${e.team==="중국어"?'<span class="tag t-cn">중국어</span>':e.team==="일본어"?'<span class="tag t-jp">일본어</span>':"—"}</td>
           <td>${fmtDate(e.joinDate)}</td>
           
           <td class="num">${s?`<b>${s.remaining}</b> / ${s.accrued}`:"—"}</td>
@@ -208,14 +208,14 @@ function softRerender(){ clearTimeout(softT); softT=setTimeout(render,150); }
 function openForm(id){
   const e = id ? DB.employees.find(x=>x.id===id) : {};
   const isEdit=!!id;
-  const nextNo = isEdit ? e.employeeNo : (Math.max(0,...DB.employees.map(x=>x.employeeNo||0))+1);
+  const defRole = e.role || "약무"; const defTeam = e.team || ""; const defType = e.empType || "정규직"; const nextNo = isEdit ? e.employeeNo : suggestEmployeeNo(defRole, defTeam, defType);
   modal(`${isEdit?"인사정보 수정":"입사 등록"}`, `
     <div class="grid2">
       <div class="field"><label>사번</label><input id="f_no" type="number" value="${e.employeeNo??nextNo}"></div>
       <div class="field"><label>이름 <span class="req">*</span></label><input id="f_name" value="${esc(e.name||"")}"></div>
-      <div class="field"><label>직무</label><select id="f_role">${ROLES.map(r=>`<option ${e.role===r?"selected":""}>${r}</option>`).join("")}</select></div>
-      <div class="field"><label>고용형태</label><select id="f_type">${EMP_TYPES.map(r=>`<option ${e.empType===r?"selected":""}>${r}</option>`).join("")}</select></div>
-      <div class="field"><label>팀(통역)</label><select id="f_team">${TEAMS.map(t=>`<option value="${t}" ${e.team===t?"selected":""}>${t||"없음"}</option>`).join("")}</select></div>
+      <div class="field"><label>직무</label><select id="f_role" onchange="onEmpAutoNo(${id||0})">${ROLES.map(r=>`<option ${e.role===r?"selected":""}>${r}</option>`).join("")}</select></div>
+      <div class="field"><label>고용형태</label><select id="f_type" onchange="onEmpAutoNo(${id||0})">${EMP_TYPES.map(r=>`<option ${e.empType===r?"selected":""}>${r}</option>`).join("")}</select></div>
+      <div class="field" id="f_team_wrap" style="${defRole==="통역"?"":"display:none"}"><label>팀(통역) <span class="req">*</span></label><select id="f_team" onchange="onEmpAutoNo(${id||0})">${TEAMS.filter(t=>t).map(t=>`<option value="${t}" ${defTeam===t?"selected":""}>${t}</option>`).join("")}</select></div>
       <div class="field"><label>입사일 <span class="req">*</span></label><input id="f_join" type="date" min="1950-01-01" max="2099-12-31" value="${(e.joinDate||todayStr()).slice(0,10)}"></div>
       <div class="field"><label>주 근무일 수 <span class="req">*</span></label><select id="f_workdays"><option value="1" ${(e.weeklyWorkDays||5)===1?"selected":""}>1</option><option value="2" ${(e.weeklyWorkDays||5)===2?"selected":""}>2</option><option value="3" ${(e.weeklyWorkDays||5)===3?"selected":""}>3</option><option value="4" ${(e.weeklyWorkDays||5)===4?"selected":""}>4</option><option value="5" ${(e.weeklyWorkDays||5)===5?"selected":""}>5</option><option value="6" ${(e.weeklyWorkDays||5)===6?"selected":""}>6</option><option value="7" ${(e.weeklyWorkDays||5)===7?"selected":""}>7</option></select></div>
       <div class="field"><label>연락처</label><input id="f_phone" value="${esc(e.phone||"")}"></div>
@@ -230,16 +230,16 @@ function openForm(id){
     `<button class="btn primary" onclick="saveEmployee(${id||0})">${isEdit?"저장":"등록"}</button>`,
   ]);
 }
-function val(id){ const el=document.getElementById(id); return el?el.value.trim():""; }
+function val(id){ const el=document.getElementById(id); return el?el.value.trim():""; } function onEmpAutoNo(id){ const role=val("f_role"); const twrap=document.getElementById("f_team_wrap"); if(twrap) twrap.style.display = role==="통역" ? "" : "none"; if(id) return; const team = role==="통역" ? val("f_team") : ""; const empType = val("f_type"); const noEl=document.getElementById("f_no"); if(noEl) noEl.value = suggestEmployeeNo(role, team, empType, id||undefined); }
 function isOwner(){ return sessionStorage.getItem("hr_role")==="owner"; }
 function updateNavVisibility(){ const p=document.getElementById("navPayroll"); if(p) p.style.display = isOwner()? "" : "none"; }
 function saveEmployee(id){
   const name=val("f_name"), join=val("f_join");
   if(!name){ toast("이름을 입력하세요"); return; }
-  if(!join){ toast("입사일을 입력하세요"); return; }
+  if(!join){ toast("입사일을 입력하세요"); return; } const roleV=val("f_role"); const teamV = roleV==="통역" ? val("f_team") : null; if(roleV==="통역" && !teamV){ toast("통역 직원은 팀(중국어/일본어)을 선택하세요"); return; }
   const data={
     employeeNo: val("f_no")?Number(val("f_no")):null,
-    name, role:val("f_role"), empType:val("f_type"), team:val("f_team")||null,
+    name, role:roleV, empType:val("f_type"), team:teamV,
     joinDate:join, weeklyWorkDays:val("f_workdays")?Number(val("f_workdays")):null,
     phone:val("f_phone")||null, visa:val("f_visa")||null, memo:val("f_memo")||null,
   };
