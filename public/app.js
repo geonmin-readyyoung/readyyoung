@@ -146,7 +146,7 @@ function renderDashboard(){
       ${todaySchedule.length? `<table><tbody>
         ${todaySchedule.map(({e,s})=>`<tr class="row-click" onclick="openCard(${e.id})">
           <td><span class="name">${esc(e.name)}</span></td>
-          <td class="num">${s.start}~${s.end}</td>
+          <td class="num">${s.start}~${s.end}${s.close?' <b class="close-tag">(마감)</b>':""}</td>
         </tr>`).join("")}
       </tbody></table>` : `<div class="empty" style="padding:28px">오늘 근무 예정인 직원이 없어요.</div>`}
     </div>
