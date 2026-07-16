@@ -65,7 +65,7 @@ aside .foot button{
 }
 aside .foot button:hover{background:rgba(255,255,255,.14); color:#fff}
 
-main{padding:28px 32px; max-width:1180px}
+main{padding:28px 32px; max-width:1600px}
 .head{display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:20px; gap:16px; flex-wrap:wrap}
 .head h1{font-size:22px; margin:0; letter-spacing:-.02em}
 .head .desc{color:var(--muted); font-size:12.5px; margin-top:4px}
