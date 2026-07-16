@@ -347,7 +347,7 @@ function renderLeaves(){
         <td class="num">${s.serviceMonths}</td>
         <td class="num">${s.accrued}</td>
         <td class="num">${s.used}</td>
-        <td class="num">${s.adj?(s.adj>0?'+':'')+s.adj:'-'}</td><td class="num"><b style="color:${s.remaining<=1?'var(--bad)':s.remaining<=3?'var(--warn)':'var(--navy)'}">${s.remaining}</b></td><td class="num"><button class="btn sm ghost" onclick="event.stopPropagation(); toggleLeaveAdjRow(${e.id})">차감/내역</button></td></tr>${leaveAdjExpandedId===e.id?`<tr><td colspan="8" style="padding:0"><div style="padding:14px 6px 18px">${renderLeaveAdjPanel(e)}</div></td></tr>`:""}<tr class="adj-spacer" style="display:none"><td style="display:none"></tr>${leaveAdjExpandedId===e.id?`<tr><td colspan="8" style="padding:0"><div style="padding:14px 6px 18px">${renderLeaveAdjPanel(e)}</div></td></tr>`:""}<tr class="adj-spacer" style="display:none"><td style="display:none">
+        <td class="num">${s.adj?(s.adj>0?'+':'')+s.adj:'-'}</td><td class="num"><b style="color:${s.remaining<=1?'var(--bad)':s.remaining<=3?'var(--warn)':'var(--navy)'}">${s.remaining}</b></td><td class="num"><button class="btn sm ghost" onclick="event.stopPropagation(); toggleLeaveAdjRow(${e.id})">차감/내역</button></td></tr>${leaveAdjExpandedId===e.id?`<tr><td colspan="8" style="padding:0"><div style="padding:14px 6px 18px">${renderLeaveAdjPanel(e)}</div></td></tr>`:""}<tr class="adj-spacer" style="display:none"><td style="display:none">
       </tr>`).join("")}</tbody>
     </table>`:`<div class="empty"><div class="big">정규직 재직자가 없어요</div></div>`}</div>
   </div>`;
