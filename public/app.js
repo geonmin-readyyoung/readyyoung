@@ -398,7 +398,7 @@ function setLeaveStatus(id, st){ const l=DB.leaves.find(x=>x.id===id); if(l){ l.
 function deleteLeave(id, empId){ DB.leaves=DB.leaves.filter(x=>x.id!==id); syncLeaveAttendance(); saveDB(); if(document.getElementById("modalRoot").innerHTML && empId){ openCard(empId); } render(); toast("삭제했습니다"); }
 
 /* =========================== 출근부 =========================== */
-function attKey(empId, day){ return empId+"|"+day; } function syncLeaveAttendance(){ for(const k in DB.attendance){ if(DB.attendance[k].status==="연차") delete DB.attendance[k]; } DB.leaves.filter(l=>l.leaveType==="연차" && l.status==="승인").forEach(l=>{ const start=new Date(l.startDate+"T00:00:00"), end=new Date((l.endDate||l.startDate)+"T00:00:00"); for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){ const day=d.toISOString().slice(0,10); DB.attendance[attKey(l.employeeId, day)]={employeeId:l.employeeId, date:day, status:"연차"}; } }); }
+function attKey(empId, day){ return empId+"|"+day; } function syncLeaveAttendance(){ for(const k in DB.attendance){ if(DB.attendance[k].status==="연차") delete DB.attendance[k]; } DB.leaves.filter(l=>l.leaveType==="연차" && l.status==="승인").forEach(l=>{ let cur=(l.startDate||"").slice(0,10); const endStr=(l.endDate||l.startDate||"").slice(0,10); while(cur && cur<=endStr){ DB.attendance[attKey(l.employeeId, cur)]={employeeId:l.employeeId, date:cur, status:"연차"}; const p=cur.split("-").map(Number); const nd=new Date(Date.UTC(p[0],p[1]-1,p[2]+1)); cur=nd.toISOString().slice(0,10); } }); }
 function daysInMonth(ym){ const [y,m]=ym.split("-").map(Number); return new Date(y,m,0).getDate(); }
 function renderAttendance(){
   const [y,m]=attMonth.split("-").map(Number);
