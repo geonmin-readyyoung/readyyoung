@@ -424,7 +424,7 @@ function renderAttendance(){
       const cls=st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
       if(st==="출근") worked++;
       const mark=st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
-      return `<td class="${cls}"><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}</button></td>`;
+      return `<td class="${cls}${(sc&&sc.on&&shiftTypeOf(sc)==="C")?" close":""}"${(sc&&sc.on&&shiftTypeOf(sc)==="C")?' title="마감 13:00~24:30"':""}><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}</button></td>`;
     }).join("");
     return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked})</span></td>${cells}</tr>`;
   }).join("");
@@ -445,7 +445,7 @@ function renderAttendance(){
       <tbody>${body}</tbody>
     </table>`:`<div class="empty"><div class="big">이 달에 표시할 파트타임 직원이 없어요</div><div>직원을 파트타임으로 등록하면 여기에 나타납니다.</div></div>`}
   </div></div>
-  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span>클릭할 때마다: 출근 → 휴무 → 결근 → 없음 순환</span><span style="opacity:.55">연하게 표시된 칸 = 근무표 기준 예정</span></div>`;
+  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (13:00~24:30)</span><span>클릭할 때마다: 출근 → 휴무 → 결근 → 없음 순환</span><span style="opacity:.55">연하게 표시된 칸 = 근무표 기준 예정</span></div>`;
 }
 function wireAttendance(){
   document.querySelectorAll(".att .cell").forEach(btn=>{
@@ -464,11 +464,11 @@ const DOW_LABELS=["일","월","화","수","목","금","토"];
 const DOW_ORDER=[1,2,3,4,5,6,0];
 const SHIFT_PRESETS = {
 A:{start:"10:00", end:"20:00", label:"A (10:00~20:00)"},
-B:{start:"13:00", end:"23:00", label:"B (13:00~23:00)"},
+B:{start:"13:00", end:"23:00", label:"B (13:00~23:00)"}, C:{start:"13:00", end:"24:30", label:"마감 (13:00~24:30)"},
 };
 function shiftTypeOf(s){
 if(s.start===SHIFT_PRESETS.A.start && s.end===SHIFT_PRESETS.A.end) return "A";
-if(s.start===SHIFT_PRESETS.B.start && s.end===SHIFT_PRESETS.B.end) return "B";
+if(s.start===SHIFT_PRESETS.B.start && s.end===SHIFT_PRESETS.B.end) return "B"; if(s.start===SHIFT_PRESETS.C.start && s.end===SHIFT_PRESETS.C.end) return "C";
 return "custom";
 }
 function getSchedule(empId, dow){
@@ -518,7 +518,7 @@ const body = `
 <div class="field"><label>근무 타입</label>
 <select id="sf_type" onchange="onShiftTypeChange()"><option value="off" ${curType==="off"?"selected":""}>휴무</option>
 <option value="A" ${curType==="A"?"selected":""}>${SHIFT_PRESETS.A.label}</option>
-<option value="B" ${curType==="B"?"selected":""}>${SHIFT_PRESETS.B.label}</option>
+<option value="B" ${curType==="B"?"selected":""}>${SHIFT_PRESETS.B.label}</option><option value="C" ${curType==="C"?"selected":""}>${SHIFT_PRESETS.C.label}</option>
 <option value="custom" ${curType==="custom"?"selected":""}>직접입력</option>
 </select>
 </div>
@@ -541,7 +541,7 @@ const type=val("sf_type"); const on=type!=="off";
 
 let start, end;
 if(type==="A"){ start=SHIFT_PRESETS.A.start; end=SHIFT_PRESETS.A.end; }
-else if(type==="B"){ start=SHIFT_PRESETS.B.start; end=SHIFT_PRESETS.B.end; }
+else if(type==="B"){ start=SHIFT_PRESETS.B.start; end=SHIFT_PRESETS.B.end; } else if(type==="C"){ start=SHIFT_PRESETS.C.start; end=SHIFT_PRESETS.C.end; }
 else if(type==="custom"){ const st=val("sf_start"), en=val("sf_end"), tre=/^([01][0-9]|2[0-3]):[0-5][0-9]$/; start = tre.test(st)?st:"09:00"; end = tre.test(en)?en:"18:00"; } else { start="09:00"; end="18:00"; }
 DB.weeklySchedule = DB.weeklySchedule || {};
 DB.weeklySchedule[empId] = DB.weeklySchedule[empId] || {};
