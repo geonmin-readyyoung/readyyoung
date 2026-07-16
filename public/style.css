@@ -162,7 +162,7 @@ td .name{font-weight:700}
 .att th,.att td{border:1px solid var(--border); padding:0; text-align:center; font-size:12px}
 .att th.emp,.att td.emp{position:sticky; left:0; background:#fff; text-align:left; padding:8px 12px; min-width:110px; z-index:2; font-weight:700}
 .att th{background:#FAFBFE; padding:7px 4px; min-width:34px; font-weight:700}
-.att th.we{color:var(--bad)}
+.att th.we{color:var(--bad)} .att th.holiday{background:#FDECEC;color:#B91C1C;cursor:pointer} .att td.holiday{background:#FFF7F7} .att td.holiday .cell{color:#B91C1C}
 .att td .cell{width:100%; height:34px; border:0; background:transparent; cursor:pointer; font-weight:700; font-size:12px}
 .att td.on .cell{background:var(--ice-soft); color:var(--navy)}
 .att td.off .cell{color:var(--gray)} .att td.shift-off .cell{color:var(--gray)} .att td.shift-A .cell{background:#EAF1FE;color:#1E2761} .att td.shift-B .cell{background:#FBF1DC;color:#B7791F} .att td.shift-custom .cell{background:#E4F5EC;color:#1F9D64}
