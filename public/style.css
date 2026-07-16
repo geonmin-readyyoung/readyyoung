@@ -118,7 +118,7 @@ td .name{font-weight:700}
 .t-gray{background:var(--gray-bg); color:var(--gray)}
 .t-warn{background:var(--warn-bg); color:var(--warn)}
 .t-bad{background:var(--bad-bg); color:var(--bad)}
-.t-ice{background:var(--ice-soft); color:var(--navy)}
+.t-ice{background:var(--ice-soft); color:var(--navy)} .t-cn{background:#FEE2E2; color:#B91C1C} .t-jp{background:#FEF3C7; color:#B45309}
 
 .empty{padding:48px 20px; text-align:center; color:var(--muted)}
 .empty .big{font-size:15px; font-weight:700; color:var(--ink); margin-bottom:6px}
