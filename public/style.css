@@ -189,3 +189,8 @@ td .name{font-weight:700}
   .card-grid{grid-template-columns:1fr}
   .grid2{grid-template-columns:1fr}
 }
+
+
+/* 연차 조정 패널: 내부 여백 확보 + 가로 폭 제한 */
+.adj-panel{max-width:920px}
+.adj-grid{padding:20px 24px}
