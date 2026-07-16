@@ -523,8 +523,8 @@ const body = `
 </select>
 </div>
 <div class="grid2" id="sf_time_wrap" style="${curType==="custom"?"":"display:none"}">
-<div class="field"><label>시작 시간</label><input id="sf_start" type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" placeholder="09:00" maxlength="5" value="${s.start||"09:00"}"></div>
-<div class="field"><label>종료 시간</label><input id="sf_end" type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" placeholder="18:00" maxlength="5" value="${s.end||"18:00"}"></div>
+<div class="field"><label>시작 시간</label><input id="sf_start" type="time" value="${s.start||"09:00"}"></div>
+<div class="field"><label>종료 시간</label><input id="sf_end" type="time" value="${s.end||"18:00"}"></div>
 </div>`;
 modal(`${DOW_LABELS[dow]}요일 근무 설정`, body, [
 `<button class="btn" onclick="closeModal()">취소</button>`,
