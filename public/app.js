@@ -12,7 +12,7 @@ const STORE_KEY = "hr_db_v1";
 /* ---- 상수 (constants.ts 이식) ---- */
 const ROLES = ["약무","통역","물류","기타"];
 const EMP_TYPES = ["정규직","파트타임"];
-const TEAMS = ["","중국어","일본어"]; function categoryDigit(role,team){ if(role==="약무") return 1; if(role==="통역") return team==="일본어"?3:2; if(role==="물류") return 4; return 9; } function suggestEmployeeNo(role,team,empType,excludeId){ const cat=categoryDigit(role,team); const isReg=empType!=="파트타임"; let max=0; DB.employees.forEach(x=>{ if(x.id===excludeId) return; const n=Number(x.employeeNo); if(!n||n<1000||n>9999) return; if(Math.floor(n/1000)!==cat) return; const hund=Math.floor((n%1000)/100); const reg=hund===0; if(reg!==isReg) return; if(n>max) max=n; }); if(max>0) return max+1; return isReg?cat*1000+1:cat*1000+101; }
+const TEAMS = ["","중국어","일본어"]; function categoryDigit(role,team){ if(role==="약무") return 1; if(role==="통역") return team==="일본어"?3:2; if(role==="물류") return 4; return 9; } function subgroupDigit(empType,closingDuty){ if(empType!=="파트타임") return 0; return closingDuty?2:1; } function suggestEmployeeNo(role,team,empType,closingDuty,excludeId){ const cat=categoryDigit(role,team); const sub=subgroupDigit(empType,closingDuty); const prefix=cat*10+sub; let max=0; DB.employees.forEach(x=>{ if(x.id===excludeId) return; const n=Number(x.employeeNo); if(!n||n<10000||n>99999) return; if(Math.floor(n/1000)!==prefix) return; if(n>max) max=n; }); if(max>0) return max+1; return prefix*1000+1; }
 const PAY_TYPES = [
   {value:"MONTHLY",label:"월급"},{value:"MONTHLY_NET",label:"세후월급"},
   {value:"HOURLY",label:"시급"},{value:"DAILY",label:"일급"},
@@ -33,7 +33,7 @@ async function loadDB(){
     const r = await fetch("/api/db").then(x=>x.json());
     if(r && r.data){ DB = r.data; }
   }catch(e){ /* 최초 실행 = 데이터 없음 */ }
-  DB.employees ||= []; DB.leaves ||= []; DB.attendance ||= {}; DB.weeklySchedule ||= {}; DB.seq ||= 1;
+  DB.employees ||= []; DB.leaves ||= []; DB.attendance ||= {}; DB.weeklySchedule ||= {}; DB.seq ||= 1; migrateEmployeeNoFormat();
 }
 let saveT=null;
 function saveDB(){
@@ -43,7 +43,7 @@ function saveDB(){
     catch(e){ toast("저장 실패 — 서버 연결을 확인하세요"); }
   }, 120);
 }
-function nextId(){ return DB.seq++; }
+function nextId(){ return DB.seq++; } function migrateEmployeeNoFormat(){ let changed=false; DB.employees.forEach(e=>{ const s=String(e.employeeNo||""); if(/^\d{4}$/.test(s)){ const sub=s[1]; if(sub==="2") e.closingDuty=true; const catSub=s.slice(0,2), seq=s.slice(2); e.employeeNo=Number(catSub+seq.padStart(3,"0")); changed=true; } }); if(changed) saveDB(); }
 
 /* =========================== 날짜/연차 로직 =========================== */
 function ymNow(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
@@ -136,7 +136,7 @@ function renderDashboard(){
         ${recent.map(e=>`<tr class="row-click" onclick="openCard(${e.id})">
           <td><span class="name">${esc(e.name)}</span></td>
           <td><span class="tag t-ice">${esc(e.role)}</span></td>
-          <td>${esc(e.empType)}</td>
+          <td>${esc(e.empType)}${e.closingDuty?' <span class="hint">(마감)</span>':""}</td>
           <td class="num">${fmtDate(e.joinDate)}</td>
         </tr>`).join("")}
       </tbody></table>
@@ -190,7 +190,7 @@ function renderEmployees(){
           <td class="num">${e.employeeNo??"—"}</td>
           <td><span class="name">${esc(e.name)}</span></td>
           <td><span class="tag t-ice">${esc(e.role)}</span></td>
-          <td>${esc(e.empType)}</td>
+          <td>${esc(e.empType)}${e.closingDuty?' <span class="hint">(마감)</span>':""}</td>
           <td>${e.team==="중국어"?'<span class="tag t-cn">중국어</span>':e.team==="일본어"?'<span class="tag t-jp">일본어</span>':"—"}</td>
           <td>${fmtDate(e.joinDate)}</td>
           
@@ -208,14 +208,14 @@ function softRerender(){ clearTimeout(softT); softT=setTimeout(render,150); }
 function openForm(id){
   const e = id ? DB.employees.find(x=>x.id===id) : {};
   const isEdit=!!id;
-  const defRole = e.role || "약무"; const defTeam = e.team || ""; const defType = e.empType || "정규직"; const nextNo = isEdit ? e.employeeNo : suggestEmployeeNo(defRole, defTeam, defType);
+  const defRole = e.role || "약무"; const defTeam = e.team || ""; const defType = e.empType || "정규직"; const defClosing = !!e.closingDuty; const nextNo = isEdit ? e.employeeNo : suggestEmployeeNo(defRole, defTeam, defType, defClosing);
   modal(`${isEdit?"인사정보 수정":"입사 등록"}`, `
     <div class="grid2">
       <div class="field"><label>사번</label><input id="f_no" type="number" value="${e.employeeNo??nextNo}"></div>
       <div class="field"><label>이름 <span class="req">*</span></label><input id="f_name" value="${esc(e.name||"")}"></div>
       <div class="field"><label>직무</label><select id="f_role" onchange="onEmpAutoNo(${id||0})">${ROLES.map(r=>`<option ${e.role===r?"selected":""}>${r}</option>`).join("")}</select></div>
       <div class="field"><label>고용형태</label><select id="f_type" onchange="onEmpAutoNo(${id||0})">${EMP_TYPES.map(r=>`<option ${e.empType===r?"selected":""}>${r}</option>`).join("")}</select></div>
-      <div class="field" id="f_team_wrap" style="${defRole==="통역"?"":"display:none"}"><label>팀(통역) <span class="req">*</span></label><select id="f_team" onchange="onEmpAutoNo(${id||0})">${TEAMS.filter(t=>t).map(t=>`<option value="${t}" ${defTeam===t?"selected":""}>${t}</option>`).join("")}</select></div>
+      <div class="field" id="f_team_wrap" style="${defRole==="통역"?"":"display:none"}"><label>팀(통역) <span class="req">*</span></label><select id="f_team" onchange="onEmpAutoNo(${id||0})">${TEAMS.filter(t=>t).map(t=>`<option value="${t}" ${defTeam===t?"selected":""}>${t}</option>`).join("")}</select></div><div class="field" id="f_closing_wrap" style="${defType==="파트타임"?"":"display:none"}"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input id="f_closing" type="checkbox" style="width:16px;height:16px" ${e.closingDuty?"checked":""} onchange="onEmpAutoNo(${id||0})"> 마감 담당 파트타임 (사번 X2XXX)</label></div>
       <div class="field"><label>입사일 <span class="req">*</span></label><input id="f_join" type="date" min="1950-01-01" max="2099-12-31" value="${(e.joinDate||todayStr()).slice(0,10)}"></div>
       <div class="field"><label>주 근무일 수 <span class="req">*</span></label><select id="f_workdays"><option value="1" ${(e.weeklyWorkDays||5)===1?"selected":""}>1</option><option value="2" ${(e.weeklyWorkDays||5)===2?"selected":""}>2</option><option value="3" ${(e.weeklyWorkDays||5)===3?"selected":""}>3</option><option value="4" ${(e.weeklyWorkDays||5)===4?"selected":""}>4</option><option value="5" ${(e.weeklyWorkDays||5)===5?"selected":""}>5</option><option value="6" ${(e.weeklyWorkDays||5)===6?"selected":""}>6</option><option value="7" ${(e.weeklyWorkDays||5)===7?"selected":""}>7</option></select></div>
       <div class="field"><label>연락처</label><input id="f_phone" value="${esc(e.phone||"")}"></div>
@@ -230,16 +230,16 @@ function openForm(id){
     `<button class="btn primary" onclick="saveEmployee(${id||0})">${isEdit?"저장":"등록"}</button>`,
   ]);
 }
-function val(id){ const el=document.getElementById(id); return el?el.value.trim():""; } function onEmpAutoNo(id){ const role=val("f_role"); const twrap=document.getElementById("f_team_wrap"); if(twrap) twrap.style.display = role==="통역" ? "" : "none"; if(id) return; const team = role==="통역" ? val("f_team") : ""; const empType = val("f_type"); const noEl=document.getElementById("f_no"); if(noEl) noEl.value = suggestEmployeeNo(role, team, empType, id||undefined); }
+function val(id){ const el=document.getElementById(id); return el?el.value.trim():""; } function onEmpAutoNo(id){ const role=val("f_role"); const twrap=document.getElementById("f_team_wrap"); if(twrap) twrap.style.display = role==="통역" ? "" : "none"; const empType0=val("f_type"); const cwrap=document.getElementById("f_closing_wrap"); if(cwrap) cwrap.style.display = empType0==="파트타임" ? "" : "none"; if(id) return; const team = role==="통역" ? val("f_team") : ""; const closingEl=document.getElementById("f_closing"); const closing = empType0==="파트타임" && closingEl ? closingEl.checked : false; const noEl=document.getElementById("f_no"); if(noEl) noEl.value = suggestEmployeeNo(role, team, empType0, closing, id||undefined); }
 function isOwner(){ return sessionStorage.getItem("hr_role")==="owner"; }
 function updateNavVisibility(){ const p=document.getElementById("navPayroll"); if(p) p.style.display = isOwner()? "" : "none"; }
 function saveEmployee(id){
   const name=val("f_name"), join=val("f_join");
   if(!name){ toast("이름을 입력하세요"); return; }
-  if(!join){ toast("입사일을 입력하세요"); return; } const roleV=val("f_role"); const teamV = roleV==="통역" ? val("f_team") : null; if(roleV==="통역" && !teamV){ toast("통역 직원은 팀(중국어/일본어)을 선택하세요"); return; }
+  if(!join){ toast("입사일을 입력하세요"); return; } const roleV=val("f_role"); const teamV = roleV==="통역" ? val("f_team") : null; if(roleV==="통역" && !teamV){ toast("통역 직원은 팀(중국어/일본어)을 선택하세요"); return; } const empTypeV=val("f_type"); const closingEl2=document.getElementById("f_closing"); const closingV = empTypeV==="파트타임" && closingEl2 ? closingEl2.checked : false;
   const data={
     employeeNo: val("f_no")?Number(val("f_no")):null,
-    name, role:roleV, empType:val("f_type"), team:teamV,
+    name, role:roleV, empType:empTypeV, team:teamV, closingDuty:closingV,
     joinDate:join, weeklyWorkDays:val("f_workdays")?Number(val("f_workdays")):null,
     phone:val("f_phone")||null, visa:val("f_visa")||null, memo:val("f_memo")||null,
   };
