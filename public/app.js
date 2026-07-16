@@ -25,7 +25,7 @@ const DEDUCT_TYPES = ["연차","반차(오전)","반차(오후)"]; const LEAVE_A
 /* ---- 상태 ---- */
 let DB = { employees:[], leaves:[], attendance:{}, weeklySchedule:{}, seq:1 };
 let view = "dashboard";
-let attMonth = ymNow();let leaveViewAll=false;function toggleLeaveViewAll(){ leaveViewAll=!leaveViewAll; render(); }let leaveAdjExpandedId=null;function toggleLeaveAdjRow(empId){ leaveAdjExpandedId=leaveAdjExpandedId===empId?null:empId; render(); }
+let attMonth = ymNow();let leaveViewAll=false;function toggleLeaveViewAll(){ leaveViewAll=!leaveViewAll; render(); }let leaveAdjExpandedId=null;function toggleLeaveAdjRow(empId){ leaveAdjExpandedId=leaveAdjExpandedId===empId?null:empId; render(); } function toggleHoliday(day){ DB.holidays=DB.holidays||[]; const i=DB.holidays.indexOf(day); if(i>=0) DB.holidays.splice(i,1); else DB.holidays.push(day); saveDB(); render(); }
 
 /* =========================== 저장/로드 =========================== */
 async function loadDB(){
@@ -33,7 +33,7 @@ async function loadDB(){
     const r = await fetch("/api/db").then(x=>x.json());
     if(r && r.data){ DB = r.data; }
   }catch(e){ /* 최초 실행 = 데이터 없음 */ }
-  DB.employees ||= []; DB.leaves ||= []; DB.attendance ||= {}; DB.weeklySchedule ||= {}; DB.seq ||= 1; DB.leaveAdjustments ||= []; migrateEmployeeNoFormat(); syncLeaveAttendance();
+  DB.employees ||= []; DB.leaves ||= []; DB.attendance ||= {}; DB.weeklySchedule ||= {}; DB.seq ||= 1; DB.leaveAdjustments ||= []; DB.holidays||=[]; migrateEmployeeNoFormat(); syncLeaveAttendance();
 }
 let saveT=null;
 function saveDB(){
@@ -415,19 +415,17 @@ function renderAttendance(){
   for(let d=1; d<=dim; d++){ const dow=new Date(y,m-1,d).getDay(); dayHdr.push({d,we:(dow===0||dow===6)}); }
 
   const body = emps.map(e=>{
-    let worked=0;
+    let worked=0,closeCnt=0,holCnt=0;
     const cells=dayHdr.map(({d})=>{
       const day=attMonth+"-"+String(d).padStart(2,"0");
       const st=DB.attendance[attKey(e.id,day)]?.status || "";
       const dow=new Date(y,m-1,d).getDay();
-      const sc=(DB.weeklySchedule&&DB.weeklySchedule[e.id])?DB.weeklySchedule[e.id][dow]:null;
+      const sc=(DB.weeklySchedule&&DB.weeklySchedule[e.id])?DB.weeklySchedule[e.id][dow]:null; const isHol=(DB.holidays||[]).includes(day);
       const cls=st==="연차"?"leave":st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
-      if(st==="출근") worked++;
-      const mark=st==="연차"?"연":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
-      return `<td class="${cls}${(sc&&sc.on&&sc.close)?" close":""}"${(sc&&sc.on&&sc.close)?` title="마감조 (${sc.start}~${sc.end})"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}</button></td>`;
-    }).join("");
-    return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked})</span></td>${cells}</tr>`;
-  }).join("");
+if(st==="출근"){ worked++; if(sc&&sc.close) closeCnt++; if(isHol) holCnt++; }      const mark=st==="연차"?
+   "연":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
+return `<td class="${cls}${(sc&&sc.on&&sc.close)?" close":""}${isHol?" holiday":""}"${(sc&&sc.on&&sc.close)?` title="마감조 (${sc.start}~${sc.end})"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}</button></td>`;    }).join("");
+return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked}, 마감 ${closeCnt}, 휴일 ${holCnt})</span></td>${cells}</tr>`;  }).join("");
 
   return `
   ${headHTML("출근부","직원 월별 근무 기록 · 셀 클릭으로 상태 변경")}
@@ -437,12 +435,10 @@ function renderAttendance(){
     <button class="btn sm" onclick="shiftMonth(1)">다음달 ›</button>
     <button class="btn sm" onclick="applyScheduleToMonth()">근무표 반영</button>
     <div class="grow"></div>
-    <span class="hint">${emps.length}명 · 괄호 안은 출근일수</span>
-  </div>
+<span class="hint">${emps.length}명 · 괄호(출근,마감,휴일근로) · 날짜 클릭 시 휴일 지정</span>  </div>
   <div class="panel"><div class="att-wrap">
     ${emps.length? `<table class="att">
-      <thead><tr><th class="emp">직원</th>${dayHdr.map(h=>`<th class="${h.we?'we':''}">${h.d}</th>`).join("")}</tr></thead>
-      <tbody>${body}</tbody>
+<thead><tr><th class="emp">직원</th>${dayHdr.map(h=>{const hday=attMonth+"-"+String(h.d).padStart(2,"0");const hhol=(DB.holidays||[]).includes(hday);return `<th class="${h.we?'we':''}${hhol?' holiday':''}" style="cursor:pointer" title="클릭하여 휴일 지정/해제" onclick="toggleHoliday('${hday}')">${h.d}</th>`;}).join("")}</tr></thead>      <tbody>${body}</tbody>
     </table>`:`<div class="empty"><div class="big">이 달에 표시할 파트타임 직원이 없어요</div><div>직원을 파트타임으로 등록하면 여기에 나타납니다.</div></div>`}
   </div></div>
   <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span>클릭할 때마다: 출근 → 휴무 → 결근 → 없음 순환</span><span style="opacity:.55">연하게 표시된 칸 = 근무표 기준 예정</span></div>`;
