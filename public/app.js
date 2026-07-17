@@ -560,16 +560,13 @@ function applyScheduleToMonth(){
   });
   let count=0;
   emps.forEach(e=>{
-    const ws=DB.weeklySchedule[e.id];
-    if(!ws) return;
     for(let d=1; d<=dim; d++){
       const day=attMonth+"-"+String(d).padStart(2,"0");
       const key=attKey(e.id,day);
       if(DB.attendance[key] && (DB.attendance[key].status==="연차" || DB.attendance[key].status==="결근")) continue;
       const dow=new Date(y,m-1,d).getDay();
-      const sc=ws[dow];
-      if(!sc) continue;
-      DB.attendance[key]={employeeId:e.id, date:day, status: sc.on?"출근":"휴무"};
+      const sc=getSchedule(e.id, dow);
+       DB.attendance[key]={employeeId:e.id, date:day, status: sc.on?"출근":"휴무"};
       count++;
     }
   });
