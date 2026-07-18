@@ -194,3 +194,19 @@ td .name{font-weight:700}
 /* 연차 조정 패널: 내부 여백 확보 + 가로 폭 제한 */
 .adj-panel{max-width:920px}
 .adj-grid{padding:20px 24px}
+
+
+/* ---------- Shift Type Manager ---------- */
+.stm-header{display:flex; align-items:center; gap:10px; padding:0 4px 8px; font-size:12px; color:var(--muted); font-weight:600}
+.stm-header .stm-color{width:18px}
+.stm-header .stm-name{flex:1}
+.stm-header .stm-time{width:110px; text-align:center}
+.stm-header .stm-del{width:32px}
+.stm-row{display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border)}
+.stm-row:last-child{border-bottom:none}
+.stm-color{width:18px; height:18px; border-radius:6px; flex:0 0 auto; border:1px solid rgba(0,0,0,.06)}
+.stm-row input.stm-name{flex:1; padding:8px 10px; border:1px solid var(--border-strong); border-radius:8px; outline:none}
+.stm-row input.stm-time{width:110px; padding:8px 10px; border:1px solid var(--border-strong); border-radius:8px; outline:none; text-align:center}
+.stm-del{width:32px; height:32px; border:1px solid var(--border-strong); background:#fff; border-radius:8px; color:var(--bad); cursor:pointer; flex:0 0 auto}
+.stm-del:hover{background:#FFF1F2}
+.stm-empty{color:var(--muted); padding:24px 0; text-align:center}
