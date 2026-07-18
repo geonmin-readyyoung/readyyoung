@@ -458,14 +458,38 @@ function wireAttendance(){
 }
 const DOW_LABELS=["일","월","화","수","목","금","토"];
 const DOW_ORDER=[1,2,3,4,5,6,0];
-const SHIFT_PRESETS = {
-A:{start:"10:00", end:"20:00", label:"A (10:00~20:00)"},
-B:{start:"13:00", end:"23:00", label:"B (13:00~23:00)"},
-};
+const DEFAULT_SHIFT_TYPES=[
+{id:"A", name:"A", start:"10:00", end:"20:00"},
+{id:"B", name:"B", start:"13:00", end:"23:00"},
+];
+function getShiftTypes(){
+if(!DB.shiftTypes || !Array.isArray(DB.shiftTypes) || !DB.shiftTypes.length){
+DB.shiftTypes = DEFAULT_SHIFT_TYPES.map(t=>({...t}));
+}
+return DB.shiftTypes;
+}
+const SHIFT_PALETTE=[
+{bg:"#EAF1FE", fg:"#1E2761"},
+{bg:"#FBF1DC", fg:"#B7791F"},
+{bg:"#F3E8FF", fg:"#6B21A8"},
+{bg:"#FCE7F3", fg:"#9D174D"},
+{bg:"#E0F2FE", fg:"#075985"},
+{bg:"#FEF3C7", fg:"#92400E"},
+{bg:"#DCFCE7", fg:"#166534"},
+{bg:"#FFE4E6", fg:"#9F1239"},
+];
+function shiftColorFor(id){
+if(id==="A") return SHIFT_PALETTE[0];
+if(id==="B") return SHIFT_PALETTE[1];
+const types=getShiftTypes();
+const idx=types.findIndex(t=>t.id===id);
+if(idx<0) return SHIFT_PALETTE[2];
+return SHIFT_PALETTE[(idx+2) % SHIFT_PALETTE.length];
+}
 function shiftTypeOf(s){
-if(s.start===SHIFT_PRESETS.A.start && s.end===SHIFT_PRESETS.A.end) return "A";
-if(s.start===SHIFT_PRESETS.B.start && s.end===SHIFT_PRESETS.B.end) return "B";
-return "custom";
+const types=getShiftTypes();
+const m=types.find(t=>t.start===s.start && t.end===s.end);
+return m ? m.id : "custom";
 }
 function getSchedule(empId, dow){
   const ws=DB.weeklySchedule||{};
@@ -476,20 +500,23 @@ function renderSchedule(){
   DB.weeklySchedule = DB.weeklySchedule || {};
   const emps=DB.employees.filter(e=>e.status!=="퇴사").sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));
   if(!emps.length){
-    return headHTML("근무표","반복되는 주간 근무 스케줄을 등록하세요.") + `<div class="panel" style="padding:40px;text-align:center;color:var(--muted)">등록된 직원이 없어요.</div>`;
+    return headHTML("근무표","반복되는 주간 근무 스케줄을 등록하세요.", `<button class="btn" onclick="()">근무 타입 관리</button>`) + `<div class="panel" style="padding:40px;text-align:center;color:var(--muted)">등록된 직원이 없어요.</div>`;
   }
   const head = `<tr><th class="emp">이름</th>${DOW_ORDER.map(d=>`<th class="${d===0?"we":""}">${DOW_LABELS[d]}</th>`).join("")}</tr>`;
   const body = emps.map(e=>{
     const cells = DOW_ORDER.map(d=>{
       const s=getSchedule(e.id,d);
-      const cls = "shift-"+(s.on? shiftTypeOf(s):"off")+(s.on&&s.close?" closing":"");
+      const __typeId = s.on? shiftTypeOf(s):"off";
+      const cls = "shift-"+__typeId+(s.on&&s.close?" closing":"");
       const mark = s.on? `${s.start}~${s.end}${s.close?' <b class="close-tag">(마감)</b>':""}`:"휴무";
-      return `<td class="${cls}"><button class="cell" data-emp="${e.id}" data-dow="${d}">${mark}</button></td>`;
+      const __c = (s.on && __typeId!=="custom") ? shiftColorFor(__typeId) : null;
+      const __styleAttr = __c ? ` style="background:${__c.bg};color:${__c.fg}"` : "";
+      return `<td class="${cls}"><button class="cell"${__styleAttr} data-emp="${e.id}" data-dow="${d}">${mark}</button></td>`;
     }).join("");
     return `<tr><td class="emp">${esc(e.name)}</td>${cells}</tr>`;
   }).join("");
   return `
-    ${headHTML("근무표","반복되는 주간 근무 스케줄을 등록하면 출근부에 자동으로 반영돼요.")}
+    ${headHTML("근무표","반복되는 주간 근무 스케줄을 등록하면 출근부에 자동으로 반영돼요.", `<button class="btn" onclick="openShiftTypeManager()">근무 타입 관리</button>`)}
     <div class="panel"><div class="att-wrap">
     <table class="att"><thead>${head}</thead><tbody>${body}</tbody></table>
     </div>
@@ -513,8 +540,7 @@ const body = `
 </div>
 <div class="field"><label>근무 타입</label>
 <select id="sf_type" onchange="onShiftTypeChange()"><option value="off" ${curType==="off"?"selected":""}>휴무</option>
-<option value="A" ${curType==="A"?"selected":""}>${SHIFT_PRESETS.A.label}</option>
-<option value="B" ${curType==="B"?"selected":""}>${SHIFT_PRESETS.B.label}</option>
+${getShiftTypes().map(t=>`<option value="${t.id}" ${curType===t.id?"selected":""}>${esc(t.name)} (${t.start}~${t.end})</option>`).join("")}
 <option value="custom" ${curType==="custom"?"selected":""}>직접입력</option>
 </select>
 </div>
@@ -536,8 +562,8 @@ function saveScheduleEntry(empId, dow){
 const type=val("sf_type"); const on=type!=="off";
 
 let start, end;
-if(type==="A"){ start=SHIFT_PRESETS.A.start; end=SHIFT_PRESETS.A.end; }
-else if(type==="B"){ start=SHIFT_PRESETS.B.start; end=SHIFT_PRESETS.B.end; }
+const __matchedType=getShiftTypes().find(t=>t.id===type);
+if(__matchedType){ start=__matchedType.start; end=__matchedType.end; }
 else if(type==="custom"){ const st=val("sf_start"), en=val("sf_end"), tre=/^([01][0-9]|2[0-3]):[0-5][0-9]$/; start = tre.test(st)?st:"09:00"; end = tre.test(en)?en:"18:00"; } else { start="09:00"; end="18:00"; }
 DB.weeklySchedule = DB.weeklySchedule || {};
 DB.weeklySchedule[empId] = DB.weeklySchedule[empId] || {};
@@ -546,6 +572,50 @@ saveDB();
 closeModal();
 render();
 wireSchedule();
+}
+let editingShiftTypes = null;
+function openShiftTypeManager(){
+editingShiftTypes = getShiftTypes().map(t=>({...t}));
+modal("근무 타입 관리", renderShiftTypeManagerBody(), [
+  `<button class="btn" onclick="closeModal()">취소</button>`,
+  `<button class="btn primary" onclick="saveShiftTypes()">저장</button>`
+]);
+}
+function renderShiftTypeManagerBody(){
+const rows = editingShiftTypes.map((t,i)=>`
+<div class="field" style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px">
+<div style="flex:1"><label>이름</label><input value="${esc(t.name)}" oninput="updateShiftTypeField(${i},'name',this.value)"></div>
+<div><label>시작</label><input type="time" value="${t.start}" oninput="updateShiftTypeField(${i},'start',this.value)"></div>
+<div><label>종료</label><input type="time" value="${t.end}" oninput="updateShiftTypeField(${i},'end',this.value)"></div>
+<button class="btn" onclick="removeShiftTypeRow(${i})">삭제</button>
+</div>`).join("") || `<div style="color:var(--muted);padding:8px 0">등록된 근무 타입이 없어요.</div>`;
+return `<div id="shiftTypeRows">${rows}</div><button class="btn" style="margin-top:8px" onclick="addShiftTypeRow()">+ 타입 추가</button>`;
+}
+function addShiftTypeRow(){
+editingShiftTypes.push({id:"t"+Date.now()+Math.floor(Math.random()*1000), name:"새 타입", start:"09:00", end:"18:00"});
+refreshShiftTypeManagerBody();
+}
+function removeShiftTypeRow(i){
+editingShiftTypes.splice(i,1);
+refreshShiftTypeManagerBody();
+}
+function updateShiftTypeField(i, field, value){
+if(editingShiftTypes[i]) editingShiftTypes[i][field] = value;
+}
+function refreshShiftTypeManagerBody(){
+const body = document.querySelector("#modalRoot .m-body");
+if(body) body.innerHTML = renderShiftTypeManagerBody();
+}
+function saveShiftTypes(){
+const tre = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+for(const t of editingShiftTypes){
+if(!t.name || !t.name.trim()){ toast("타입 이름을 입력하세요"); return; }
+if(!tre.test(t.start) || !tre.test(t.end)){ toast("시간 형식이 올바르지 않아요"); return; }
+}
+DB.shiftTypes = editingShiftTypes.map(t=>({...t, name:t.name.trim()}));
+saveDB();
+closeModal();
+render();
 }
 function applyScheduleToMonth(){
   DB.weeklySchedule = DB.weeklySchedule || {};
