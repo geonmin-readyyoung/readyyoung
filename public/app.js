@@ -579,17 +579,29 @@ editingShiftTypes = getShiftTypes().map(t=>({...t}));
 modal("근무 타입 관리", renderShiftTypeManagerBody(), [
   `<button class="btn" onclick="closeModal()">취소</button>`,
   `<button class="btn primary" onclick="saveShiftTypes()">저장</button>`
-]);
+], true);
 }
 function renderShiftTypeManagerBody(){
-const rows = editingShiftTypes.map((t,i)=>`
-<div class="field" style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px">
-<div style="flex:1"><label>이름</label><input value="${esc(t.name)}" oninput="updateShiftTypeField(${i},'name',this.value)"></div>
-<div><label>시작</label><input type="time" value="${t.start}" oninput="updateShiftTypeField(${i},'start',this.value)"></div>
-<div><label>종료</label><input type="time" value="${t.end}" oninput="updateShiftTypeField(${i},'end',this.value)"></div>
-<button class="btn" onclick="removeShiftTypeRow(${i})">삭제</button>
-</div>`).join("") || `<div style="color:var(--muted);padding:8px 0">등록된 근무 타입이 없어요.</div>`;
-return `<div id="shiftTypeRows">${rows}</div><button class="btn" style="margin-top:8px" onclick="addShiftTypeRow()">+ 타입 추가</button>`;
+const header = editingShiftTypes.length ? `
+<div class="stm-header">
+<span class="stm-color"></span>
+<span class="stm-name">이름</span>
+<span class="stm-time">시작</span>
+<span class="stm-time">종료</span>
+<span class="stm-del"></span>
+</div>` : "";
+const rows = editingShiftTypes.map((t,i)=>{
+const col = shiftColorFor(t.id);
+return `
+<div class="stm-row">
+<span class="stm-color" style="background:${col.bg}"></span>
+<input class="stm-name" value="${esc(t.name)}" oninput="updateShiftTypeField(${i},'name',this.value)" placeholder="이름">
+<input class="stm-time" type="time" value="${t.start}" oninput="updateShiftTypeField(${i},'start',this.value)">
+<input class="stm-time" type="time" value="${t.end}" oninput="updateShiftTypeField(${i},'end',this.value)">
+<button class="stm-del" onclick="removeShiftTypeRow(${i})" title="삭제">✕</button>
+</div>`;
+}).join("") || `<div class="stm-empty">등록된 근무 타입이 없어요.</div>`;
+return `<div id="shiftTypeRows">${header}${rows}</div><button class="btn" style="margin-top:12px" onclick="addShiftTypeRow()">+ 타입 추가</button>`;
 }
 function addShiftTypeRow(){
 editingShiftTypes.push({id:"t"+Date.now()+Math.floor(Math.random()*1000), name:"새 타입", start:"09:00", end:"18:00"});
