@@ -418,13 +418,19 @@ function renderAttendance(){
     let worked=0,closeCnt=0,holCnt=0;
     const cells=dayHdr.map(({d})=>{
       const day=attMonth+"-"+String(d).padStart(2,"0");
-      const st=DB.attendance[attKey(e.id,day)]?.status || "";
+      const rec=DB.attendance[attKey(e.id,day)];
+const st=rec?.status || "";
       const dow=new Date(y,m-1,d).getDay();
       const sc=(DB.weeklySchedule&&DB.weeklySchedule[e.id])?DB.weeklySchedule[e.id][dow]:null; const isHol=(DB.holidays||[]).includes(day);
+const scClose=!!(sc&&sc.on&&sc.close);
+const closeOv=(rec&&Object.prototype.hasOwnProperty.call(rec,"closeOverride"))?rec.closeOverride:null;
+const effClose= closeOv===true?true:(closeOv===false?false:scClose);
       const cls=st==="연차"?"leave":st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
-if(st==="출근"){ worked++; if(sc&&sc.close) closeCnt++; if(isHol) holCnt++; }      const mark=st==="연차"?
+if(st==="출근"){ worked++; if(effClose) closeCnt++; if(isHol) holCnt++; }      const mark=st==="연차"?
    "연":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
-return `<td class="${cls}${(sc&&sc.on&&sc.close)?" close":""}${isHol?" holiday":""}"${(sc&&sc.on&&sc.close)?` title="마감조 (${sc.start}~${sc.end})"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}</button></td>`;    }).join("");
+const closeCls = closeOv===true?" close close-forced":(closeOv===false?(scClose?" close-off":""):(scClose?" close":""));
+const closeTitle = closeOv===true?"마감 강제 지정 (우클릭으로 해제)":(closeOv===false?"마감 강제 해제됨 (우클릭으로 초기화)":(scClose?`마감조 (${sc.start}~${sc.end})`:""));
+return `<td class="${cls}${closeCls}${isHol?" holiday":""}"${closeTitle?` title="${closeTitle}"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}</button></td>`;    }).join("");
 return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked}, 마감 ${closeCnt}, 휴일 ${holCnt})</span></td>${cells}</tr>`;  }).join("");
 
   return `
@@ -441,18 +447,33 @@ return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked}, 마감
 <thead><tr><th class="emp">직원</th>${dayHdr.map(h=>{const hday=attMonth+"-"+String(h.d).padStart(2,"0");const hhol=(DB.holidays||[]).includes(hday);return `<th class="${h.we?'we':''}${hhol?' holiday':''}" style="cursor:pointer" title="클릭하여 휴일 지정/해제" onclick="toggleHoliday('${hday}')">${h.d}</th>`;}).join("")}</tr></thead>      <tbody>${body}</tbody>
     </table>`:`<div class="empty"><div class="big">이 달에 표시할 파트타임 직원이 없어요</div><div>직원을 파트타임으로 등록하면 여기에 나타납니다.</div></div>`}
   </div></div>
-  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span>클릭할 때마다: 출근 → 휴무 → 결근 → 없음 순환</span><span style="opacity:.55">연하게 표시된 칸 = 근무표 기준 예정</span></div>`;
+  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span><i style="display:inline-block;width:10px;height:3px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 수동 지정(우클릭)</span><span><i style="display:inline-block;width:10px;height:3px;background:#CBD5E1;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 수동 해제(우클릭)</span><span>클릭: 출근 → 휴무 → 결근 → 없음 순환</span><span>우클릭: 마감 수동 지정 → 해제 → 자동 순환</span><span style="opacity:.55">연하게 표시된 칸 = 근무표 기준 예정</span></div>`;
 }
 function wireAttendance(){
   document.querySelectorAll(".att .cell").forEach(btn=>{
     btn.onclick=()=>{
       const emp=Number(btn.dataset.emp), day=btn.dataset.day, key=attKey(emp,day);
-      const cur=DB.attendance[key]?.status || "";
+      const rec=DB.attendance[key];
+const cur=rec?.status || "";
       if(cur==="연차"){ toast("연차는 휴가 등록에서 관리돼요"); return; } const nextMap={"":"출근","출근":"휴무","휴무":"결근","결근":""};
       const nx=nextMap[cur];
-      if(nx==="") delete DB.attendance[key];
-      else DB.attendance[key]={employeeId:emp, date:day, status:nx};
+      if(nx===""){ if(rec && Object.prototype.hasOwnProperty.call(rec,"closeOverride")){ delete rec.status; } else delete DB.attendance[key]; }
+      else { DB.attendance[key]={...(rec||{}), employeeId:emp, date:day, status:nx}; }
       saveDB(); render(); wireAttendance();
+    };
+    btn.oncontextmenu=(ev)=>{
+      ev.preventDefault();
+      const emp=Number(btn.dataset.emp), day=btn.dataset.day, key=attKey(emp,day);
+      const rec=DB.attendance[key];
+      const cur=(rec && Object.prototype.hasOwnProperty.call(rec,"closeOverride")) ? rec.closeOverride : null;
+      const nextOv = cur===null ? true : (cur===true ? false : null);
+      if(nextOv===null){
+        if(rec){ delete rec.closeOverride; if(!rec.status) delete DB.attendance[key]; }
+      } else {
+        DB.attendance[key]={...(rec||{employeeId:emp, date:day}), closeOverride:nextOv};
+      }
+      saveDB(); render(); wireAttendance();
+      toast(nextOv===true?"마감으로 강제 지정했습니다": nextOv===false?"마감을 강제 해제했습니다":"마감 수동 설정을 초기화했습니다 (근무표 기준으로 복귀)");
     };
   });
 }
