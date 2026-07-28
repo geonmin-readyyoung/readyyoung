@@ -426,7 +426,7 @@ const scClose=!!(sc&&sc.on&&sc.close);
 const closeOv=(rec&&Object.prototype.hasOwnProperty.call(rec,"closeOverride"))?rec.closeOverride:null;
 const effClose= closeOv===true?true:(closeOv===false?false:scClose);
       const cls=st==="연차"?"leave":st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
-if(st==="출근"){ worked++; if(effClose) closeCnt++; if(isHol) holCnt++; }      const mark=st==="연차"?
+if(st==="출근"){ worked++; if(isHol) holCnt++; } if(effClose && st!=="연차"){ closeCnt++; }      const mark=st==="연차"?
    "연":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
 const closeCls = closeOv===true?" close close-forced":(closeOv===false?(scClose?" close-off":""):(scClose?" close":""));
 const closeTitle = closeOv===true?"마감 강제 지정 (우클릭으로 해제)":(closeOv===false?"마감 강제 해제됨 (우클릭으로 초기화)":(scClose?`마감조 (${sc.start}~${sc.end})`:""));
@@ -669,7 +669,7 @@ function applyScheduleToMonth(){
       if(DB.attendance[key] && (DB.attendance[key].status==="연차" || DB.attendance[key].status==="결근")) continue;
       const dow=new Date(y,m-1,d).getDay();
       const sc=getSchedule(e.id, dow);
-       DB.attendance[key]={employeeId:e.id, date:day, status: sc.on?"출근":"휴무"};
+       (function(){const __co=sc.on&&sc.start&&sc.start>="23:00"; DB.attendance[key]={employeeId:e.id, date:day, status:(sc.on&&!__co)?"출근":"휴무", closeOverride:__co?true:null};})();
       count++;
     }
   });
