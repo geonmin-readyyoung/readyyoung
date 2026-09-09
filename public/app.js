@@ -427,7 +427,6 @@ const closeOv=(rec&&Object.prototype.hasOwnProperty.call(rec,"closeOverride"))?r
 const effClose= closeOv===true?true:(closeOv===false?false:scClose);
       const cls=st==="연차"?"leave":st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
 if(st==="출근"){ worked++; if(isHol) holCnt++; } if(effClose && st!=="연차"){ closeCnt++; }      const mark=st==="연차"?
->>>>>>> cb098fb68a123c16b33f8665c5ef7f1732140906
    "연":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
 const closeCls = closeOv===true?" close close-forced":(closeOv===false?(scClose?" close-off":""):(scClose?" close":""));
 const closeTitle = closeOv===true?"마감 강제 지정 (우클릭으로 해제)":(closeOv===false?"마감 강제 해제됨 (우클릭으로 초기화)":(scClose?`마감조 (${sc.start}~${sc.end})`:""));
