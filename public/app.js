@@ -482,9 +482,9 @@ function swapCellInfo(rec){
   if(!rec || !rec.swap) return null;
   const s=rec.swap, who=s.partnerId?empName(s.partnerId):"";
   const time = s.start&&s.end ? ` ${s.start}~${s.end}` : "";
-  if(s.role==="변경") return {cls:"swap-time", badge:"변", title:`근무시간 변경${time}`};
-  if(s.role==="대체") return {cls:"swap-in",   badge:"대", title:`${who} 대신 근무${time}${s.type==="교대"?" (맞교대)":""}`};
-  return {cls:"swap-out", badge:"↔", title:`${josa(who,"이","가")} 대신 근무${time}${s.type==="교대"?" (맞교대)":""}`};
+  if(s.role==="변경") return {id:s.id, cls:"swap-time", badge:"변", title:`근무시간 변경${time}`};
+  if(s.role==="대체") return {id:s.id, cls:"swap-in",   badge:"대", title:`${who} 대신 근무${time}${s.type==="교대"?" (맞교대)":""}`};
+  return {id:s.id, cls:"swap-out", badge:"↔", title:`${josa(who,"이","가")} 대신 근무${time}${s.type==="교대"?" (맞교대)":""}`};
 }
 
 /* ---- 화면 ---- */
@@ -682,7 +682,7 @@ const closeCls = closeOv===true?" close close-forced":(closeOv===false?(scClose?
 const closeTitle = closeOv===true?"마감 강제 지정 (우클릭으로 해제)":(closeOv===false?"마감 강제 해제됨 (우클릭으로 초기화)":(scClose?`마감조 (${sc.start}~${sc.end})`:""));
 const cellTitle = swp ? swp.title + (closeTitle?` · ${closeTitle}`:"") : closeTitle;
 const cellMark = swp && swp.cls!=="swap-time" ? swp.badge : mark;
-return `<td class="${cls}${closeCls}${swp?" "+swp.cls:""}${isHol?" holiday":""}"${cellTitle?` title="${esc(cellTitle)}"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${cellMark}${swp&&swp.cls==="swap-time"?'<i class="swap-dot"></i>':""}</button></td>`;    }).join("");
+return `<td class="${cls}${closeCls}${swp?" "+swp.cls:""}${isHol?" holiday":""}"${swp?` data-swapid="${swp.id}"`:""}${cellTitle?` title="${esc(cellTitle)}"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${cellMark}${swp&&swp.cls==="swap-time"?'<i class="swap-dot"></i>':""}</button></td>`;    }).join("");
 return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked}, 마감 ${closeCnt}, 휴일 ${holCnt}${subCnt?`, 대체 ${subCnt}`:""}${outCnt?`, 대체빠짐 ${outCnt}`:""})</span></td>${cells}</tr>`;  }).join("");
 
   return `
@@ -700,7 +700,7 @@ return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked}, 마감
 <thead><tr><th class="emp">직원</th>${dayHdr.map(h=>{const hday=attMonth+"-"+String(h.d).padStart(2,"0");const hhol=(DB.holidays||[]).includes(hday);return `<th class="${h.we?'we':''}${hhol?' holiday':''}" style="cursor:pointer" title="클릭하여 휴일 지정/해제" onclick="toggleHoliday('${hday}')">${h.d}</th>`;}).join("")}</tr></thead>      <tbody>${body}</tbody>
     </table>`:`<div class="empty"><div class="big">이 달에 표시할 파트타임 직원이 없어요</div><div>직원을 파트타임으로 등록하면 여기에 나타납니다.</div></div>`}
   </div></div>
-  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span><i style="display:inline-block;width:10px;height:3px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 수동 지정(우클릭)</span><span><i style="display:inline-block;width:10px;height:3px;background:#CBD5E1;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 수동 해제(우클릭)</span><span><b style="color:#0369A1">대</b> 대체 근무</span><span><b style="color:#0369A1">↔</b> 대체로 빠짐</span><span><i style="display:inline-block;width:6px;height:6px;background:#0EA5E9;border-radius:50%;vertical-align:middle;margin-right:5px"></i>근무시간 변경</span><span>클릭: 출근 → 휴무 → 결근 → 없음 순환</span><span><b>Shift+클릭</b>: 근무변경 등록/상세</span><span>우클릭: 마감 수동 지정 → 해제 → 자동 순환</span><span style="opacity:.55">연하게 표시된 칸 = 근무표 기준 예정</span></div>`;
+  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span><i style="display:inline-block;width:10px;height:3px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 수동 지정(우클릭)</span><span><i style="display:inline-block;width:10px;height:3px;background:#CBD5E1;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 수동 해제(우클릭)</span><span><b style="color:#0369A1">대</b> 대체 근무</span><span><b style="color:#0369A1">↔</b> 대체로 빠짐</span><span><i style="display:inline-block;width:6px;height:6px;background:#0EA5E9;border-radius:50%;vertical-align:middle;margin-right:5px"></i>근무시간 변경</span><span>클릭: 출근 → 휴무 → 결근 → 없음 순환</span><span><b>Shift+클릭</b>: 근무변경 등록/상세</span><span style="opacity:.75">대체 칸에 마우스를 올리면 바뀐 상대 칸과 이름이 함께 반짝여요</span><span>우클릭: 마감 수동 지정 → 해제 → 자동 순환</span><span style="opacity:.55">연하게 표시된 칸 = 근무표 기준 예정</span></div>`;
 }
 function wireAttendance(){
   document.querySelectorAll(".att .cell").forEach(btn=>{
@@ -730,6 +730,26 @@ const cur=rec?.status || "";
       saveDB(); render(); wireAttendance();
       toast(nextOv===true?"마감으로 강제 지정했습니다": nextOv===false?"마감을 강제 해제했습니다":"마감 수동 설정을 초기화했습니다 (근무표 기준으로 복귀)");
     };
+  });
+  wireSwapHighlight();
+}
+/* 근무변경 칸에 마우스를 올리면 짝이 되는 칸과 상대 직원 이름이 함께 반짝인다 */
+function clearSwapHighlight(){
+  document.querySelectorAll(".swap-hl,.swap-hl-self,.swap-hl-emp").forEach(x=>x.classList.remove("swap-hl","swap-hl-self","swap-hl-emp"));
+}
+function wireSwapHighlight(){
+  document.querySelectorAll(".att td[data-swapid]").forEach(td=>{
+    td.onmouseenter=()=>{
+      clearSwapHighlight();
+      const id=td.dataset.swapid;
+      document.querySelectorAll(`.att td[data-swapid="${id}"]`).forEach(x=>{
+        if(x===td){ x.classList.add("swap-hl-self"); return; }
+        x.classList.add("swap-hl");
+        const tr=x.closest("tr"), nameCell=tr&&tr.querySelector("td.emp");
+        if(nameCell) nameCell.classList.add("swap-hl-emp");
+      });
+    };
+    td.onmouseleave=clearSwapHighlight;
   });
 }
 const DOW_LABELS=["일","월","화","수","목","금","토"];
