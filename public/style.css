@@ -242,3 +242,37 @@ td .name{font-weight:700}
   .att td.swap-hl, .att td.emp.swap-hl-emp{ animation:none; background:rgba(14,165,233,.22); }
   .att td.swap-hl{ box-shadow: inset 0 0 0 2px #0EA5E9; }
 }
+
+/* ---- 출근부 주간 보기 ---- */
+.seg{ display:inline-flex; border:1px solid var(--border-strong); border-radius:9px; overflow:hidden }
+.seg .btn{ border:0; border-radius:0; background:transparent }
+.seg .btn+.btn{ border-left:1px solid var(--border-strong) }
+.seg .btn.active{ background:var(--navy); color:#fff }
+.wk{ min-width:920px; font-size:12px }
+.wk-hrow{ display:grid; gap:4px; margin-bottom:6px }
+.wk-brow{ display:grid; gap:4px; align-items:start }
+.wk-h{ text-align:center; padding:6px 2px; border-radius:8px; background:var(--surface); border:1px solid var(--border) }
+.wk-h b{ display:block; font-size:13px }
+.wk-h span{ display:block; font-size:11px; color:var(--muted) }
+.wk-h.corner{ background:transparent; border:0 }
+.wk-h.we b{ color:#DC2626 }
+.wk-h.hol{ background:#FEF2F2; border-color:#FECACA }
+.wk-h.today{ outline:2px solid var(--navy); outline-offset:-2px }
+.wk-times{ display:grid; padding-top:3px }
+.wk-t{ font-size:10px; color:var(--muted); text-align:right; padding-right:6px; line-height:1; transform:translateY(-4px) }
+.wk-col{ min-width:0 }
+.wk-grid{ display:grid; row-gap:0; column-gap:3px; position:relative; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:2px }
+.wk-line{ border-top:1px solid var(--border); opacity:.5; pointer-events:none }
+.wk-b{ border-radius:6px; padding:3px 4px; margin:1px 0; overflow:hidden; line-height:1.25; cursor:pointer; position:relative;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.06); min-width:0 }
+.wk-b b{ display:block; font-size:11px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.wk-b span{ display:block; font-size:9.5px; opacity:.82; white-space:nowrap; letter-spacing:-.2px }
+.wk-b .wk-close{ font-weight:800; opacity:1 }
+.wk-b.planned{ opacity:.5 }
+.wk-b .wk-tag{ position:absolute; top:2px; right:3px; font-style:normal; font-size:9px; font-weight:800; color:#0369A1 }
+.wk-b.swap-hl{ animation:swapPulse 1s ease-in-out infinite }
+.wk-b.swap-hl-self{ box-shadow:inset 0 0 0 2px #0EA5E9 }
+.wk-off{ margin-top:5px; font-size:10.5px; color:var(--muted); line-height:1.5 }
+.wk-off span{ color:#DC2626 }
+@media (prefers-reduced-motion: reduce){ .wk-b.swap-hl{ animation:none; box-shadow:inset 0 0 0 2px #0EA5E9 } }
+.wk-off .wk-gave{ color:#0369A1 }
