@@ -219,8 +219,9 @@ td .name{font-weight:700}
 .att td.swap-in .cell{ color:#0369A1; font-weight:800; }
 .att td.swap-out{ box-shadow: inset 0 0 0 2px #BAE6FD; }
 .att td.swap-out .cell{ color:#0284C7; font-weight:700; }
-.att td.swap-time .cell{ position:relative; }
-.att .swap-dot{ position:absolute; top:3px; right:3px; width:6px; height:6px; border-radius:50%; background:#0EA5E9; }
+.att td.swap-in .cell, .att td.swap-out .cell, .att td.swap-time .cell{ position:relative; }
+.att .swap-badge{ position:absolute; top:1px; right:2px; font-size:9px; font-style:normal; font-weight:800; line-height:1; color:#0369A1; letter-spacing:-.5px; }
+.att td.swap-out .swap-badge{ color:#0284C7; opacity:.85; }
 .kpi.kpi-alert{ border-color:#0EA5E9; }
 .kpi.kpi-alert .val{ color:#0369A1; }
 
