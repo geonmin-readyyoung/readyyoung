@@ -1030,15 +1030,19 @@ function setAttMode(m){ attMode=m; render(); if(attMode==="month") wireAttendanc
 function shiftWeek(n){ weekStart=addDays(weekStart, n*7); render(); wireWeek(); }
 function thisWeek(){ weekStart=mondayStr(todayStr()); render(); wireWeek(); }
 
-/* 직원별 고정 색 (이름이 아니라 사번 기준이라 이름을 고쳐도 색이 유지됨) */
-const WK_COLORS=[["#DBEAFE","#1E3A8A"],["#FDE2E1","#9A3412"],["#DCFCE7","#14532D"],["#FEF3C7","#78350F"],
-  ["#EDE9FE","#4C1D95"],["#CFFAFE","#155E75"],["#FCE7F3","#831843"],["#E2E8F0","#1E293B"],
-  ["#D9F99D","#3F6212"],["#FFE4E6","#9F1239"]];
-function empColor(e){
-  const key=String(e.name||"")+"#"+e.id;
-  let h=0; for(let i=0;i<key.length;i++){ h=(h*31+key.charCodeAt(i))>>>0; }
-  return WK_COLORS[h%WK_COLORS.length];
+/* 직무별 색 — 약사 / 중국어 / 일본어 / 물류 / 기타 */
+const WK_GROUPS=[
+  {key:"약무",   label:"약사",   bg:"#DBEAFE", fg:"#1E3A8A"},
+  {key:"중국어", label:"중국어", bg:"#FEE2E2", fg:"#991B1B"},
+  {key:"일본어", label:"일본어", bg:"#DCFCE7", fg:"#14532D"},
+  {key:"물류",   label:"물류",   bg:"#FEF3C7", fg:"#78350F"},
+  {key:"기타",   label:"기타",   bg:"#E2E8F0", fg:"#1E293B"},
+];
+function empGroup(e){
+  const k = e && e.role==="통역" ? (e.team||"기타") : (e?e.role:"기타");
+  return WK_GROUPS.find(g=>g.key===k) || WK_GROUPS[WK_GROUPS.length-1];
 }
+function empColor(e){ const g=empGroup(e); return [g.bg,g.fg]; }
 
 /* 그 날 실제로 근무하는 사람들 — 근무변경 반영 */
 function dayShifts(day){
@@ -1122,6 +1126,9 @@ function renderAttendanceWeek(){
   }).join("");
 
   const total=shifts.reduce((n,l)=>n+l.length,0);
+  const usedKeys=[...new Set(shifts.flat().map(s=>empGroup(s.e).key))];
+  const gLegend=WK_GROUPS.filter(g=>usedKeys.includes(g.key)).map(g=>
+    `<span><i style="display:inline-block;width:11px;height:11px;border-radius:3px;background:${g.bg};border:1px solid rgba(0,0,0,.14);vertical-align:-1px;margin-right:5px"></i>${g.label}</span>`).join("");
   return `
   ${headHTML("출근부","주간 근무표 — 요일별 실제 근무 시간을 한눈에")}
   <div class="toolbar">
@@ -1145,7 +1152,7 @@ function renderAttendanceWeek(){
       </div>
     </div>
   </div>
-  <div class="legend"><span>블록 = 실제 근무 시간 (근무변경 반영)</span><span><b>대</b> 대체 근무 · <b>변</b> 시간 변경</span><span style="opacity:.55">연한 블록 = 출근부 미기록, 근무표 기준 예정</span><span>블록에 마우스를 올리면 바뀐 상대 블록이 함께 반짝여요</span><span>블록 클릭 → 근무변경 등록/상세</span></div>
+  <div class="legend">${gLegend}<span style="opacity:.45">|</span><span>블록 = 실제 근무 시간 (근무변경 반영)</span><span><b>대</b> 대체 근무 · <b>변</b> 시간 변경</span><span style="opacity:.55">연한 블록 = 출근부 미기록, 근무표 기준 예정</span><span>블록에 마우스를 올리면 바뀐 상대 블록이 함께 반짝여요</span><span>블록 클릭 → 근무변경 등록/상세</span></div>
   </div>`;
 }
 function wireWeek(){
