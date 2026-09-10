@@ -47,7 +47,7 @@ function nextId(){ return DB.seq++; } function migrateEmployeeNoFormat(){ let ch
 
 /* =========================== 날짜/연차 로직 =========================== */
 function ymNow(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
-function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function fmtDate(s){ return s ? s.slice(0,10).replace(/-/g,".") : "—"; }
 
 // 근속 개월 (date.ts monthsSince 규칙: 일 기준 보정)
@@ -93,7 +93,7 @@ function render(){
   if(view==="dashboard") m.innerHTML=renderDashboard();
   else if(view==="employees") m.innerHTML=renderEmployees();
   else if(view==="leaves") m.innerHTML=renderLeaves();
-  else if(view==="attendance"){ m.innerHTML=renderAttendance(); wireAttendance(); }
+  else if(view==="attendance"){ if(attMode==="week"){ m.innerHTML=renderAttendanceWeek(); wireWeek(); } else { m.innerHTML=renderAttendance(); wireAttendance(); } }
   else if(view==="schedule"){ m.innerHTML=renderSchedule(); wireSchedule(); }
 else if(view==="shiftchanges"){ m.innerHTML=renderShiftChanges(); }
 else if(view==="payroll"){ m.innerHTML=renderPayroll(); }
@@ -743,6 +743,7 @@ return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked}, 마감
   return `
   ${headHTML("출근부","직원 월별 근무 기록 · 셀 클릭으로 상태 변경")}
   <div class="toolbar">
+    <div class="seg"><button class="btn sm active" onclick="setAttMode('month')">월간</button><button class="btn sm" onclick="setAttMode('week')">주간</button></div>
     <button class="btn sm" onclick="shiftMonth(-1)">‹ 이전달</button>
     <input type="month" value="${attMonth}" onchange="attMonth=this.value; render()" style="padding:8px 11px; border:1px solid var(--border-strong); border-radius:9px">
     <button class="btn sm" onclick="shiftMonth(1)">다음달 ›</button>
@@ -1013,6 +1014,151 @@ function shiftMonth(delta){
   let [y,m]=attMonth.split("-").map(Number); m+=delta;
   if(m<1){m=12;y--;} if(m>12){m=1;y++;}
   attMonth=y+"-"+String(m).padStart(2,"0"); render();
+}
+
+
+/* =========================== 출근부 — 주간 보기 =========================== */
+let attMode = "month";                 // "month" | "week"
+let weekStart = mondayStr(todayStr());
+function ymdLocal(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function dateOf(s){ const p=String(s||"").split("-").map(Number); return new Date(p[0],(p[1]||1)-1,p[2]||1); }
+function addDays(s,n){ const d=dateOf(s); d.setDate(d.getDate()+n); return ymdLocal(d); }
+function mondayStr(s){ const d=dateOf(s); d.setDate(d.getDate()-((d.getDay()+6)%7)); return ymdLocal(d); }
+function toMin(t){ const m=/^(\d{1,2}):(\d{2})$/.exec(t||""); return m?(+m[1])*60+(+m[2]):null; }
+function fromMin(v){ return String(Math.floor(v/60)%24).padStart(2,"0")+":"+String(v%60).padStart(2,"0"); }
+function setAttMode(m){ attMode=m; render(); if(attMode==="month") wireAttendance(); else wireWeek(); }
+function shiftWeek(n){ weekStart=addDays(weekStart, n*7); render(); wireWeek(); }
+function thisWeek(){ weekStart=mondayStr(todayStr()); render(); wireWeek(); }
+
+/* 직원별 고정 색 (이름이 아니라 사번 기준이라 이름을 고쳐도 색이 유지됨) */
+const WK_COLORS=[["#DBEAFE","#1E3A8A"],["#FDE2E1","#9A3412"],["#DCFCE7","#14532D"],["#FEF3C7","#78350F"],
+  ["#EDE9FE","#4C1D95"],["#CFFAFE","#155E75"],["#FCE7F3","#831843"],["#E2E8F0","#1E293B"],
+  ["#D9F99D","#3F6212"],["#FFE4E6","#9F1239"]];
+function empColor(e){
+  const key=String(e.name||"")+"#"+e.id;
+  let h=0; for(let i=0;i<key.length;i++){ h=(h*31+key.charCodeAt(i))>>>0; }
+  return WK_COLORS[h%WK_COLORS.length];
+}
+
+/* 그 날 실제로 근무하는 사람들 — 근무변경 반영 */
+function dayShifts(day){
+  const dow=dateOf(day).getDay();
+  const list=[];
+  DB.employees.forEach(e=>{
+    if((e.joinDate||"").slice(0,10) > day) return;
+    if(e.leaveDate && e.leaveDate.slice(0,10) < day) return;
+    if(e.status==="퇴사" && !e.leaveDate) return;
+    const rec=DB.attendance[attKey(e.id,day)];
+    const st=rec?rec.status:null;
+    if(st==="연차"||st==="결근"||st==="휴무") return;
+    const sc=getSchedule(e.id,dow);
+    const sw=rec&&rec.swap;
+    let start=null,end=null;
+    if(sw&&sw.start&&sw.end){ start=sw.start; end=sw.end; }
+    else if(sc.on){ start=sc.start; end=sc.end; }
+    else if(st==="출근"){ start=sc.start||"09:00"; end=sc.end||"18:00"; }
+    if(!start||!end) return;
+    const close = (rec && rec.closeOverride!=null) ? rec.closeOverride : !!sc.close;
+    list.push({e, start, end, close, swap:sw||null, planned: !st});
+  });
+  return list.sort((a,b)=>(a.start||"").localeCompare(b.start||"")||(a.e.employeeNo||0)-(b.e.employeeNo||0));
+}
+function dayAbsences(day){
+  const out=[];
+  DB.employees.forEach(e=>{
+    const rec=DB.attendance[attKey(e.id,day)];
+    if(!rec) return;
+    if(rec.swap && rec.swap.role==="빠짐") out.push({name:e.name, status:"넘김", who:empName(rec.swap.partnerId)});
+    else if(rec.status==="연차"||rec.status==="결근") out.push({name:e.name, status:rec.status});
+  });
+  return out;
+}
+
+function renderAttendanceWeek(){
+  const days=[0,1,2,3,4,5,6].map(i=>addDays(weekStart,i));
+  const shifts=days.map(dayShifts);
+  const absents=days.map(dayAbsences);
+
+  // 표시할 시간 범위를 실제 근무에서 계산 (기본 10:00~23:00)
+  let lo=10*60, hi=23*60;
+  shifts.flat().forEach(s=>{
+    const a=toMin(s.start); let b=toMin(s.end);
+    if(a==null||b==null) return;
+    if(b<=a) b+=24*60;
+    lo=Math.min(lo,a); hi=Math.max(hi,b);
+  });
+  lo=Math.floor(lo/60)*60; hi=Math.ceil(hi/60)*60;
+  const SLOT=30, rows=Math.max(1,(hi-lo)/SLOT);
+  const hours=[]; for(let m=lo;m<=hi;m+=60) hours.push(m);
+
+  const today=todayStr();
+  const laneCount=shifts.map(l=>Math.max(1,l.length));
+  const tmpl="58px "+laneCount.map(n=>`minmax(${n*66+10}px,1fr)`).join(" ");
+  const head=days.map((d,i)=>{
+    const dt=dateOf(d), we=(i>=5);
+    const hol=(DB.holidays||[]).includes(d);
+    return `<div class="wk-h${we?" we":""}${hol?" hol":""}${d===today?" today":""}">
+      <b>${DOW_LABELS[dt.getDay()]}</b><span>${dt.getMonth()+1}/${dt.getDate()}</span></div>`;
+  }).join("");
+
+  const cols=days.map((d,i)=>{
+    const list=shifts[i];
+    const lanes=laneCount[i];
+    const blocks=list.map((s,li)=>{
+      const a=toMin(s.start); let b=toMin(s.end); if(b<=a) b+=24*60;
+      const r1=Math.round((a-lo)/SLOT)+1, r2=Math.round((b-lo)/SLOT)+1;
+      const [bg,fg]=empColor(s.e);
+      const tag = s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":"") : "";
+      const title=`${s.e.name} ${s.start}~${s.end}${s.close?" (마감)":""}${s.swap?" · "+ (s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.planned?" · 근무표 기준 예정":""}`;
+      return `<div class="wk-b${s.planned?" planned":""}" style="grid-row:${r1}/${r2};grid-column:${li+1};background:${bg};color:${fg}" title="${esc(title)}"${s.swap?` data-swapid="${s.swap.id}"`:""}>
+        <b>${esc(s.e.name)}</b>${tag?`<i class="wk-tag">${tag}</i>`:""}
+        <span>${s.start}~${s.end}</span>${s.close?'<span class="wk-close">마감</span>':""}
+      </div>`;
+    }).join("");
+    const off=absents[i].length?`<div class="wk-off">${absents[i].map(x=>x.status==="넘김"?`${esc(x.name)} <span class="wk-gave">→ ${esc(x.who)}</span>`:`${esc(x.name)} <span>${x.status}</span>`).join(" · ")}</div>`:"";
+    return `<div class="wk-col"><div class="wk-grid" style="grid-template-rows:repeat(${rows},var(--wk-rh));grid-template-columns:repeat(${lanes},minmax(62px,1fr))">
+      ${Array.from({length:rows},(_,r)=>`<div class="wk-line" style="grid-row:${r+1};grid-column:1/-1${(lo+r*SLOT)%60===0?"":";border-top-style:dotted"}"></div>`).join("")}
+      ${blocks}</div>${off}</div>`;
+  }).join("");
+
+  const total=shifts.reduce((n,l)=>n+l.length,0);
+  return `
+  ${headHTML("출근부","주간 근무표 — 요일별 실제 근무 시간을 한눈에")}
+  <div class="toolbar">
+    <div class="seg"><button class="btn sm" onclick="setAttMode('month')">월간</button><button class="btn sm active" onclick="setAttMode('week')">주간</button></div>
+    <button class="btn sm" onclick="shiftWeek(-1)">‹ 지난주</button>
+    <button class="btn sm" onclick="thisWeek()">이번주</button>
+    <button class="btn sm" onclick="shiftWeek(1)">다음주 ›</button>
+    <input type="date" value="${weekStart}" onchange="weekStart=mondayStr(this.value); render(); wireWeek()" style="padding:8px 11px; border:1px solid var(--border-strong); border-radius:9px">
+    <button class="btn sm" onclick="openShiftChangeForm()">＋ 근무변경</button>
+    <div class="grow"></div>
+    <span class="hint">${fmtDate(weekStart)} ~ ${fmtDate(addDays(weekStart,6))} · 근무 ${total}건</span>
+  </div>
+  <div class="panel"><div class="att-wrap">
+    <div class="wk" style="--wk-rh:17px">
+      <div class="wk-hrow" style="grid-template-columns:${tmpl}"><div class="wk-h corner"></div>${head}</div>
+      <div class="wk-brow" style="grid-template-columns:${tmpl}">
+        <div class="wk-times" style="grid-template-rows:repeat(${rows},var(--wk-rh))">
+          ${hours.map(m=>{const r=Math.round((m-lo)/SLOT)+1; return `<div class="wk-t" style="grid-row:${r}${r<=rows?"/span 2":""}">${m>=24*60?"24:00":fromMin(m)}</div>`;}).join("")}
+        </div>
+        ${cols}
+      </div>
+    </div>
+  </div>
+  <div class="legend"><span>블록 = 실제 근무 시간 (근무변경 반영)</span><span><b>대</b> 대체 근무 · <b>변</b> 시간 변경</span><span style="opacity:.55">연한 블록 = 출근부 미기록, 근무표 기준 예정</span><span>블록에 마우스를 올리면 바뀐 상대 블록이 함께 반짝여요</span><span>블록 클릭 → 근무변경 등록/상세</span></div>
+  </div>`;
+}
+function wireWeek(){
+  document.querySelectorAll(".wk-b").forEach(el=>{
+    el.onclick=()=>{ const d=el.closest(".wk-col"); const i=[...document.querySelectorAll(".wk-col")].indexOf(d);
+      const day=addDays(weekStart,i); const nm=(el.querySelector("b")||{}).textContent||"";
+      const emp=DB.employees.find(x=>x.name===nm); if(emp) openSwapFromCell(emp.id, day); };
+  });
+  document.querySelectorAll(".wk-b[data-swapid]").forEach(el=>{
+    el.onmouseenter=()=>{ clearSwapHighlight();
+      document.querySelectorAll(`.wk-b[data-swapid="${el.dataset.swapid}"]`).forEach(x=>x.classList.add(x===el?"swap-hl-self":"swap-hl")); };
+    el.onmouseleave=clearSwapHighlight;
+  });
 }
 
 /* =========================== 급여관리 (약국장 전용) =========================== */
