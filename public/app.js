@@ -33,7 +33,7 @@ async function loadDB(){
     const r = await fetch("/api/db").then(x=>x.json());
     if(r && r.data){ DB = r.data; }
   }catch(e){ /* 최초 실행 = 데이터 없음 */ }
-  DB.employees ||= []; DB.leaves ||= []; DB.attendance ||= {}; DB.weeklySchedule ||= {}; DB.seq ||= 1; DB.leaveAdjustments ||= []; DB.holidays||=[]; DB.shiftChanges ||= []; migrateEmployeeNoFormat(); syncAll();
+  DB.employees ||= []; DB.leaves ||= []; DB.attendance ||= {}; DB.weeklySchedule ||= {}; DB.seq ||= 1; DB.leaveAdjustments ||= []; DB.holidays||=[]; DB.shiftChanges ||= []; migrateEmployeeNoFormat(); syncAll(); autoFillPastAttendance();
 }
 let saveT=null;
 function saveDB(){
@@ -465,8 +465,8 @@ function deleteLeave(id, empId){ DB.leaves=DB.leaves.filter(x=>x.id!==id); syncA
 
 
 /* =========================== 근무변경 (대체/시간변경/맞교대) =========================== */
-const SHIFT_CHANGE_TYPES = ["대체","변경","교대"];
-const SC_LABEL = {"대체":"대체근무","변경":"근무시간 변경","교대":"맞교대"};
+const SHIFT_CHANGE_TYPES = ["대체","변경","교대","결근"];
+const SC_LABEL = {"대체":"대체근무","변경":"근무시간 변경","교대":"맞교대","결근":"결근 (대체자 없음)"};
 /* 근무를 넘긴 사람을 급여에서 어떻게 처리할지 */
 const SC_ABSENCE = [
   {key:"무급", label:"무급 (그냥 빠짐)",       hint:"그 날 급여 미지급 · 연차 차감 없음"},
@@ -529,6 +529,8 @@ function syncShiftChanges(){
     } else if(c.type==="교대"){
       applySwapPair(c, c.employeeId, c.substituteId, c.date);
       applySwapPair(c, c.substituteId, c.employeeId, c.swapDate||c.date, true);
+} else if(c.type==="결근"){
+applySwapCell(c, c.employeeId, c.date, "결근", null, null, null, false);
     }
   });
 }
@@ -554,6 +556,7 @@ function applySwapCell(c, empId, day, role, partnerId, start, end, close){
   const next = {...(rec||{}), employeeId:empId, date:day};
   if(onLeave){ /* 연차가 우선 — 상태는 그대로 두고 표시만 남긴다 */ }
   else if(role==="빠짐"){ next.status="휴무"; next.closeOverride=false; }
+else if(role==="결근"){ next.status="결근"; next.closeOverride=false; }
   else { next.status="출근"; next.closeOverride=!!close; }
   next.swap={id:c.id, type:c.type, role, partnerId:partnerId||null, date:day, start:start||null, end:end||null, absence:absenceOf(c), prev};
   DB.attendance[key]=next;
@@ -569,7 +572,8 @@ function swapCellInfo(rec){
     title:`근무시간 변경 — 이 날은 ${time} 근무${tail}`};
   if(s.role==="대체") return {id:s.id, cls:"swap-in", badge:"대", working:true,
     title:`출근 — ${josa(who,"이","가")} 원래 맡던 ${d}근무를 대신함 (${time})${tail}`};
-  const ab = s.absence==="연차" ? "연차 사용(유급)" : s.absence==="교대" ? "다른 날 보충" : "무급";
+  if(s.role==="결근") return {id:s.id, cls:"swap-out swap-absent", badge:"결", working:false, title:"결근 — 대체자 없이 빠짐 · 무급"};
+const ab = s.absence==="연차" ? "연차 사용(유급)" : s.absence==="교대" ? "다른 날 보충" : "무급";
   return {id:s.id, cls:"swap-out", badge:s.absence==="연차"?"연":"↔", working:false,
     title:`${s.absence==="연차"?"연차":"휴무"} — 이 날 근무를 ${esc(who)}에게 넘김 · ${ab} (${time})${tail}`};
 }
@@ -584,7 +588,8 @@ function shiftChangeSummary(ym){
     if(!rows[id]) rows[id]={e, sub:0, 연차:0, 무급:0, 교대:0, 변경:0};
     return rows[id]; };
   (DB.shiftChanges||[]).filter(c=>c.status==="승인").forEach(c=>{
-    if(c.type==="변경"){ if(inM(c.date)){ const r=row(c.employeeId); if(r) r.변경++; } return; }
+    if(c.type==="결근"){ if(inM(c.date)){ const r=row(c.employeeId); if(r) r.무급++; } return; }
+if(c.type==="변경"){ if(inM(c.date)){ const r=row(c.employeeId); if(r) r.변경++; } return; }
     if(inM(c.date)){
       const o=row(c.employeeId), sb=row(c.substituteId);
       if(o) o[absenceOf(c)]++;
@@ -628,6 +633,7 @@ function renderShiftChanges(){
   const legs=(c)=>{
     const t=c.start&&c.end?`${c.start}~${c.end}`:"근무표 기준";
     if(c.type==="변경") return [{date:c.date, html:`<b>${esc(empName(c.employeeId))}</b> <span class="hint">시간변경</span>`, time:t}];
+if(c.type==="결근") return [{date:c.date, html:`<b>${esc(empName(c.employeeId))}</b> <span class="hint">결근</span>`, time:"—"}];
     const leg=(fromName,toName)=>`<span class="hint">${esc(fromName)}의 근무</span> <span class="hint">→</span> <b>${esc(toName)} 출근</b>`;
     const a=leg(empName(c.employeeId), empName(c.substituteId));
     const b=leg(empName(c.substituteId), empName(c.employeeId));
@@ -658,7 +664,7 @@ function renderShiftChanges(){
       <td>${fmtDate(c.date)}${c.type==="교대"&&c.swapDate?`<div class="hint">↔ ${fmtDate(c.swapDate)}</div>`:""}</td>
       <td><span class="tag t-gray">${SC_LABEL[c.type]||c.type}</span></td>
       <td>${c.type==="변경"?'<span class="hint">—</span>':absenceTag(absenceOf(c))}</td>
-      <td>${c.type==="변경"?esc(empName(c.employeeId)):`${esc(empName(c.employeeId))} <span class="hint">→</span> <b>${esc(empName(c.substituteId))}</b>`}</td>
+      <td>${(c.type==="변경"||c.type==="결근")?esc(empName(c.employeeId)):`${esc(empName(c.employeeId))} <span class="hint">→</span> <b>${esc(empName(c.substituteId))}</b>`}</td>
       <td>${c.start&&c.end?`${c.start}~${c.end}`:"근무표 기준"}${c.close?' <b class="close-tag">(마감)</b>':""}</td>
       <td class="hint">${esc(c.reason||"")}</td>
       <td class="num"><button class="btn sm primary" onclick="setShiftChangeStatus(${c.id},'승인')">승인</button>
@@ -670,7 +676,7 @@ function renderShiftChanges(){
     <div class="p-head"><h2>근무변경 내역</h2><button class="btn sm ghost" onclick="toggleScViewAll()">${scViewAll?"최근 2개월만":"전체 보기"}</button></div>
     ${list.length?`<div class="att-wrap"><table><thead><tr><th>날짜</th><th>유형</th><th>처리</th><th>근무자</th><th>시간</th><th>사유</th><th>상태</th><th></th></tr></thead><tbody>${list.map(c=>row(c,true)).join("")}</tbody></table></div>`:`<div class="empty" style="padding:28px">근무변경 기록이 없어요.</div>`}
   </div>
-  <div class="legend"><span><b>대체근무</b> 원 근무자는 휴무, 대체자에게 출근·마감이 집계돼요</span><span><b>맞교대</b> 두 날짜를 서로 맞바꿔 양쪽 출근부가 동시에 바뀌어요</span><span><b>근무시간 변경</b> 같은 사람이 그날만 다른 시간에 근무</span></div>`;
+  <div class="legend"><span><b>대체근무</b> 원 근무자는 휴무, 대체자에게 출근·마감이 집계돼요</span><span><b>맞교대</b> 두 날짜를 서로 맞바꿔 양쪽 출근부가 동시에 바뀌어요</span><span><b>근무시간 변경</b> 같은 사람이 그날만 다른 시간에 근무</span><span><b>결근</b> 대체자 없이 빠진 날 — 무급 처리</span><span><b>출근부</b>는 조회 전용 — 모든 변경은 여기서 등록하고 승인하면 반영돼요</span></div>`;
 }
 
 /* ---- 등록/수정 폼 ---- */
@@ -733,12 +739,14 @@ function onScTypeChange(skipFill){
   const t=val("sc_type");
   const sub=document.getElementById("sc_sub_wrap"), sw=document.getElementById("sc_swapdate_wrap");
   const lab=document.getElementById("sc_emp_label");
-  if(sub) sub.style.display = t==="변경" ? "none" : "";
+  if(sub) sub.style.display = (t==="변경"||t==="결근") ? "none" : "";
   if(sw)  sw.style.display  = t==="교대" ? "" : "none";
   const abw=document.getElementById("sc_absence_wrap");
   if(abw) abw.style.display = t==="대체" ? "" : "none";
+["sc_start","sc_end"].forEach(id=>{ const f=document.getElementById(id); const w=f&&f.closest(".field"); if(w) w.style.display = t==="결근" ? "none" : ""; });
+const cw=document.getElementById("sc_close_wrap"); if(cw) cw.style.display = t==="결근" ? "none" : "";
   onScAbsence();
-  if(lab) lab.innerHTML = t==="변경" ? '직원 <span class="req">*</span>' : '원래 근무자 <span class="req">*</span>';
+  if(lab) lab.innerHTML = (t==="변경"||t==="결근") ? '직원 <span class="req">*</span>' : '원래 근무자 <span class="req">*</span>';
   if(skipFill) scPreview(); else onScFillTime();
 }
 function onScAbsence(){
@@ -773,6 +781,9 @@ function scPreview(){
   let html="", pay="";
   if(t==="변경"){
     html=`<div>· <b>${esc(fmtDate(date))}</b> — ${esc(empName(a))} 근무시간이 <b>${time}</b> 으로 변경</div>`;
+} else if(t==="결근"){
+html=`<div>· <b>${esc(fmtDate(date))}</b> — ${esc(empName(a))} <b>결근</b> (대체자 없음)</div>`;
+pay=`<div style="margin-top:6px;opacity:.85">급여: <b>${esc(empName(a))}</b> 무급(근무 1일 감소)</div>`;
   } else if(t==="대체"){
     const k=val("sc_absence")||"무급";
     const days=Number(val("sc_leavedays")||1);
@@ -790,10 +801,10 @@ function scPreview(){
 function saveShiftChange(editId){
   const type=val("sc_type"), date=val("sc_date");
   const employeeId=Number(val("sc_emp"));
-  const substituteId = type==="변경" ? null : Number(val("sc_sub"));
+  const substituteId = (type==="변경"||type==="결근") ? null : Number(val("sc_sub"));
   const swapDate = type==="교대" ? val("sc_swapdate") : null;
   if(!date){ toast("날짜를 입력하세요"); return; }
-  if(type!=="변경" && (!substituteId || substituteId===employeeId)){ toast("원래 근무자와 다른 대체자를 선택하세요"); return; }
+  if(type!=="변경" && type!=="결근" && (!substituteId || substituteId===employeeId)){ toast("원래 근무자와 다른 대체자를 선택하세요"); return; }
   if(type==="교대" && !swapDate){ toast("맞교대 상대 날짜를 입력하세요"); return; }
   if(type==="교대" && swapDate===date){ toast("맞교대는 서로 다른 날짜여야 합니다"); return; }
   const tre=/^([01][0-9]|2[0-3]):[0-5][0-9]$/;
@@ -801,9 +812,9 @@ function saveShiftChange(editId){
   const closeEl=document.getElementById("sc_close");
   const fields={
     type, date, employeeId, substituteId, swapDate,
-    start: tre.test(st)?st:null, end: tre.test(en)?en:null,
-    close: closeEl?closeEl.checked:false,
-    absence: type==="교대" ? "교대" : (val("sc_absence")||"무급"),
+    start: (type!=="결근"&&tre.test(st))?st:null, end: (type!=="결근"&&tre.test(en))?en:null,
+    close: (type!=="결근"&&closeEl)?closeEl.checked:false,
+    absence: type==="교대" ? "교대" : type==="결근" ? "무급" : (val("sc_absence")||"무급"),
     leaveDays: Number(val("sc_leavedays")||1),
     status: val("sc_status")||"대기",
     reason: val("sc_reason")||null, memo: val("sc_memo")||null,
@@ -832,28 +843,39 @@ function deleteShiftChange(id){
   if(view==="attendance") wireAttendance();
   toast("삭제했습니다");
 }
-/* 출근부 셀에서 바로 열기 */
+/* 출근부 셀/블록 클릭 — 출근부는 조회 전용이라 상세만 보여주고, 변경은 근무변경 메뉴로 보낸다 */
+function goShiftChange(prefill){ closeModal(); setView("shiftchanges"); if(prefill) openShiftChangeForm(prefill); }
 function openSwapFromCell(empId, day){
-  const rec=DB.attendance[attKey(empId,day)];
-  if(rec && rec.swap){
-    const c=(DB.shiftChanges||[]).find(x=>x.id===rec.swap.id);
-    if(c){
-      const info=swapCellInfo(rec);
-      modal("근무변경 상세", `<div class="hint" style="line-height:1.9">
-        <div><b>${SC_LABEL[c.type]||c.type}</b> · ${fmtDate(c.date)}${c.swapDate?` ↔ ${fmtDate(c.swapDate)}`:""}</div>
-        <div>${esc(empName(c.employeeId))}${c.substituteId?` → ${esc(empName(c.substituteId))}`:""}</div>
-        <div>${c.start&&c.end?`${c.start}~${c.end}`:"근무표 기준"}${c.close?" (마감)":""} · ${c.status}</div>
-        <div>이 칸: ${esc(info?info.title:"")}</div>
-        ${c.reason?`<div>사유: ${esc(c.reason)}</div>`:""}${c.memo?`<div>메모: ${esc(c.memo)}</div>`:""}
-      </div>`, [
-        `<button class="btn" onclick="closeModal()">닫기</button>`,
-        `<button class="btn" onclick="closeModal(); setView('shiftchanges')">근무변경 메뉴로</button>`,
-        `<button class="btn primary" onclick="closeModal(); deleteShiftChange(${c.id})">이 근무변경 삭제</button>`,
-      ]);
-      return;
-    }
-  }
-  openShiftChangeForm({date:day, employeeId:empId});
+const rec=DB.attendance[attKey(empId,day)];
+const c = (rec && rec.swap) ? (DB.shiftChanges||[]).find(x=>x.id===rec.swap.id) : null;
+if(c){
+const info=swapCellInfo(rec);
+modal("근무변경 상세", `<div class="hint" style="line-height:1.9">
+<div><b>${SC_LABEL[c.type]||c.type}</b> · ${fmtDate(c.date)}${c.swapDate?` ↔ ${fmtDate(c.swapDate)}`:""}</div>
+<div>${esc(empName(c.employeeId))}${c.substituteId?` → ${esc(empName(c.substituteId))}`:""}</div>
+<div>${c.start&&c.end?`${c.start}~${c.end}`:"근무표 기준"}${c.close?" (마감)":""} · ${c.status}</div>
+<div>이 칸: ${esc(info?info.title:"")}</div>
+${c.reason?`<div>사유: ${esc(c.reason)}</div>`:""}${c.memo?`<div>메모: ${esc(c.memo)}</div>`:""}
+<div style="margin-top:8px">출근부에서는 수정할 수 없어요. 수정·삭제는 <b>근무변경</b> 메뉴에서 해주세요.</div>
+</div>`, [
+`<button class="btn" onclick="closeModal()">닫기</button>`,
+`<button class="btn primary" onclick="goShiftChange({id:${c.id}})">근무변경에서 수정</button>`,
+]);
+return;
+}
+const st=rec?rec.status:"";
+const sc=scheduleOn(empId, day);
+const now = st==="연차"?"연차":st==="출근"?"출근":st==="결근"?"결근":st==="휴무"?"휴무":(sc.on?`근무표 기준 출근 예정 (${sc.start}~${sc.end})`:"근무표 기준 휴무");
+const isLeave = st==="연차";
+modal("출근부 · 조회 전용", `<div class="hint" style="line-height:1.9">
+<div><b>${esc(empName(empId))}</b> · ${fmtDate(day)}</div>
+<div>현재 상태: <b>${now}</b></div>
+<div style="margin-top:8px">${isLeave?"연차는 <b>연차·휴가</b> 메뉴에서 관리해요.":"출근부는 직접 수정할 수 없어요. 대체근무·시간변경·맞교대·결근은 <b>근무변경</b>에서 등록하고, 승인되면 출근부에 자동 반영됩니다."}</div>
+</div>`, [
+`<button class="btn" onclick="closeModal()">닫기</button>`,
+isLeave ? `<button class="btn primary" onclick="closeModal(); setView('leaves')">연차·휴가로 이동</button>`
+: `<button class="btn primary" onclick="goShiftChange({date:'${day}', employeeId:${empId}})">근무변경 등록</button>`,
+]);
 }
 
 /* =========================== 출근부 =========================== */
@@ -878,32 +900,36 @@ function renderAttendance(){
     const cells=dayHdr.map(({d})=>{
       const day=attMonth+"-"+String(d).padStart(2,"0");
       const rec=DB.attendance[attKey(e.id,day)];
-const st=rec?.status || "";
+let st=rec?.status || "";
       const dow=new Date(y,m-1,d).getDay();
       const sc=(DB.weeklySchedule&&DB.weeklySchedule[e.id])?DB.weeklySchedule[e.id][dow]:null; const isHol=(DB.holidays||[]).includes(day);
+/* 근무표 자동 반영: 출근부 기록(근무변경·연차·기존 기록)이 없는 날은 근무표 기준으로 계산 */
+const inEmp=(e.joinDate||"").slice(0,10)<=day && (!e.leaveDate || e.leaveDate.slice(0,10)>=day);
+const autoCo=!st && inEmp && !!(sc&&sc.on&&sc.start&&sc.start>="23:00");
+if(!st && inEmp && sc) st = (sc.on && !autoCo) ? "출근" : "휴무";
 const scClose=!!(sc&&sc.on&&sc.close);
-const closeOv=(rec&&Object.prototype.hasOwnProperty.call(rec,"closeOverride"))?rec.closeOverride:null;
+const closeOv=(rec&&Object.prototype.hasOwnProperty.call(rec,"closeOverride"))?rec.closeOverride:(autoCo?true:null);
 const effClose= closeOv===true?true:(closeOv===false?false:scClose);
       const cls=st==="연차"?"leave":st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
 if(st==="출근"){ worked++; if(isHol) holCnt++; } if(effClose && st!=="연차"){ closeCnt++; }      const mark=st==="연차"?
    "연":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
 const swp=swapCellInfo(rec); if(swp){ if(swp.cls==="swap-in") subCnt++; else if(swp.cls==="swap-out") outCnt++; }
 const closeCls = closeOv===true?" close close-forced":(closeOv===false?(scClose?" close-off":""):(scClose?" close":""));
-const closeTitle = closeOv===true?"마감 강제 지정 (우클릭으로 해제)":(closeOv===false?"마감 강제 해제됨 (우클릭으로 초기화)":(scClose?`마감조 (${sc.start}~${sc.end})`:""));
+const closeTitle = closeOv===true?"마감 지정 (근무변경)":(closeOv===false?"마감 해제 (근무변경)":(scClose?`마감조 (${sc.start}~${sc.end})`:""));
 const cellTitle = swp ? swp.title + (closeTitle?` · ${closeTitle}`:"") : closeTitle;
 const swapBadge = swp ? `<i class="swap-badge">${swp.badge}</i>` : "";
 return `<td class="${cls}${closeCls}${swp?" "+swp.cls:""}${isHol?" holiday":""}"${swp?` data-swapid="${swp.id}"`:""}${cellTitle?` title="${esc(cellTitle)}"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}${swapBadge}</button></td>`;    }).join("");
 return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked}, 마감 ${closeCnt}, 휴일 ${holCnt}${subCnt?`, 대체 ${subCnt}`:""}${outCnt?`, 대체빠짐 ${outCnt}`:""})</span></td>${cells}</tr>`;  }).join("");
 
   return `
-  ${headHTML("출근부","직원 월별 근무 기록 · 셀 클릭으로 상태 변경")}
+  ${headHTML("출근부","직원 월별 근무 기록 · 조회 전용 — 변경은 근무변경 메뉴에서 등록·승인하면 자동 반영돼요")}
   <div class="toolbar">
     <div class="seg"><button class="btn sm active" onclick="setAttMode('month')">월간</button><button class="btn sm" onclick="setAttMode('week')">주간</button></div>
     <button class="btn sm" onclick="shiftMonth(-1)">‹ 이전달</button>
     <input type="month" value="${attMonth}" onchange="attMonth=this.value; render()" style="padding:8px 11px; border:1px solid var(--border-strong); border-radius:9px">
     <button class="btn sm" onclick="shiftMonth(1)">다음달 ›</button>
-    <button class="btn sm" onclick="applyScheduleToMonth()">근무표 반영</button>
-    <button class="btn sm" onclick="openShiftChangeForm()">＋ 근무변경</button>
+    
+    <button class="btn sm" onclick="goShiftChange({})">＋ 근무변경</button>
     <div class="grow"></div>
 <span class="hint">${emps.length}명 · 괄호(출근,마감,휴일근로) · 날짜 클릭 시 휴일 지정</span>  </div>
   <div class="panel"><div class="att-wrap">
@@ -911,38 +937,15 @@ return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked}, 마감
 <thead><tr><th class="emp">직원</th>${dayHdr.map(h=>{const hday=attMonth+"-"+String(h.d).padStart(2,"0");const hhol=(DB.holidays||[]).includes(hday);return `<th class="${h.we?'we':''}${hhol?' holiday':''}" style="cursor:pointer" title="클릭하여 휴일 지정/해제" onclick="toggleHoliday('${hday}')">${h.d}</th>`;}).join("")}</tr></thead>      <tbody>${body}</tbody>
     </table>`:`<div class="empty"><div class="big">이 달에 표시할 파트타임 직원이 없어요</div><div>직원을 파트타임으로 등록하면 여기에 나타납니다.</div></div>`}
   </div></div>
-  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span><i style="display:inline-block;width:10px;height:3px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 수동 지정(우클릭)</span><span><i style="display:inline-block;width:10px;height:3px;background:#CBD5E1;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 수동 해제(우클릭)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">대</b> 남의 근무를 대신함(출근)</span><span>–<b style="color:#0369A1;font-size:9px;vertical-align:super">↔</b> 내 근무를 넘김(휴무)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">변</b> 근무시간 변경</span><span>클릭: 출근 → 휴무 → 결근 → 없음 순환</span><span><b>Shift+클릭</b>: 근무변경 등록/상세</span><span style="opacity:.75">대체 칸에 마우스를 올리면 바뀐 상대 칸과 이름이 함께 반짝여요</span><span>우클릭: 마감 수동 지정 → 해제 → 자동 순환</span><span style="opacity:.55">연하게 표시된 칸 = 근무표 기준 예정</span></div>`;
+  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span><i style="display:inline-block;width:10px;height:3px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 지정 (근무변경)</span><span><i style="display:inline-block;width:10px;height:3px;background:#CBD5E1;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 해제 (근무변경)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">대</b> 남의 근무를 대신함(출근)</span><span>–<b style="color:#0369A1;font-size:9px;vertical-align:super">↔</b> 내 근무를 넘김(휴무)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">변</b> 근무시간 변경</span><span><b>칸 클릭</b>: 상세 보기 · 직접 수정 불가 (근무변경에서 등록)</span><span style="opacity:.75">대체 칸에 마우스를 올리면 바뀐 상대 칸과 이름이 함께 반짝여요</span><span>근무표는 자동 반영돼요 — 근무표를 고치면 출근부도 바로 바뀝니다</span></div>`;
 }
 function wireAttendance(){
-  document.querySelectorAll(".att .cell").forEach(btn=>{
-    btn.onclick=(ev)=>{
-      const emp=Number(btn.dataset.emp), day=btn.dataset.day, key=attKey(emp,day);
-      const rec=DB.attendance[key];
-      if(ev && ev.shiftKey){ openSwapFromCell(emp, day); return; }
-const cur=rec?.status || "";
-      if(cur==="연차"){ toast("연차는 휴가 등록에서 관리돼요"); return; }
-      if(rec && rec.swap){ toast("근무변경으로 지정된 날이에요 — Shift+클릭으로 확인/삭제하세요"); return; } const nextMap={"":"출근","출근":"휴무","휴무":"결근","결근":""};
-      const nx=nextMap[cur];
-      if(nx===""){ if(rec && Object.prototype.hasOwnProperty.call(rec,"closeOverride")){ delete rec.status; } else delete DB.attendance[key]; }
-      else { DB.attendance[key]={...(rec||{}), employeeId:emp, date:day, status:nx}; }
-      saveDB(); render(); wireAttendance();
-    };
-    btn.oncontextmenu=(ev)=>{
-      ev.preventDefault();
-      const emp=Number(btn.dataset.emp), day=btn.dataset.day, key=attKey(emp,day);
-      const rec=DB.attendance[key];
-      const cur=(rec && Object.prototype.hasOwnProperty.call(rec,"closeOverride")) ? rec.closeOverride : null;
-      const nextOv = cur===null ? true : (cur===true ? false : null);
-      if(nextOv===null){
-        if(rec){ delete rec.closeOverride; if(!rec.status) delete DB.attendance[key]; }
-      } else {
-        DB.attendance[key]={...(rec||{employeeId:emp, date:day}), closeOverride:nextOv};
-      }
-      saveDB(); render(); wireAttendance();
-      toast(nextOv===true?"마감으로 강제 지정했습니다": nextOv===false?"마감을 강제 해제했습니다":"마감 수동 설정을 초기화했습니다 (근무표 기준으로 복귀)");
-    };
-  });
-  wireSwapHighlight();
+/* 출근부는 조회 전용 — 모든 변경은 근무변경(연차는 연차·휴가) 메뉴에서만 */
+document.querySelectorAll(".att .cell").forEach(btn=>{
+btn.onclick=()=>{ openSwapFromCell(Number(btn.dataset.emp), btn.dataset.day); };
+btn.oncontextmenu=(ev)=>{ ev.preventDefault(); toast("출근부는 직접 수정할 수 없어요 — 근무변경에서 등록하세요"); };
+});
+wireSwapHighlight();
 }
 /* 근무변경 칸에 마우스를 올리면 짝이 되는 칸과 상대 직원 이름이 함께 반짝인다 */
 function clearSwapHighlight(){
@@ -1165,6 +1168,28 @@ function applyScheduleToMonth(){
   wireAttendance();
   toast(`근무표를 출근부에 반영했어요 (${count}건)`);
 }
+/* 근무표 자동 반영 — 오늘까지의 날짜는 근무표 기준 기록을 출근부에 남겨 둔다.
+   (나중에 근무표를 바꿔도 지난 출근부는 그대로 유지 · 미래 날짜는 화면에서 근무표로 바로 계산) */
+function autoFillPastAttendance(){
+const today=todayStr(), t=dateOf(today);
+const from=ymdLocal(new Date(t.getFullYear(), t.getMonth()-1, 1)); // 지난달 1일부터
+let n=0;
+DB.employees.forEach(e=>{
+if(!DB.weeklySchedule || !DB.weeklySchedule[e.id]) return;
+if(e.status==="퇴사" && !e.leaveDate) return;
+const j=(e.joinDate||"").slice(0,10), l=e.leaveDate?e.leaveDate.slice(0,10):null;
+for(let day=(j>from?j:from); day<=today && (!l || day<=l); day=addDays(day,1)){
+const key=attKey(e.id,day);
+if(DB.attendance[key]) continue;
+const sc=getSchedule(e.id, dateOf(day).getDay());
+const co=!!(sc.on&&sc.start&&sc.start>="23:00");
+DB.attendance[key]={employeeId:e.id, date:day, status:(sc.on&&!co)?"출근":"휴무", closeOverride:co?true:null};
+n++;
+}
+});
+if(n) saveDB();
+return n;
+}
 function shiftMonth(delta){
   let [y,m]=attMonth.split("-").map(Number); m+=delta;
   if(m<1){m=12;y--;} if(m>12){m=1;y++;}
@@ -1218,7 +1243,7 @@ function dayShifts(day){
     else if(st==="출근"){ start=sc.start||"09:00"; end=sc.end||"18:00"; }
     if(!start||!end) return;
     const close = (rec && rec.closeOverride!=null) ? rec.closeOverride : !!sc.close;
-    list.push({e, start, end, close, swap:sw||null, planned: !st});
+    list.push({e, start, end, close, swap:sw||null, planned: false});
   });
   return list.sort((a,b)=>(a.start||"").localeCompare(b.start||"")||(a.e.employeeNo||0)-(b.e.employeeNo||0));
 }
@@ -1292,7 +1317,7 @@ function renderAttendanceWeek(){
     <button class="btn sm" onclick="thisWeek()">이번주</button>
     <button class="btn sm" onclick="shiftWeek(1)">다음주 ›</button>
     <input type="date" value="${weekStart}" onchange="weekStart=mondayStr(this.value); render(); wireWeek()" style="padding:8px 11px; border:1px solid var(--border-strong); border-radius:9px">
-    <button class="btn sm" onclick="openShiftChangeForm()">＋ 근무변경</button>
+    <button class="btn sm" onclick="goShiftChange({})">＋ 근무변경</button>
     <div class="grow"></div>
     <span class="hint">${fmtDate(weekStart)} ~ ${fmtDate(addDays(weekStart,6))} · 근무 ${total}건</span>
   </div>
@@ -1307,7 +1332,7 @@ function renderAttendanceWeek(){
       </div>
     </div>
   </div>
-  <div class="legend">${gLegend}<span style="opacity:.45">|</span><span>블록 = 실제 근무 시간 (근무변경 반영)</span><span><b>대</b> 대체 근무 · <b>변</b> 시간 변경</span><span style="opacity:.55">연한 블록 = 출근부 미기록, 근무표 기준 예정</span><span>블록에 마우스를 올리면 바뀐 상대 블록이 함께 반짝여요</span><span>블록 클릭 → 근무변경 등록/상세</span></div>
+  <div class="legend">${gLegend}<span style="opacity:.45">|</span><span>블록 = 실제 근무 시간 (근무변경 반영)</span><span><b>대</b> 대체 근무 · <b>변</b> 시간 변경</span><span>블록에 마우스를 올리면 바뀐 상대 블록이 함께 반짝여요</span><span>블록 클릭 → 상세 보기</span></div>
   </div>`;
 }
 function wireWeek(){
