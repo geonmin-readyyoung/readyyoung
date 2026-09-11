@@ -107,16 +107,7 @@ function renderDashboard(){
   const pending=DB.leaves.filter(l=>l.status==="대기").length;
   const scPending=(DB.shiftChanges||[]).filter(c=>c.status==="대기").length;
   // 이번 달 입사자 / 잔여연차 낮은 직원
-  const todayDow=new Date().getDay();
-    const __today=todayStr();
-    const todaySchedule=active.map(e=>{
-      const base=getSchedule(e.id,todayDow);
-      const w=(DB.attendance[attKey(e.id,__today)]||{}).swap;
-      if(!w) return {e,s:base,note:""};
-      if(w.role==="빠짐") return null;
-      const s2={on:true,start:w.start||base.start,end:w.end||base.end,close:!!(DB.attendance[attKey(e.id,__today)]||{}).closeOverride};
-      return {e,s:s2,note: w.role==="대체" ? `${empName(w.partnerId)} 대신` : "시간변경"};
-    }).filter(x=>x&&x.s.on).sort((a,b)=>(a.s.start||"").localeCompare(b.s.start||""));
+  const daily=dailyScheduleData(dashDate, active);
   const recent=[...active].sort((a,b)=>(b.joinDate||"").localeCompare(a.joinDate||"")).slice(0,5);
 
   if(emps.length===0){
@@ -140,7 +131,8 @@ function renderDashboard(){
     <div class="kpi"><div class="label">휴가 승인대기</div><div class="val">${pending}<small>건</small></div></div>
     <div class="kpi${scPending?' kpi-alert':''}" ${scPending?'style="cursor:pointer" onclick="setView(\'shiftchanges\')"':""}><div class="label">근무변경 대기</div><div class="val">${scPending}<small>건</small></div></div>
   </div>
-  <div class="card-grid">
+  <div class="card-grid dash-grid">
+    ${renderDailySchedulePanel(daily)}
     <div class="panel">
       <div class="p-head"><h2>최근 입사</h2><button class="btn sm ghost" onclick="setView('employees')">직원 전체</button></div>
       <table><tbody>
@@ -152,16 +144,85 @@ function renderDashboard(){
         </tr>`).join("")}
       </tbody></table>
     </div>
-    <div class="panel">
-      <div class="p-head"><h2>오늘 근무표 (${DOW_LABELS[todayDow]})</h2><button class="btn sm ghost" onclick="setView('schedule')">근무표 전체</button></div>
-      ${todaySchedule.length? `<table><tbody>
-        ${todaySchedule.map(({e,s,note})=>`<tr class="row-click" onclick="openCard(${e.id})">
-          <td><span class="name">${esc(e.name)}</span>${note?` <span class="tag t-ice">${esc(note)}</span>`:""}</td>
-          <td class="num">${s.start}~${s.end}${s.close?' <b class="close-tag">(마감)</b>':""}</td>
-        </tr>`).join("")}
-      </tbody></table>` : `<div class="empty" style="padding:28px">오늘 근무 예정인 직원이 없어요.</div>`}
-    </div>
   </div>`;
+}
+
+/* ---- 대시보드: 일별 근무표 ---- */
+let dashDate = todayStr();
+function addDays(day, n){ const p=day.split("-").map(Number); const d=new Date(Date.UTC(p[0],p[1]-1,p[2]+n)); return d.toISOString().slice(0,10); }
+function dowOf(day){ const p=day.split("-").map(Number); return new Date(Date.UTC(p[0],p[1]-1,p[2])).getUTCDay(); }
+function dashMove(n){ dashDate = n===0 ? todayStr() : addDays(dashDate,n); render(); }
+function dashPick(v){ if(v){ dashDate=v; render(); } }
+function dailyScheduleData(day, active){
+  const dow=dowOf(day);
+  const working=[], off=[];
+  active.forEach(e=>{
+    const base=getSchedule(e.id,dow);
+    const rec=DB.attendance[attKey(e.id,day)]||{};
+    const w=rec.swap;
+    if(w){
+      if(w.role==="빠짐"){ off.push({e, why: w.absence==="연차"?"연차":(w.partnerId?`${empName(w.partnerId)}와 교대`:"근무변경")}); return; }
+      const s2={on:true,start:w.start||base.start,end:w.end||base.end,close:!!rec.closeOverride};
+      working.push({e,s:s2,note: w.role==="대체" ? `${empName(w.partnerId)} 대신` : "시간변경"});
+      return;
+    }
+    if(rec.status==="연차"){ if(base.on) off.push({e,why:"연차"}); return; }
+    if(rec.status==="휴무"||rec.status==="결근"){ if(base.on) off.push({e,why:rec.status}); return; }
+    if(!base.on) return;
+    const close = typeof rec.closeOverride==="boolean" ? rec.closeOverride : !!base.close;
+    working.push({e,s:{...base,close},note:""});
+  });
+  working.sort((a,b)=>(a.s.start||"").localeCompare(b.s.start||"") || (a.s.end||"").localeCompare(b.s.end||"") || (a.e.employeeNo||0)-(b.e.employeeNo||0));
+  // 근무 타입별 그룹
+  const groups=[];
+  working.forEach(x=>{
+    const key=x.s.start+"~"+x.s.end;
+    let g=groups.find(g=>g.key===key);
+    if(!g){ const tid=shiftTypeOf(x.s); const t=getShiftTypes().find(t=>t.id===tid); g={key, tid, name:t?t.name:"", start:x.s.start, end:x.s.end, rows:[]}; groups.push(g); }
+    g.rows.push(x);
+  });
+  const closing=working.filter(x=>x.s.close).length;
+  return {day, dow, working, off, groups, closing, holiday:(DB.holidays||[]).includes(day)};
+}
+function shiftColors(tid){ return tid==="custom" ? {bg:"#E4F5EC", fg:"#1F9D64"} : shiftColorFor(tid); }
+function shiftChipStyle(tid){ const c=shiftColors(tid); return `background:${c.bg};color:${c.fg}`; }
+function roleTag(e){
+  if(e.role==="통역" && e.team==="중국어") return '<span class="tag t-cn">중국어</span>';
+  if(e.role==="통역" && e.team==="일본어") return '<span class="tag t-jp">일본어</span>';
+  return `<span class="tag t-ice">${esc(e.role||"")}</span>`;
+}
+function renderDailySchedulePanel(d){
+  const isToday = d.day===todayStr();
+  const p=d.day.split("-").map(Number);
+  const title=`${p[1]}월 ${p[2]}일 (${DOW_LABELS[d.dow]})`;
+  const nav=`<div class="day-nav">
+      <button class="btn sm" onclick="dashMove(-1)" aria-label="이전 날">◀</button>
+      <label class="day-pick"><input type="date" value="${d.day}" onchange="dashPick(this.value)"><span class="${d.dow===0||d.holiday?"we":d.dow===6?"sat":""}">${title}</span></label>
+      <button class="btn sm" onclick="dashMove(1)" aria-label="다음 날">▶</button>
+      ${isToday?'<span class="tag t-ok">오늘</span>':'<button class="btn sm ghost" onclick="dashMove(0)">오늘</button>'}
+    </div>`;
+  const summary=`<div class="day-sum">
+      <span>근무 <b>${d.working.length}</b>명</span>
+      ${d.groups.map(g=>`<span class="chip" style="${shiftChipStyle(g.tid)}">${g.start}~${g.end} <b>${g.rows.length}</b></span>`).join("")}
+      ${d.closing?`<span>마감 <b class="close-tag">${d.closing}</b>명</span>`:""}
+      ${d.off.length?`<span>휴가·빠짐 <b>${d.off.length}</b>명</span>`:""}
+      ${d.holiday?'<span class="tag t-bad">공휴일</span>':""}
+    </div>`;
+  const body = d.working.length ? `<table class="day-table"><tbody>
+      ${d.groups.map(g=>`
+        <tr class="grp"><td colspan="3"><span class="grp-bar" style="background:${shiftColors(g.tid).fg}"></span>${g.name&&g.tid!=="custom"?esc(g.name)+" · ":""}${g.start}~${g.end} <span class="hint">${g.rows.length}명</span></td></tr>
+        ${g.rows.map(({e,s,note})=>`<tr class="row-click" onclick="openCard(${e.id})">
+          <td><span class="name">${esc(e.name)}</span>${note?` <span class="tag t-swap">${esc(note)}</span>`:""}</td>
+          <td>${roleTag(e)}</td>
+          <td class="num"><span class="chip" style="${shiftChipStyle(g.tid)}">${s.start}~${s.end}</span>${s.close?' <b class="close-tag">(마감)</b>':""}</td>
+        </tr>`).join("")}`).join("")}
+    </tbody></table>` : `<div class="empty" style="padding:28px">이 날 근무 예정인 직원이 없어요.</div>`;
+  const offList = d.off.length ? `<div class="day-off"><span class="hint">휴가·빠짐</span>${d.off.map(({e,why})=>`<span class="off-chip" onclick="openCard(${e.id})">${esc(e.name)} <small>${esc(why)}</small></span>`).join("")}</div>` : "";
+  return `<div class="panel">
+      <div class="p-head"><h2>일별 근무표</h2><button class="btn sm ghost" onclick="setView('schedule')">근무표 전체</button></div>
+      <div class="day-head">${nav}${summary}</div>
+      ${body}${offList}
+    </div>`;
 }
 
 /* =========================== 직원 목록 =========================== */
