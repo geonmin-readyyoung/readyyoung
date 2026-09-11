@@ -278,24 +278,17 @@ td .name{font-weight:700}
 .wk-off .wk-gave{ color:#0369A1 }
 
 /* ---------- 대시보드 일별 근무표 ---------- */
-.dash-grid{grid-template-columns:1.3fr 1fr; align-items:start}
-.day-head{padding:12px 18px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; background:#FAFBFE}
+.dash-grid{grid-template-columns:1fr 1fr; margin-top:18px}
+.day-head{padding:12px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:10px 16px; flex-wrap:wrap; background:#FAFBFE}
 .day-nav{display:flex; align-items:center; gap:6px; flex-wrap:wrap}
 .day-pick{position:relative; font-weight:800; font-size:15px; color:var(--navy); padding:4px 10px; border-radius:8px; cursor:pointer}
 .day-pick:hover{background:var(--ice-soft)}
 .day-pick input{position:absolute; inset:0; opacity:0; cursor:pointer; width:100%}
 .day-pick .we{color:var(--bad)} .day-pick .sat{color:#2563EB}
-.day-sum{display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; font-size:12.5px; color:var(--muted)}
+.day-sum{display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap; font-size:12.5px; color:var(--muted)}
 .day-sum b{color:var(--ink)}
-.chip{display:inline-block; padding:3px 9px; border-radius:7px; font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap}
-.day-sum .chip b{color:inherit; margin-left:2px}
-.day-table td{padding:9px 14px}
-.day-table tr.grp td{background:#FAFBFE; font-size:11.5px; font-weight:700; color:var(--muted); padding:7px 14px}
-.day-table tr.grp:hover{background:transparent}
-.grp-bar{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:7px; vertical-align:-1px}
-.t-swap{background:#E0F2FE; color:#0369A1}
-.day-off{display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:12px 18px; border-top:1px solid var(--border)}
-.day-off .hint{margin-right:4px}
-.off-chip{background:var(--gray-bg); color:var(--gray); border-radius:7px; padding:3px 9px; font-size:12px; font-weight:700; cursor:pointer}
-.off-chip small{font-weight:600; margin-left:2px}
+.dwk-sw{display:inline-block; width:11px; height:11px; border-radius:3px; border:1px solid rgba(0,0,0,.14); vertical-align:-1px; margin-right:5px}
+.dwk-body{padding:14px 18px 14px 6px}
+.dwk{min-width:0}
+.dwk-off{padding-left:64px}
 @media (max-width: 900px){ .dash-grid{grid-template-columns:1fr} }
