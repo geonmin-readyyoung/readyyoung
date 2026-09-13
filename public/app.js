@@ -483,7 +483,7 @@ function toggleScViewAll(){ scViewAll=!scViewAll; render(); }
 function scheduleOn(empId, day){
   const p=String(day||"").split("-").map(Number);
   if(p.length!==3 || !p[0]) return {on:false,start:"09:00",end:"18:00",close:false};
-  return getSchedule(empId, new Date(p[0],p[1]-1,p[2]).getDay());
+  return getSchedule(empId, new Date(p[0],p[1]-1,p[2]).getDay(), day);
 }
 function empName(id){ const e=DB.employees.find(x=>x.id===id); return e?e.name:"?"; }
 // 받침 여부에 따른 조사 (이/가, 은/는, 을/를)
@@ -902,7 +902,7 @@ function renderAttendance(){
       const rec=DB.attendance[attKey(e.id,day)];
 let st=rec?.status || "";
       const dow=new Date(y,m-1,d).getDay();
-      const sc=(DB.weeklySchedule&&DB.weeklySchedule[e.id])?DB.weeklySchedule[e.id][dow]:null; const isHol=(DB.holidays||[]).includes(day);
+      const sc=scheduleEntry(e.id, dow, day); const isHol=(DB.holidays||[]).includes(day);
 /* 근무표 자동 반영: 출근부 기록(근무변경·연차·기존 기록)이 없는 날은 근무표 기준으로 계산 */
 const inEmp=(e.joinDate||"").slice(0,10)<=day && (!e.leaveDate || e.leaveDate.slice(0,10)>=day);
 const autoCo=!st && inEmp && !!(sc&&sc.on&&sc.start&&sc.start>="23:00");
@@ -1001,10 +1001,31 @@ const types=getShiftTypes();
 const m=types.find(t=>t.start===s.start && t.end===s.end);
 return m ? m.id : "custom";
 }
-function getSchedule(empId, dow){
+/* ===================== 격주 근무 (A주 / B주) =====================
+   기준: 1970-01-05(월)부터 센 주차의 짝/홀 → 짝수 주 = A주, 홀수 주 = B주.
+   근무표 셀에 biweek:"A" 또는 "B"를 지정하면 그 주차에만 근무로 잡힌다. */
+const BIWEEK_EPOCH = Date.UTC(1970,0,5);   // 월요일
+function weekIndexOf(day){
+  const d = dateOf(mondayStr(day));
+  const t = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.floor((t - BIWEEK_EPOCH) / 604800000);
+}
+function biweekOf(day){ return (((weekIndexOf(day) % 2) + 2) % 2) === 0 ? "A" : "B"; }
+function biweekLabel(day){ return biweekOf(day)+"주"; }
+
+function getSchedule(empId, dow, day){
   const ws=DB.weeklySchedule||{};
   const e=ws[empId]||{};
-  return e[dow]||{on:false,start:"09:00",end:"18:00",close:false};
+  const s=e[dow];
+  if(!s) return {on:false,start:"09:00",end:"18:00",close:false};
+  if(day && s.on && s.biweek && s.biweek!==biweekOf(day)) return {...s, on:false, biweekOff:true};
+  return s;
+}
+/* 등록된 근무표가 없으면 null — 출근부 월간 보기에서 "미등록"과 "휴무"를 구분하기 위함 */
+function scheduleEntry(empId, dow, day){
+  const ws=DB.weeklySchedule||{};
+  if(!ws[empId] || !ws[empId][dow]) return null;
+  return getSchedule(empId, dow, day);
 }
 function renderSchedule(){
   DB.weeklySchedule = DB.weeklySchedule || {};
@@ -1018,7 +1039,8 @@ function renderSchedule(){
       const s=getSchedule(e.id,d);
       const __typeId = s.on? shiftTypeOf(s):"off";
       const cls = "shift-"+__typeId+(s.on&&s.close?" closing":"");
-      const mark = s.on? `${s.start}~${s.end}${s.close?' <b class="close-tag">(마감)</b>':""}`:"휴무";
+      const bw = s.on&&s.biweek ? ` <b class="biweek-tag">격주 ${s.biweek}</b>` : "";
+      const mark = s.on? `${s.start}~${s.end}${bw}${s.close?' <b class="close-tag">(마감)</b>':""}`:"휴무";
       const __c = (s.on && __typeId!=="custom") ? shiftColorFor(__typeId) : null;
       const __styleAttr = __c ? ` style="background:${__c.bg};color:${__c.fg}"` : "";
       return `<td class="${cls}"><button class="cell"${__styleAttr} data-emp="${e.id}" data-dow="${d}">${mark}</button></td>`;
@@ -1030,7 +1052,7 @@ function renderSchedule(){
     <div class="panel"><div class="att-wrap">
     <table class="att"><thead>${head}</thead><tbody>${body}</tbody></table>
     </div>
-    <div class="legend"><span>셀을 클릭해 근무 시간을 설정하거나 휴무로 전환하세요</span><span>매주 반복 적용됩니다</span></div>
+    <div class="legend"><span>셀을 클릭해 근무 시간을 설정하거나 휴무로 전환하세요</span><span><b class="biweek-tag">격주 A</b>/<b class="biweek-tag">격주 B</b> 는 2주에 한 번만 근무</span><span>이번 주는 <b>${biweekLabel(todayStr())}</b> · 다음 주는 <b>${biweekLabel(addDays(todayStr(),7))}</b></span></div>
     </div>`;
 }
 function wireSchedule(){
@@ -1054,6 +1076,14 @@ ${getShiftTypes().map(t=>`<option value="${t.id}" ${curType===t.id?"selected":""
 <option value="custom" ${curType==="custom"?"selected":""}>직접입력</option>
 </select>
 </div>
+<div class="field" id="sf_rep_wrap" style="${curType==="off"?"display:none":""}"><label>반복 주기</label>
+<select id="sf_biweek">
+<option value="" ${!s.biweek?"selected":""}>매주</option>
+<option value="A" ${s.biweek==="A"?"selected":""}>격주 — A주에만 근무</option>
+<option value="B" ${s.biweek==="B"?"selected":""}>격주 — B주에만 근무</option>
+</select>
+<div class="hint" style="margin-top:6px">이번 주 <b>${biweekLabel(todayStr())}</b> · 다음 주 <b>${biweekLabel(addDays(todayStr(),7))}</b> · 그 다음 주 <b>${biweekLabel(addDays(todayStr(),14))}</b></div>
+</div>
 <div class="field" id="sf_close_wrap" style="${curType==="off"?"display:none":""}"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input id="sf_close" type="checkbox" style="width:16px;height:16px" ${s.close?"checked":""}> 마감조 (23:00 이후 마감 근무) — 출근부에 (마감) 표시</label></div><div class="grid2" id="sf_time_wrap" style="${curType==="custom"?"":"display:none"}">
 <div class="field"><label>시작 시간</label><input id="sf_start" type="time" value="${s.start||"09:00"}"></div>
 <div class="field"><label>종료 시간</label><input id="sf_end" type="time" value="${s.end||"18:00"}"></div>
@@ -1066,7 +1096,7 @@ modal(`${DOW_LABELS[dow]}요일 근무 설정`, body, [
 function onShiftTypeChange(){
 const t=val("sf_type");
 const wrap=document.getElementById("sf_time_wrap");
-if(wrap) wrap.style.display = t==="custom" ? "" : "none"; const cwrap=document.getElementById("sf_close_wrap"); if(cwrap) cwrap.style.display = t==="off" ? "none" : "";
+if(wrap) wrap.style.display = t==="custom" ? "" : "none"; const cwrap=document.getElementById("sf_close_wrap"); if(cwrap) cwrap.style.display = t==="off" ? "none" : ""; const rwrap=document.getElementById("sf_rep_wrap"); if(rwrap) rwrap.style.display = t==="off" ? "none" : "";
 }
 function saveScheduleEntry(empId, dow){
 const type=val("sf_type"); const on=type!=="off";
@@ -1077,7 +1107,9 @@ if(__matchedType){ start=__matchedType.start; end=__matchedType.end; }
 else if(type==="custom"){ const st=val("sf_start"), en=val("sf_end"), tre=/^([01][0-9]|2[0-3]):[0-5][0-9]$/; start = tre.test(st)?st:"09:00"; end = tre.test(en)?en:"18:00"; } else { start="09:00"; end="18:00"; }
 DB.weeklySchedule = DB.weeklySchedule || {};
 DB.weeklySchedule[empId] = DB.weeklySchedule[empId] || {};
-const closeEl=document.getElementById("sf_close"); const close = on && closeEl ? closeEl.checked : false; DB.weeklySchedule[empId][dow] = {on, start, end, close};
+const closeEl=document.getElementById("sf_close"); const close = on && closeEl ? closeEl.checked : false;
+const biweek = on ? (val("sf_biweek")||null) : null;
+DB.weeklySchedule[empId][dow] = {on, start, end, close, biweek};
 saveDB();
 closeModal();
 render();
@@ -1157,7 +1189,7 @@ function applyScheduleToMonth(){
       const key=attKey(e.id,day);
       if(DB.attendance[key] && (DB.attendance[key].status==="연차" || DB.attendance[key].status==="결근" || DB.attendance[key].swap)) continue;
       const dow=new Date(y,m-1,d).getDay();
-      const sc=getSchedule(e.id, dow);
+      const sc=getSchedule(e.id, dow, day);
        (function(){const __co=sc.on&&sc.start&&sc.start>="23:00"; DB.attendance[key]={employeeId:e.id, date:day, status:(sc.on&&!__co)?"출근":"휴무", closeOverride:__co?true:null};})();
       count++;
     }
@@ -1181,7 +1213,7 @@ const j=(e.joinDate||"").slice(0,10), l=e.leaveDate?e.leaveDate.slice(0,10):null
 for(let day=(j>from?j:from); day<=today && (!l || day<=l); day=addDays(day,1)){
 const key=attKey(e.id,day);
 if(DB.attendance[key]) continue;
-const sc=getSchedule(e.id, dateOf(day).getDay());
+const sc=getSchedule(e.id, dateOf(day).getDay(), day);
 const co=!!(sc.on&&sc.start&&sc.start>="23:00");
 DB.attendance[key]={employeeId:e.id, date:day, status:(sc.on&&!co)?"출근":"휴무", closeOverride:co?true:null};
 n++;
@@ -1235,7 +1267,7 @@ function dayShifts(day){
     const rec=DB.attendance[attKey(e.id,day)];
     const st=rec?rec.status:null;
     if(st==="연차"||st==="결근"||st==="휴무") return;
-    const sc=getSchedule(e.id,dow);
+    const sc=getSchedule(e.id,dow,day);
     const sw=rec&&rec.swap;
     let start=null,end=null;
     if(sw&&sw.start&&sw.end){ start=sw.start; end=sw.end; }
@@ -1319,7 +1351,7 @@ function renderAttendanceWeek(){
     <input type="date" value="${weekStart}" onchange="weekStart=mondayStr(this.value); render(); wireWeek()" style="padding:8px 11px; border:1px solid var(--border-strong); border-radius:9px">
     <button class="btn sm" onclick="goShiftChange({})">＋ 근무변경</button>
     <div class="grow"></div>
-    <span class="hint">${fmtDate(weekStart)} ~ ${fmtDate(addDays(weekStart,6))} · 근무 ${total}건</span>
+    <span class="hint">${fmtDate(weekStart)} ~ ${fmtDate(addDays(weekStart,6))} · 근무 ${total}건 · <b>${biweekLabel(weekStart)}</b></span>
   </div>
   <div class="panel"><div class="att-wrap">
     <div class="wk" style="--wk-rh:17px">
