@@ -297,3 +297,6 @@ td .name{font-weight:700}
 .biweek-tag{display:inline-block;margin-left:3px;padding:0 4px;border-radius:4px;
   background:#EEF2FF;color:#4338CA;font-size:10px;font-weight:800;line-height:15px;vertical-align:middle;letter-spacing:-.2px}
 .legend .biweek-tag{margin-left:0}
+
+/* 반차 — 절반 근무 */
+.att td.half .cell{background:#FEF3C7; color:#B45309; font-weight:800}
