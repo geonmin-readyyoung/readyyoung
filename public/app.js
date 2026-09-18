@@ -1,7 +1,4 @@
 
-app_js.txt
-
-100%
 /* =========================================================================
    인사관리 — 단일 파일 앱. 데이터는 브라우저 저장소(window.storage)에 자동 저장.
    구조/규칙은 레디영 부산지점 앱(Prisma schema, lib/leave.ts)을 기준으로 이식.
@@ -171,7 +168,7 @@ function renderDailySchedulePanel(){
     const r1=Math.round((a-lo)/SLOT)+1, r2=Math.round((b-lo)/SLOT)+1;
     const [bg,fg]=empColor(s.e);
     const tag = s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":"") : (s.half?"반":"");
-    const title=`${s.e.name} ${s.start}~${s.end}${s.close?" (마감)":""}${s.swap?" · "+(s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.half?" · 반차":""}${s.planned?" · 근무표 기준 예정":""}`;
+    const title=`${s.e.name} ${s.start}~${s.end}${s.close?" (마감)":""}${s.swap?" · "+(s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.half?` · 반차(${s.half})`:""}${s.planned?" · 근무표 기준 예정":""}`;
     return `<div class="wk-b${s.planned?" planned":""}" style="grid-row:${r1}/${r2};grid-column:${li+1};background:${bg};color:${fg}" title="${esc(title)}" data-emp="${s.e.id}"${s.swap?` data-swapid="${s.swap.id}"`:""}>
       <b>${esc(s.e.name)}</b>${tag?`<i class="wk-tag">${tag}</i>`:""}
       <span>${s.start}~${s.end}</span>${s.close?'<span class="wk-close">마감</span>':""}
@@ -868,7 +865,7 @@ return;
 }
 const st=rec?rec.status:"";
 const sc=scheduleOn(empId, day);
-const now = st==="연차"?"연차":st==="반차"?(()=>{const w=halfWindow(sc.start||"09:00", sc.end||"18:00"); return `반차 — ${w.start}~${w.end} 근무`;})():st==="출근"?"출근":st==="결근"?"결근":st==="휴무"?"휴무":(sc.on?`근무표 기준 출근 예정 (${sc.start}~${sc.end})`:"근무표 기준 휴무");
+const now = st==="연차"?"연차":st==="반차"?`반차(${(rec&&rec.half)||""}) — 절반 근무`:st==="출근"?"출근":st==="결근"?"결근":st==="휴무"?"휴무":(sc.on?`근무표 기준 출근 예정 (${sc.start}~${sc.end})`:"근무표 기준 휴무");
 const isLeave = st==="연차" || st==="반차";
 modal("출근부 · 조회 전용", `<div class="hint" style="line-height:1.9">
 <div><b>${esc(empName(empId))}</b> · ${fmtDate(day)}</div>
@@ -931,7 +928,7 @@ const scClose=!!(sc&&sc.on&&sc.close);
 const closeOv=(rec&&Object.prototype.hasOwnProperty.call(rec,"closeOverride"))?rec.closeOverride:(autoCo?true:null);
 const effClose= closeOv===true?true:(closeOv===false?false:scClose);
 /* 오후 반차는 일찍 퇴근 — 마감 표시/집계 모두 제외 */
-const halfNoClose = (st==="반차" && sc && sc.start && sc.end && halfSideFor(sc.start, sc.end)==="전반");
+const halfNoClose = (st==="반차" && half==="오후");
       const cls=st==="연차"?"leave":st==="반차"?"half":st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
 if(st==="출근"){ worked++; if(isHol) holCnt++; } else if(st==="반차"){ worked+=0.5; if(isHol) holCnt+=0.5; }
 /* 오후 반차는 일찍 퇴근하므로 마감으로 세지 않는다 */
@@ -940,8 +937,8 @@ const mark=st==="연차"?"연":st==="반차"?"반":st==="출근"?"○":st==="결
 const swp=swapCellInfo(rec); if(swp){ if(swp.cls==="swap-in") subCnt++; else if(swp.cls==="swap-out") outCnt++; }
 const closeCls = halfNoClose ? "" : (closeOv===true?" close close-forced":(closeOv===false?(scClose?" close-off":""):(scClose?" close":"")));
 const closeTitle = halfNoClose ? "" : (closeOv===true?"마감 지정 (근무변경)":(closeOv===false?"마감 해제 (근무변경)":(scClose?`마감조 (${sc.start}~${sc.end})`:"")));
-const __hw = (st==="반차" && sc && sc.start && sc.end) ? halfWindow(sc.start, sc.end) : null;
-const halfTitle = st==="반차" ? `반차 — ${__hw?`${__hw.start}~${__hw.end} 근무`:"그 날 절반만 근무"} (0.5일)` : "";
+const __hb = (st==="반차" && sc && sc.start && sc.end) ? halfBoundaryFor(sc.start, sc.end) : null;
+const halfTitle = st==="반차" ? `반차(${half||""}) — ${__hb?(half==="오전"?`${__hb}부터 근무`:`${__hb}까지 근무`):"그 날 절반만 근무"} (0.5일)` : "";
 const cellTitle = [swp?swp.title:"", halfTitle, closeTitle].filter(Boolean).join(" · ");
 const swapBadge = swp ? `<i class="swap-badge">${swp.badge}</i>` : "";
 return `<td class="${cls}${closeCls}${swp?" "+swp.cls:""}${isHol?" holiday":""}"${swp?` data-swapid="${swp.id}"`:""}${cellTitle?` title="${esc(cellTitle)}"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}${swapBadge}</button></td>`;    }).join("");
@@ -995,8 +992,8 @@ function wireSwapHighlight(){
 const DOW_LABELS=["일","월","화","수","목","금","토"];
 const DOW_ORDER=[1,2,3,4,5,6,0];
 const DEFAULT_SHIFT_TYPES=[
-{id:"A", name:"A", start:"10:00", end:"20:00", half:"14:30", halfSide:"전반"},
-{id:"B", name:"B", start:"13:00", end:"23:00", half:"18:30", halfSide:"후반"},
+{id:"A", name:"A", start:"10:00", end:"20:00", half:"14:30"},
+{id:"B", name:"B", start:"13:00", end:"23:00", half:"18:30"},
 ];
 function getShiftTypes(){
 if(!DB.shiftTypes || !Array.isArray(DB.shiftTypes) || !DB.shiftTypes.length){
@@ -1037,42 +1034,22 @@ function midBoundary(start, end){
   if(b<=a) b+=24*60;
   return fromMin(a+Math.round((b-a)/2/30)*30);
 }
-/* 근무 타입(조)마다: 반차 경계 시각 + 반차일 때 근무하는 쪽(전반/후반)
-   오전조 10:00~20:00 → 14:30 · 전반 근무 (10:00~14:30)
-   오후조 13:00~23:00 → 18:30 · 후반 근무 (18:30~23:00) */
-const HALF_DEFAULTS={
-  "10:00~20:00":{half:"14:30", side:"전반"},
-  "13:00~23:00":{half:"18:30", side:"후반"},
-};
+const HALF_DEFAULTS={ "10:00~20:00":"14:30", "13:00~23:00":"18:30" };
 function halfBoundaryFor(start, end){
   const t=getShiftTypes().find(x=>x.start===start && x.end===end);
   if(t && TIME_RE.test(String(t.half||""))) return t.half;
-  const d=HALF_DEFAULTS[start+"~"+end];
-  return (d && d.half) || midBoundary(start, end);
+  return HALF_DEFAULTS[start+"~"+end] || midBoundary(start, end);
 }
-/* 반차일 때 근무하는 구간 — "전반"이면 시작~경계, "후반"이면 경계~종료 */
-function halfSideFor(start, end){
-  const t=getShiftTypes().find(x=>x.start===start && x.end===end);
-  if(t && (t.halfSide==="전반" || t.halfSide==="후반")) return t.halfSide;
-  const d=HALF_DEFAULTS[start+"~"+end];
-  return (d && d.side) || "전반";
-}
-/* 반차 근무 구간을 {start,end}로 돌려준다 */
-function halfWindow(start, end){
-  const bd=halfBoundaryFor(start, end);
-  if(!bd) return {start, end};
-  return halfSideFor(start, end)==="후반" ? {start:bd, end} : {start, end:bd};
-}
-/* 기존에 저장된 근무 타입에 반차 설정을 한 번 채워 준다 */
+/* 기존에 저장된 근무 타입에 반차 경계를 한 번 채워 준다.
+   실제 운영 기준: 10:00~20:00 → 14:30, 13:00~23:00 → 18:30 (휴게 1시간 제외 후 절반) */
 function migrateHalfBoundaries(){
-  if(DB.halfBoundaryMigratedV3) return;
+  if(DB.halfBoundaryMigratedV2) return;
   getShiftTypes().forEach(t=>{
-    const d=HALF_DEFAULTS[t.start+"~"+t.end];
-    if(d){ t.half=d.half; t.halfSide=d.side; return; }
-    if(!TIME_RE.test(String(t.half||""))) t.half = midBoundary(t.start,t.end)||"";
-    if(t.halfSide!=="전반" && t.halfSide!=="후반") t.halfSide="전반";
+    const preset=HALF_DEFAULTS[t.start+"~"+t.end];
+    if(preset) t.half = preset;
+    else if(!TIME_RE.test(String(t.half||""))) t.half = midBoundary(t.start,t.end)||"";
   });
-  DB.halfBoundaryMigratedV3 = true;
+  DB.halfBoundaryMigratedV2 = true;
 }
 /* ===================== 격주 근무 (A주 / B주) =====================
    기준: 1970-01-05(월)부터 센 주차의 짝/홀 → 짝수 주 = A주, 홀수 주 = B주.
@@ -1204,7 +1181,6 @@ const header = editingShiftTypes.length ? `
 <span class="stm-time">시작</span>
 <span class="stm-time">종료</span>
 <span class="stm-time">반차 경계</span>
-<span class="stm-time">반차 근무</span>
 <span class="stm-del"></span>
 </div>` : "";
 const rows = editingShiftTypes.map((t,i)=>{
@@ -1215,15 +1191,14 @@ return `
 <input class="stm-name" value="${esc(t.name)}" oninput="updateShiftTypeField(${i},'name',this.value)" placeholder="이름">
 <input class="stm-time" type="time" value="${t.start}" oninput="updateShiftTypeField(${i},'start',this.value)">
 <input class="stm-time" type="time" value="${t.end}" oninput="updateShiftTypeField(${i},'end',this.value)">
-<input class="stm-time" type="time" value="${TIME_RE.test(String(t.half||""))?t.half:(midBoundary(t.start,t.end)||"")}" oninput="updateShiftTypeField(${i},'half',this.value)" title="반차일 때 근무가 갈리는 시각">
-<select class="stm-time" onchange="updateShiftTypeField(${i},'halfSide',this.value)" title="반차일 때 실제로 근무하는 구간"><option value="전반" ${t.halfSide!=="후반"?"selected":""}>전반</option><option value="후반" ${t.halfSide==="후반"?"selected":""}>후반</option></select>
+<input class="stm-time" type="time" value="${TIME_RE.test(String(t.half||""))?t.half:(midBoundary(t.start,t.end)||"")}" oninput="updateShiftTypeField(${i},'half',this.value)" title="반차일 때 근무가 시작/종료되는 시각">
 <button class="stm-del" onclick="removeShiftTypeRow(${i})" title="삭제">✕</button>
 </div>`;
 }).join("") || `<div class="stm-empty">등록된 근무 타입이 없어요.</div>`;
-return `<div id="shiftTypeRows">${header}${rows}</div><button class="btn" style="margin-top:12px" onclick="addShiftTypeRow()">+ 타입 추가</button><div class="hint" style="margin-top:10px;line-height:1.7"><b>반차 경계</b>는 반차일 때 근무가 갈리는 시각, <b>반차 근무</b>는 그중 실제로 나오는 구간이에요.<br>오전조 10:00~20:00 · 14:30 · 전반 → <b>10:00~14:30 근무</b><br>오후조 13:00~23:00 · 18:30 · 후반 → <b>18:30~23:00 근무</b></div>`;
+return `<div id="shiftTypeRows">${header}${rows}</div><button class="btn" style="margin-top:12px" onclick="addShiftTypeRow()">+ 타입 추가</button><div class="hint" style="margin-top:10px;line-height:1.7"><b>반차 경계</b> — 반차일 때 근무가 갈리는 시각이에요.<br>오전 반차는 이 시각<b>부터</b>, 오후 반차는 이 시각<b>까지</b> 근무합니다. (예: 오전조 10:00~20:00 → 14:30, 오후조 13:00~23:00 → 18:30)</div>`;
 }
 function addShiftTypeRow(){
-editingShiftTypes.push({id:"t"+Date.now()+Math.floor(Math.random()*1000), name:"새 타입", start:"09:00", end:"18:00", half:"13:30", halfSide:"전반"});
+editingShiftTypes.push({id:"t"+Date.now()+Math.floor(Math.random()*1000), name:"새 타입", start:"09:00", end:"18:00", half:"13:30"});
 refreshShiftTypeManagerBody();
 }
 function removeShiftTypeRow(i){
@@ -1244,7 +1219,7 @@ if(!t.name || !t.name.trim()){ toast("타입 이름을 입력하세요"); return
 if(!tre.test(t.start) || !tre.test(t.end)){ toast("시간 형식이 올바르지 않아요"); return; }
 if(t.half && !tre.test(t.half)){ toast("반차 경계 시간 형식이 올바르지 않아요"); return; }
 }
-DB.shiftTypes = editingShiftTypes.map(t=>({...t, name:t.name.trim(), half:(t.half||midBoundary(t.start,t.end)||""), halfSide:(t.halfSide==="후반"?"후반":"전반")}));
+DB.shiftTypes = editingShiftTypes.map(t=>({...t, name:t.name.trim(), half:(t.half||midBoundary(t.start,t.end)||"")}));
 syncAll();
 saveDB();
 closeModal();
@@ -1354,13 +1329,12 @@ function dayShifts(day){
     else if(st==="출근"||st==="반차"){ start=sc.start||"09:00"; end=sc.end||"18:00"; }
     if(!start||!end) return;
     /* 반차 — 오전 반차면 후반만, 오후 반차면 전반만 근무 */
-    const half = st==="반차" ? (halfSideFor(start, end)) : null;
+    const half = st==="반차" ? (rec.half||"오전") : null;
     if(half){
-      const w=halfWindow(start, end);
-      start=w.start; end=w.end;
+      const bd=halfBoundaryFor(start, end);
+      if(bd){ if(half==="오전") start=bd; else end=bd; }
     }
-    /* 전반만 근무하면 그날 마감은 없다 */
-    const close = half==="전반" ? false : ((rec && rec.closeOverride!=null) ? rec.closeOverride : !!sc.close);
+    const close = half==="오후" ? false : ((rec && rec.closeOverride!=null) ? rec.closeOverride : !!sc.close);
     list.push({e, start, end, close, half, swap:sw||null, planned: false});
   });
   return list.sort((a,b)=>(a.start||"").localeCompare(b.start||"")||(a.e.employeeNo||0)-(b.e.employeeNo||0));
@@ -1411,7 +1385,7 @@ function renderAttendanceWeek(){
       const r1=Math.round((a-lo)/SLOT)+1, r2=Math.round((b-lo)/SLOT)+1;
       const [bg,fg]=empColor(s.e);
       const tag = s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":"") : (s.half?"반":"");
-      const title=`${s.e.name} ${s.start}~${s.end}${s.close?" (마감)":""}${s.swap?" · "+ (s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.half?" · 반차":""}${s.planned?" · 근무표 기준 예정":""}`;
+      const title=`${s.e.name} ${s.start}~${s.end}${s.close?" (마감)":""}${s.swap?" · "+ (s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.half?` · 반차(${s.half})`:""}${s.planned?" · 근무표 기준 예정":""}`;
       return `<div class="wk-b${s.planned?" planned":""}" style="grid-row:${r1}/${r2};grid-column:${li+1};background:${bg};color:${fg}" title="${esc(title)}"${s.swap?` data-swapid="${s.swap.id}"`:""}>
         <b>${esc(s.e.name)}</b>${tag?`<i class="wk-tag">${tag}</i>`:""}
         <span>${s.start}~${s.end}</span>${s.close?'<span class="wk-close">마감</span>':""}
@@ -1601,4 +1575,3 @@ updateNavVisibility();
   }
 }
 boot();
-app_js.txt 표시 중입니다.
