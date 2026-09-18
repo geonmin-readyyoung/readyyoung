@@ -167,8 +167,8 @@ function renderDailySchedulePanel(){
     const a=toMin(s.start); let b=toMin(s.end); if(b<=a) b+=24*60;
     const r1=Math.round((a-lo)/SLOT)+1, r2=Math.round((b-lo)/SLOT)+1;
     const [bg,fg]=empColor(s.e);
-    const tag = s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":"") : "";
-    const title=`${s.e.name} ${s.start}~${s.end}${s.close?" (마감)":""}${s.swap?" · "+(s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.planned?" · 근무표 기준 예정":""}`;
+    const tag = s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":"") : (s.half?"반":"");
+    const title=`${s.e.name} ${s.start}~${s.end}${s.close?" (마감)":""}${s.swap?" · "+(s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.half?` · 반차(${s.half})`:""}${s.planned?" · 근무표 기준 예정":""}`;
     return `<div class="wk-b${s.planned?" planned":""}" style="grid-row:${r1}/${r2};grid-column:${li+1};background:${bg};color:${fg}" title="${esc(title)}" data-emp="${s.e.id}"${s.swap?` data-swapid="${s.swap.id}"`:""}>
       <b>${esc(s.e.name)}</b>${tag?`<i class="wk-tag">${tag}</i>`:""}
       <span>${s.start}~${s.end}</span>${s.close?'<span class="wk-close">마감</span>':""}
@@ -865,12 +865,12 @@ return;
 }
 const st=rec?rec.status:"";
 const sc=scheduleOn(empId, day);
-const now = st==="연차"?"연차":st==="출근"?"출근":st==="결근"?"결근":st==="휴무"?"휴무":(sc.on?`근무표 기준 출근 예정 (${sc.start}~${sc.end})`:"근무표 기준 휴무");
-const isLeave = st==="연차";
+const now = st==="연차"?"연차":st==="반차"?`반차(${(rec&&rec.half)||""}) — 절반 근무`:st==="출근"?"출근":st==="결근"?"결근":st==="휴무"?"휴무":(sc.on?`근무표 기준 출근 예정 (${sc.start}~${sc.end})`:"근무표 기준 휴무");
+const isLeave = st==="연차" || st==="반차";
 modal("출근부 · 조회 전용", `<div class="hint" style="line-height:1.9">
 <div><b>${esc(empName(empId))}</b> · ${fmtDate(day)}</div>
 <div>현재 상태: <b>${now}</b></div>
-<div style="margin-top:8px">${isLeave?"연차는 <b>연차·휴가</b> 메뉴에서 관리해요.":"출근부는 직접 수정할 수 없어요. 대체근무·시간변경·맞교대·결근은 <b>근무변경</b>에서 등록하고, 승인되면 출근부에 자동 반영됩니다."}</div>
+<div style="margin-top:8px">${isLeave?`${st==="반차"?"반차":"연차"}는 <b>연차·휴가</b> 메뉴에서 관리해요.`:"출근부는 직접 수정할 수 없어요. 대체근무·시간변경·맞교대·결근은 <b>근무변경</b>에서 등록하고, 승인되면 출근부에 자동 반영됩니다."}</div>
 </div>`, [
 `<button class="btn" onclick="closeModal()">닫기</button>`,
 isLeave ? `<button class="btn primary" onclick="closeModal(); setView('leaves')">연차·휴가로 이동</button>`
@@ -879,7 +879,23 @@ isLeave ? `<button class="btn primary" onclick="closeModal(); setView('leaves')"
 }
 
 /* =========================== 출근부 =========================== */
-function attKey(empId, day){ return empId+"|"+day; } function syncLeaveAttendance(){ for(const k in DB.attendance){ if(DB.attendance[k].status==="연차") delete DB.attendance[k]; } DB.leaves.filter(l=>l.leaveType==="연차" && l.status==="승인").forEach(l=>{ let cur=(l.startDate||"").slice(0,10); const endStr=(l.endDate||l.startDate||"").slice(0,10); while(cur && cur<=endStr){ DB.attendance[attKey(l.employeeId, cur)]={employeeId:l.employeeId, date:cur, status:"연차"}; const p=cur.split("-").map(Number); const nd=new Date(Date.UTC(p[0],p[1]-1,p[2]+1)); cur=nd.toISOString().slice(0,10); } }); }
+function attKey(empId, day){ return empId+"|"+day; }
+/* 반차(오전)/반차(오후) → "오전"/"오후", 그 외에는 null */
+function leaveHalfOf(t){ const s=String(t||""); return s.startsWith("반차") ? (s.includes("오전")?"오전":"오후") : null; }
+function fmtDays(n){ return Number.isInteger(n) ? String(n) : n.toFixed(1); }
+function syncLeaveAttendance(){
+  for(const k in DB.attendance){ const st=DB.attendance[k].status; if(st==="연차"||st==="반차") delete DB.attendance[k]; }
+  DB.leaves.filter(l=>{ const t=String(l.leaveType||""); return (t==="연차"||t.startsWith("반차")) && l.status==="승인"; }).forEach(l=>{
+    const half=leaveHalfOf(l.leaveType);
+    let cur=(l.startDate||"").slice(0,10); const endStr=(l.endDate||l.startDate||"").slice(0,10);
+    while(cur && cur<=endStr){
+      DB.attendance[attKey(l.employeeId, cur)] = half
+        ? {employeeId:l.employeeId, date:cur, status:"반차", half}
+        : {employeeId:l.employeeId, date:cur, status:"연차"};
+      const p=cur.split("-").map(Number); const nd=new Date(Date.UTC(p[0],p[1]-1,p[2]+1)); cur=nd.toISOString().slice(0,10);
+    }
+  });
+}
 function daysInMonth(ym){ const [y,m]=ym.split("-").map(Number); return new Date(y,m,0).getDate(); }
 function renderAttendance(){
   const [y,m]=attMonth.split("-").map(Number);
@@ -901,6 +917,7 @@ function renderAttendance(){
       const day=attMonth+"-"+String(d).padStart(2,"0");
       const rec=DB.attendance[attKey(e.id,day)];
 let st=rec?.status || "";
+const half=rec?.half || null;
       const dow=new Date(y,m-1,d).getDay();
       const sc=scheduleEntry(e.id, dow, day); const isHol=(DB.holidays||[]).includes(day);
 /* 근무표 자동 반영: 출근부 기록(근무변경·연차·기존 기록)이 없는 날은 근무표 기준으로 계산 */
@@ -910,16 +927,21 @@ if(!st && inEmp && sc) st = (sc.on && !autoCo) ? "출근" : "휴무";
 const scClose=!!(sc&&sc.on&&sc.close);
 const closeOv=(rec&&Object.prototype.hasOwnProperty.call(rec,"closeOverride"))?rec.closeOverride:(autoCo?true:null);
 const effClose= closeOv===true?true:(closeOv===false?false:scClose);
-      const cls=st==="연차"?"leave":st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
-if(st==="출근"){ worked++; if(isHol) holCnt++; } if(effClose && st!=="연차"){ closeCnt++; }      const mark=st==="연차"?
-   "연":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
+/* 오후 반차는 일찍 퇴근 — 마감 표시/집계 모두 제외 */
+const halfNoClose = (st==="반차" && half==="오후");
+      const cls=st==="연차"?"leave":st==="반차"?"half":st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
+if(st==="출근"){ worked++; if(isHol) holCnt++; } else if(st==="반차"){ worked+=0.5; if(isHol) holCnt+=0.5; }
+/* 오후 반차는 일찍 퇴근하므로 마감으로 세지 않는다 */
+if(effClose && st!=="연차" && !halfNoClose){ closeCnt++; }
+const mark=st==="연차"?"연":st==="반차"?"반":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
 const swp=swapCellInfo(rec); if(swp){ if(swp.cls==="swap-in") subCnt++; else if(swp.cls==="swap-out") outCnt++; }
-const closeCls = closeOv===true?" close close-forced":(closeOv===false?(scClose?" close-off":""):(scClose?" close":""));
-const closeTitle = closeOv===true?"마감 지정 (근무변경)":(closeOv===false?"마감 해제 (근무변경)":(scClose?`마감조 (${sc.start}~${sc.end})`:""));
-const cellTitle = swp ? swp.title + (closeTitle?` · ${closeTitle}`:"") : closeTitle;
+const closeCls = halfNoClose ? "" : (closeOv===true?" close close-forced":(closeOv===false?(scClose?" close-off":""):(scClose?" close":"")));
+const closeTitle = halfNoClose ? "" : (closeOv===true?"마감 지정 (근무변경)":(closeOv===false?"마감 해제 (근무변경)":(scClose?`마감조 (${sc.start}~${sc.end})`:"")));
+const halfTitle = st==="반차" ? `반차(${half||""}) — 그 날 절반만 근무 (0.5일)` : "";
+const cellTitle = [swp?swp.title:"", halfTitle, closeTitle].filter(Boolean).join(" · ");
 const swapBadge = swp ? `<i class="swap-badge">${swp.badge}</i>` : "";
 return `<td class="${cls}${closeCls}${swp?" "+swp.cls:""}${isHol?" holiday":""}"${swp?` data-swapid="${swp.id}"`:""}${cellTitle?` title="${esc(cellTitle)}"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}${swapBadge}</button></td>`;    }).join("");
-return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked}, 마감 ${closeCnt}, 휴일 ${holCnt}${subCnt?`, 대체 ${subCnt}`:""}${outCnt?`, 대체빠짐 ${outCnt}`:""})</span></td>${cells}</tr>`;  }).join("");
+return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${fmtDays(worked)}, 마감 ${fmtDays(closeCnt)}, 휴일 ${fmtDays(holCnt)}${subCnt?`, 대체 ${subCnt}`:""}${outCnt?`, 대체빠짐 ${outCnt}`:""})</span></td>${cells}</tr>`;  }).join("");
 
   return `
   ${headHTML("출근부","직원 월별 근무 기록 · 조회 전용 — 변경은 근무변경 메뉴에서 등록·승인하면 자동 반영돼요")}
@@ -937,7 +959,7 @@ return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${worked}, 마감
 <thead><tr><th class="emp">직원</th>${dayHdr.map(h=>{const hday=attMonth+"-"+String(h.d).padStart(2,"0");const hhol=(DB.holidays||[]).includes(hday);return `<th class="${h.we?'we':''}${hhol?' holiday':''}" style="cursor:pointer" title="클릭하여 휴일 지정/해제" onclick="toggleHoliday('${hday}')">${h.d}</th>`;}).join("")}</tr></thead>      <tbody>${body}</tbody>
     </table>`:`<div class="empty"><div class="big">이 달에 표시할 파트타임 직원이 없어요</div><div>직원을 파트타임으로 등록하면 여기에 나타납니다.</div></div>`}
   </div></div>
-  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span><i style="display:inline-block;width:10px;height:3px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 지정 (근무변경)</span><span><i style="display:inline-block;width:10px;height:3px;background:#CBD5E1;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 해제 (근무변경)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">대</b> 남의 근무를 대신함(출근)</span><span>–<b style="color:#0369A1;font-size:9px;vertical-align:super">↔</b> 내 근무를 넘김(휴무)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">변</b> 근무시간 변경</span><span><b>칸 클릭</b>: 상세 보기 · 직접 수정 불가 (근무변경에서 등록)</span><span style="opacity:.75">대체 칸에 마우스를 올리면 바뀐 상대 칸과 이름이 함께 반짝여요</span><span>근무표는 자동 반영돼요 — 근무표를 고치면 출근부도 바로 바뀝니다</span></div>`;
+  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><b style="color:#B45309">반</b> 반차 (0.5일 근무)</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span><i style="display:inline-block;width:10px;height:3px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 지정 (근무변경)</span><span><i style="display:inline-block;width:10px;height:3px;background:#CBD5E1;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 해제 (근무변경)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">대</b> 남의 근무를 대신함(출근)</span><span>–<b style="color:#0369A1;font-size:9px;vertical-align:super">↔</b> 내 근무를 넘김(휴무)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">변</b> 근무시간 변경</span><span><b>칸 클릭</b>: 상세 보기 · 직접 수정 불가 (근무변경에서 등록)</span><span style="opacity:.75">대체 칸에 마우스를 올리면 바뀐 상대 칸과 이름이 함께 반짝여요</span><span>근무표는 자동 반영돼요 — 근무표를 고치면 출근부도 바로 바뀝니다</span></div>`;
 }
 function wireAttendance(){
 /* 출근부는 조회 전용 — 모든 변경은 근무변경(연차는 연차·휴가) 메뉴에서만 */
@@ -1187,7 +1209,7 @@ function applyScheduleToMonth(){
     for(let d=1; d<=dim; d++){
       const day=attMonth+"-"+String(d).padStart(2,"0");
       const key=attKey(e.id,day);
-      if(DB.attendance[key] && (DB.attendance[key].status==="연차" || DB.attendance[key].status==="결근" || DB.attendance[key].swap)) continue;
+      if(DB.attendance[key] && (DB.attendance[key].status==="연차" || DB.attendance[key].status==="반차" || DB.attendance[key].status==="결근" || DB.attendance[key].swap)) continue;
       const dow=new Date(y,m-1,d).getDay();
       const sc=getSchedule(e.id, dow, day);
        (function(){const __co=sc.on&&sc.start&&sc.start>="23:00"; DB.attendance[key]={employeeId:e.id, date:day, status:(sc.on&&!__co)?"출근":"휴무", closeOverride:__co?true:null};})();
@@ -1272,10 +1294,17 @@ function dayShifts(day){
     let start=null,end=null;
     if(sw&&sw.start&&sw.end){ start=sw.start; end=sw.end; }
     else if(sc.on){ start=sc.start; end=sc.end; }
-    else if(st==="출근"){ start=sc.start||"09:00"; end=sc.end||"18:00"; }
+    else if(st==="출근"||st==="반차"){ start=sc.start||"09:00"; end=sc.end||"18:00"; }
     if(!start||!end) return;
-    const close = (rec && rec.closeOverride!=null) ? rec.closeOverride : !!sc.close;
-    list.push({e, start, end, close, swap:sw||null, planned: false});
+    /* 반차 — 오전 반차면 후반만, 오후 반차면 전반만 근무 */
+    const half = st==="반차" ? (rec.half||"오전") : null;
+    if(half){
+      const a=toMin(start); let b=toMin(end);
+      if(a!=null && b!=null){ if(b<=a) b+=24*60; const mid=a+Math.round((b-a)/2/30)*30;
+        if(half==="오전") start=fromMin(mid); else end=fromMin(mid); }
+    }
+    const close = half==="오후" ? false : ((rec && rec.closeOverride!=null) ? rec.closeOverride : !!sc.close);
+    list.push({e, start, end, close, half, swap:sw||null, planned: false});
   });
   return list.sort((a,b)=>(a.start||"").localeCompare(b.start||"")||(a.e.employeeNo||0)-(b.e.employeeNo||0));
 }
@@ -1324,8 +1353,8 @@ function renderAttendanceWeek(){
       const a=toMin(s.start); let b=toMin(s.end); if(b<=a) b+=24*60;
       const r1=Math.round((a-lo)/SLOT)+1, r2=Math.round((b-lo)/SLOT)+1;
       const [bg,fg]=empColor(s.e);
-      const tag = s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":"") : "";
-      const title=`${s.e.name} ${s.start}~${s.end}${s.close?" (마감)":""}${s.swap?" · "+ (s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.planned?" · 근무표 기준 예정":""}`;
+      const tag = s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":"") : (s.half?"반":"");
+      const title=`${s.e.name} ${s.start}~${s.end}${s.close?" (마감)":""}${s.swap?" · "+ (s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.half?` · 반차(${s.half})`:""}${s.planned?" · 근무표 기준 예정":""}`;
       return `<div class="wk-b${s.planned?" planned":""}" style="grid-row:${r1}/${r2};grid-column:${li+1};background:${bg};color:${fg}" title="${esc(title)}"${s.swap?` data-swapid="${s.swap.id}"`:""}>
         <b>${esc(s.e.name)}</b>${tag?`<i class="wk-tag">${tag}</i>`:""}
         <span>${s.start}~${s.end}</span>${s.close?'<span class="wk-close">마감</span>':""}
@@ -1364,7 +1393,7 @@ function renderAttendanceWeek(){
       </div>
     </div>
   </div>
-  <div class="legend">${gLegend}<span style="opacity:.45">|</span><span>블록 = 실제 근무 시간 (근무변경 반영)</span><span><b>대</b> 대체 근무 · <b>변</b> 시간 변경</span><span>블록에 마우스를 올리면 바뀐 상대 블록이 함께 반짝여요</span><span>블록 클릭 → 상세 보기</span></div>
+  <div class="legend">${gLegend}<span style="opacity:.45">|</span><span>블록 = 실제 근무 시간 (근무변경 반영)</span><span><b>대</b> 대체 근무 · <b>변</b> 시간 변경 · <b>반</b> 반차</span><span>블록에 마우스를 올리면 바뀐 상대 블록이 함께 반짝여요</span><span>블록 클릭 → 상세 보기</span></div>
   </div>`;
 }
 function wireWeek(){
