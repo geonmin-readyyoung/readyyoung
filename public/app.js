@@ -694,10 +694,14 @@ function openShiftChangeForm(prefill){
   const day=p.date||todayStr();
   const eid=p.employeeId||emps[0].id;
   const sid=p.substituteId||(emps[1]?emps[1].id:emps[0].id);
-  const opts=(sel)=>emps.map(e=>`<option value="${e.id}" ${sel===e.id?"selected":""}>${esc(e.name)} (${e.role})</option>`).join("");
+  scKeep={emp:editing?editing.employeeId:null, sub:editing?editing.substituteId:null, edit:editing?editing.id:null, eid, sid};
+  const grp = editing ? empGroup(DB.employees.find(e=>e.id===editing.employeeId)).key : (p.group||"");
   const box='style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:12px 14px;border:1px solid var(--border-strong);border-radius:10px"';
   modal(editing?"근무변경 수정":"근무변경 등록", `
     <div class="grid2">
+      <div class="field"><label>날짜 <span class="req">*</span></label><input id="sc_date" type="date" value="${day}" onchange="onScDateOrGroup()"></div>
+      <div class="field"><label>근무 형태</label><select id="sc_group" onchange="onScDateOrGroup()">
+        <option value="">전체</option>${WK_GROUPS.map(g=>`<option value="${g.key}" ${grp===g.key?"selected":""}>${g.key}</option>`).join("")}</select></div>
       <div class="field"><label>유형 <span class="req">*</span></label>
         <select id="sc_type" onchange="onScTypeChange()">${SHIFT_CHANGE_TYPES.map(t=>`<option value="${t}" ${p.type===t?"selected":""}>${SC_LABEL[t]}</option>`).join("")}</select></div>
       <div class="field"><label>상태</label><select id="sc_status">${LEAVE_STATUSES.map(x=>`<option ${(p.status||"대기")===x?"selected":""}>${x}</option>`).join("")}</select></div>
@@ -705,8 +709,8 @@ function openShiftChangeForm(prefill){
       <div ${box} id="sc_orig_box">
         <div id="sc_orig_cap" style="grid-column:1/-1"></div>
         <div class="field full"><label id="sc_emp_label">원래 근무자 <span class="req">*</span></label>
-          <select id="sc_emp" onchange="onScFillTime()">${opts(eid)}</select></div>
-        <div class="field"><label>날짜 <span class="req">*</span></label><input id="sc_date" type="date" value="${day}" onchange="onScFillTime()"></div>
+          <select id="sc_emp" onchange="scFillSubOptions(); onScFillTime(); if(val('sc_type')==='교대') onScFillSwapTime();"></select>
+          <div class="hint" id="sc_emp_hint"></div></div>
         <div class="field"><label>시작 시간</label><input id="sc_start" type="time" onchange="scPreview()"></div>
         <div class="field"><label>종료 시간</label><input id="sc_end" type="time" onchange="scPreview()"></div>
         <div class="field full" id="sc_close_wrap"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -716,10 +720,11 @@ function openShiftChangeForm(prefill){
 
       <div ${box} id="sc_sub_wrap">
         <div id="sc_sub_cap" style="grid-column:1/-1"></div>
+        <div class="field full sc-swap-only"><label>날짜 <span class="req">*</span></label>
+          <input id="sc_swapdate" type="date" value="${p.swapDate||day}" onchange="scFillSubOptions(); onScFillSwapTime()"></div>
         <div class="field full"><label>대체 근무자 <span class="req">*</span></label>
-          <select id="sc_sub" onchange="onScFillSwapTime()">${opts(sid)}</select></div>
-        <div class="field sc-swap-only"><label>날짜 <span class="req">*</span></label>
-          <input id="sc_swapdate" type="date" value="${p.swapDate||day}" onchange="onScFillSwapTime()"></div>
+          <select id="sc_sub" onchange="onScFillSwapTime()"></select>
+          <div class="hint" id="sc_sub_hint"></div></div>
         <div class="field sc-swap-only"><label>시작 시간</label><input id="sc_swapstart" type="time" onchange="scPreview()"></div>
         <div class="field sc-swap-only"><label>종료 시간</label><input id="sc_swapend" type="time" onchange="scPreview()"></div>
         <div class="field full sc-swap-only"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -740,6 +745,7 @@ function openShiftChangeForm(prefill){
     `<button class="btn" onclick="closeModal()">취소</button>`,
     `<button class="btn primary" onclick="saveShiftChange(${editing?editing.id:"null"})">${editing?"저장":"등록"}</button>`,
   ]);
+  scFillEmpOptions(); scFillSubOptions();
   onScTypeChange(!!editing);
   if(editing){
     const st=document.getElementById("sc_start"), en=document.getElementById("sc_end"), cl=document.getElementById("sc_close");
@@ -774,7 +780,66 @@ function onScTypeChange(skipFill){
 const cw=document.getElementById("sc_close_wrap"); if(cw) cw.style.display = t==="결근" ? "none" : "";
   onScAbsence();
   if(lab) lab.innerHTML = (t==="변경"||t==="결근") ? '직원 <span class="req">*</span>' : '원래 근무자 <span class="req">*</span>';
+  scFillSubOptions();
   if(skipFill) scPreview(); else { onScFillTime(); if(t==="교대") onScFillSwapTime(); }
+}
+/* ---- 날짜·근무 형태로 직원 목록 거르기 ---- */
+let scKeep={};
+// 그 날 출근하는지 — 출근부 기록 우선, 없으면 근무표. 지금 수정 중인 근무변경이 만든 기록은 무시
+function scWorksOn(empId, day){
+  if(!day) return false;
+  const rec=DB.attendance[attKey(empId, day)];
+  if(rec && rec.status && !(rec.swap && rec.swap.id===scKeep.edit)){
+    if(rec.status==="출근" || rec.status==="반차") return true;
+    if(rec.status==="연차" || rec.status==="휴무" || rec.status==="결근") return false;
+  }
+  return !!scheduleOn(empId, day).on;
+}
+function scGroupEmps(){
+  const g=val("sc_group");
+  return DB.employees.filter(e=>e.status==="재직" && (!g || empGroup(e).key===g))
+    .sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));
+}
+function scOpt(e, sel){ return `<option value="${e.id}" ${sel===e.id?"selected":""}>${esc(e.name)} (${esc(empGroup(e).key)})</option>`; }
+function scFillSelect(id, list, prev, emptyMsg){
+  const el=document.getElementById(id); if(!el) return;
+  const cur = list.some(e=>e.id===prev) ? prev : (list[0]?list[0].id:null);
+  el.innerHTML = list.length ? list.map(e=>scOpt(e,cur)).join("") : `<option value="">${emptyMsg}</option>`;
+}
+function scFillEmpOptions(){
+  const day=val("sc_date"), prev=Number(val("sc_emp"))||scKeep.eid;
+  const list=scGroupEmps().filter(e=>scWorksOn(e.id, day) || e.id===scKeep.emp);
+  scFillSelect("sc_emp", list, prev, "이 날 출근하는 직원 없음");
+  const h=document.getElementById("sc_emp_hint");
+  if(h) h.textContent = day ? `${fmtDate(day)} 출근 예정 ${val("sc_group")||"전체"} 직원 ${list.length}명` : "날짜를 먼저 선택하세요";
+}
+function scFillSubOptions(){
+  const t=val("sc_type"), a=Number(val("sc_emp"));
+  const prev=Number(val("sc_sub"))||scKeep.sid;
+  const el=document.getElementById("sc_sub"); if(!el) return;
+  const h=document.getElementById("sc_sub_hint");
+  const base=scGroupEmps().filter(e=>e.id!==a);
+  if(t==="교대"){
+    const sd=val("sc_swapdate");
+    const list=base.filter(e=>scWorksOn(e.id, sd) || e.id===scKeep.sub);
+    scFillSelect("sc_sub", list, prev, "이 날 출근하는 직원 없음");
+    if(h) h.textContent = sd ? `${fmtDate(sd)} 출근 예정 ${val("sc_group")||"전체"} 직원 ${list.length}명` : "";
+    return;
+  }
+  // 대체근무 — 그 날 쉬는 사람을 먼저, 이미 출근하는 사람은 아래에
+  const day=val("sc_date");
+  const off=base.filter(e=>!scWorksOn(e.id, day)), on=base.filter(e=>scWorksOn(e.id, day));
+  const all=[...off,...on];
+  const cur = all.some(e=>e.id===prev) ? prev : (all[0]?all[0].id:null);
+  el.innerHTML = all.length
+    ? (off.length?`<optgroup label="이 날 휴무">${off.map(e=>scOpt(e,cur)).join("")}</optgroup>`:"")
+      + (on.length?`<optgroup label="이 날 이미 출근">${on.map(e=>scOpt(e,cur)).join("")}</optgroup>`:"")
+    : `<option value="">선택할 직원 없음</option>`;
+  if(h) h.textContent = "";
+}
+function onScDateOrGroup(){
+  scFillEmpOptions(); scFillSubOptions(); onScFillTime();
+  if(val("sc_type")==="교대") onScFillSwapTime();
 }
 function cap(t,h){ return `<div style="font-weight:700;font-size:13px">${t} <span class="hint" style="font-weight:400">${h}</span></div>`; }
 /* 맞교대 — 대체 근무자의 상대 날짜 근무시간을 근무표 기준으로 채움 */
@@ -853,6 +918,7 @@ function saveShiftChange(editId){
   const substituteId = (type==="변경"||type==="결근") ? null : Number(val("sc_sub"));
   const swapDate = type==="교대" ? val("sc_swapdate") : null;
   if(!date){ toast("날짜를 입력하세요"); return; }
+  if(!employeeId){ toast("근무자를 선택하세요 — 이 날짜·근무 형태에 출근하는 직원이 없어요"); return; }
   if(type!=="변경" && type!=="결근" && (!substituteId || substituteId===employeeId)){ toast("원래 근무자와 다른 대체자를 선택하세요"); return; }
   if(type==="교대" && !swapDate){ toast("맞교대 상대 날짜를 입력하세요"); return; }
   if(type==="교대" && swapDate===date){ toast("맞교대는 서로 다른 날짜여야 합니다"); return; }
