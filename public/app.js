@@ -472,10 +472,11 @@ const SC_ABSENCE = [
   {key:"무급", label:"무급 (그냥 빠짐)",       hint:"그 날 급여 미지급 · 연차 차감 없음"},
   {key:"연차", label:"연차 사용",              hint:"유급 · 연차에서 차감되고 출근부에 연차로 표시"},
   {key:"교대", label:"맞교대 (다른 날 보충)",  hint:"다른 날 대신 근무하므로 총 근무일수는 그대로"},
+  {key:"추가", label:"추가 대체 (이미 처리된 근무)", hint:"원 근무자는 기존 건(연차·대체)대로 — 급여·연차 추가 차감 없음. 마감 등 일부 시간만 따로 대체할 때"},
 ];
 const SC_ABSENCE_LABEL = Object.fromEntries(SC_ABSENCE.map(a=>[a.key,a.label]));
 function absenceOf(c){ return c.type==="교대" ? "교대" : (c.absence||"무급"); }
-function absenceTag(k){ return k==="연차"?'<span class="tag t-warn">연차</span>':k==="교대"?'<span class="tag t-ice">맞교대</span>':'<span class="tag t-bad">무급</span>'; }
+function absenceTag(k){ if(k==="추가") return '<span class="tag t-gray">추가 대체</span>'; return k==="연차"?'<span class="tag t-warn">연차</span>':k==="교대"?'<span class="tag t-ice">맞교대</span>':'<span class="tag t-bad">무급</span>'; }
 let scViewAll = false;
 function toggleScViewAll(){ scViewAll=!scViewAll; render(); }
 
@@ -550,7 +551,7 @@ function applySwapCell(c, empId, day, role, partnerId, start, end, close){
   const key=attKey(empId, day);
   const rec=DB.attendance[key];
   const onLeave = rec && rec.status==="연차";
-  const prev = {
+  const prev = (rec && rec.swap) ? rec.swap.prev : {
     status: rec ? rec.status : undefined,
     closeOverride: (rec && Object.prototype.hasOwnProperty.call(rec,"closeOverride")) ? rec.closeOverride : undefined,
   };
@@ -574,7 +575,7 @@ function swapCellInfo(rec){
   if(s.role==="대체") return {id:s.id, cls:"swap-in", badge:"대", working:true,
     title:`출근 — ${josa(who,"이","가")} 원래 맡던 ${d}근무를 대신함 (${time})${tail}`};
   if(s.role==="결근") return {id:s.id, cls:"swap-out swap-absent", badge:"결", working:false, title:"결근 — 대체자 없이 빠짐 · 무급"};
-const ab = s.absence==="연차" ? "연차 사용(유급)" : s.absence==="교대" ? "다른 날 보충" : "무급";
+const ab = s.absence==="연차" ? "연차 사용(유급)" : s.absence==="교대" ? "다른 날 보충" : s.absence==="추가" ? "추가 대체(기존 처리 유지)" : "무급";
   return {id:s.id, cls:"swap-out", badge:s.absence==="연차"?"연":"↔", working:false,
     title:`${s.absence==="연차"?"연차":"휴무"} — 이 날 근무를 ${esc(who)}에게 넘김 · ${ab} (${time})${tail}`};
 }
@@ -593,7 +594,7 @@ function shiftChangeSummary(ym){
 if(c.type==="변경"){ if(inM(c.date)){ const r=row(c.employeeId); if(r) r.변경++; } return; }
     if(inM(c.date)){
       const o=row(c.employeeId), sb=row(c.substituteId);
-      if(o) o[absenceOf(c)]++;
+      if(o && absenceOf(c)!=="추가") o[absenceOf(c)]++;
       if(sb) sb.sub++;
     }
     if(c.type==="교대" && inM(c.swapDate)){
@@ -800,7 +801,36 @@ function scGroupEmps(){
   return DB.employees.filter(e=>e.status==="재직" && (!g || empGroup(e).key===g))
     .sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));
 }
-function scOpt(e, sel){ return `<option value="${e.id}" ${sel===e.id?"selected":""}>${esc(e.name)} (${esc(empGroup(e).key)})</option>`; }
+function scOpt(e, sel, note){ return `<option value="${e.id}" ${sel===e.id?"selected":""}>${esc(e.name)} (${esc(empGroup(e).key)})${note?" · "+esc(note):""}</option>`; }
+// 원래 근무자 후보 — 근무표상 그 날 근무가 있거나 출근부상 출근인 사람 (연차·대체로 빠진 사람도 포함해 마감 등 남은 근무를 넘길 수 있게)
+function scHasShift(empId, day){
+  if(!day) return false;
+  if(scheduleOn(empId, day).on) return true;
+  const rec=DB.attendance[attKey(empId, day)];
+  return !!(rec && (rec.status==="출근" || rec.status==="반차") && !(rec.swap && rec.swap.id===scKeep.edit && rec.swap.role!=="빠짐"));
+}
+// 그 날 이미 승인·대기 중인 대체 (지금 수정 중인 건 제외)
+function scCovers(empId, day){
+  return (DB.shiftChanges||[]).filter(c=>c.id!==scKeep.edit && c.status!=="반려" &&
+    ((c.employeeId===empId && c.date===day && (c.type==="대체"||c.type==="교대"||c.type==="결근")) ||
+     (c.type==="교대" && c.substituteId===empId && c.swapDate===day)));
+}
+function scCoverText(c, empId){
+  if(c.type==="결근") return "결근";
+  const back = c.type==="교대" && c.substituteId===empId;
+  const who = empName(back ? c.employeeId : c.substituteId);
+  const st = back ? c.swapStart : c.start, en = back ? c.swapEnd : c.end, cl = back ? c.swapClose : c.close;
+  return `${who} 대체${st&&en?` ${st}~${en}`:""}${cl?" (마감 포함)":""}${c.status==="대기"?" · 승인대기":""}`;
+}
+function scEmpNote(empId, day){
+  const rec=DB.attendance[attKey(empId, day)];
+  const s=scheduleOn(empId, day);
+  const cov=scCovers(empId, day);
+  const leave = rec && rec.status==="연차" && !(rec.swap && rec.swap.id===scKeep.edit) ? "연차" : "";
+  if(!cov.length) return leave ? (s.close?"연차 · 마감 미대체":"연차 · 대체 없음") : (s.on&&s.close?"마감":"");
+  const closeDone = cov.some(c=> (c.type==="교대"&&c.substituteId===empId) ? c.swapClose : c.close);
+  return [leave, ...cov.map(c=>scCoverText(c, empId)), s.close&&!closeDone?"마감 미대체":""].filter(Boolean).join(" · ");
+}
 function scFillSelect(id, list, prev, emptyMsg){
   const el=document.getElementById(id); if(!el) return;
   const cur = list.some(e=>e.id===prev) ? prev : (list[0]?list[0].id:null);
@@ -808,10 +838,14 @@ function scFillSelect(id, list, prev, emptyMsg){
 }
 function scFillEmpOptions(){
   const day=val("sc_date"), prev=Number(val("sc_emp"))||scKeep.eid;
-  const list=scGroupEmps().filter(e=>scWorksOn(e.id, day) || e.id===scKeep.emp);
-  scFillSelect("sc_emp", list, prev, "이 날 출근하는 직원 없음");
+  const list=scGroupEmps().filter(e=>scHasShift(e.id, day) || e.id===scKeep.emp);
+  const el=document.getElementById("sc_emp");
+  if(el){
+    const cur = list.some(e=>e.id===prev) ? prev : (list[0]?list[0].id:null);
+    el.innerHTML = list.length ? list.map(e=>scOpt(e,cur,scEmpNote(e.id, day))).join("") : `<option value="">이 날 근무가 있는 직원 없음</option>`;
+  }
   const h=document.getElementById("sc_emp_hint");
-  if(h) h.textContent = day ? `${fmtDate(day)} 출근 예정 ${val("sc_group")||"전체"} 직원 ${list.length}명` : "날짜를 먼저 선택하세요";
+  if(h) h.textContent = day ? `${fmtDate(day)} 근무표상 근무 ${val("sc_group")||"전체"} 직원 ${list.length}명 (연차·대체로 빠진 사람 포함)` : "날짜를 먼저 선택하세요";
 }
 function scFillSubOptions(){
   const t=val("sc_type"), a=Number(val("sc_emp"));
@@ -861,6 +895,12 @@ function scSwapHint(){
     ? `근무표 기준: ${empName(b)}님은 이 날 ${s.start}~${s.end}${s.close?" (마감)":""} 근무 예정입니다. 필요하면 시간을 고쳐주세요.`
     : `근무표 기준: ${empName(b)}님은 이 날 휴무입니다. 시간을 직접 입력해 주세요.`;
 }
+function onScAbsenceHintOnly(){
+  const k=val("sc_absence"), t=val("sc_type");
+  const ld=document.getElementById("sc_leavedays_wrap"); if(ld) ld.style.display = (t==="대체" && k==="연차") ? "" : "none";
+  const h=document.getElementById("sc_absence_hint"); const a=SC_ABSENCE.find(x=>x.key===k);
+  if(h) h.textContent = t==="대체" && a ? a.hint : "";
+}
 function onScAbsence(){
   const k=val("sc_absence"), t=val("sc_type");
   const ld=document.getElementById("sc_leavedays_wrap");
@@ -873,14 +913,19 @@ function onScAbsence(){
 function onScFillTime(){
   const empId=Number(val("sc_emp")), day=val("sc_date");
   const s=scheduleOn(empId, day);
+  const already = scCovers(empId, day).length>0 || (()=>{ const r=DB.attendance[attKey(empId, day)]; return r && r.status==="연차" && !(r.swap && r.swap.id===scKeep.edit); })();
+  const ab=document.getElementById("sc_absence");
+  if(ab && !scKeep.edit){ ab.value = already ? "추가" : (ab.value==="추가" ? "무급" : ab.value); onScAbsenceHintOnly(); }
   const st=document.getElementById("sc_start"), en=document.getElementById("sc_end"), cl=document.getElementById("sc_close");
   if(st) st.value=s.start||"09:00";
   if(en) en.value=s.end||"18:00";
   if(cl) cl.checked=!!s.close;
   const h=document.getElementById("sc_hint");
-  if(h) h.textContent = s.on
+  const cov=scCovers(empId, day);
+  if(h) h.textContent = (s.on
     ? `근무표 기준: ${empName(empId)}님은 이 날 ${s.start}~${s.end}${s.close?" (마감)":""} 근무 예정입니다. 필요하면 시간을 고쳐주세요.`
-    : `근무표 기준: ${empName(empId)}님은 이 날 휴무입니다. 시간을 직접 입력해 주세요.`;
+    : `근무표 기준: ${empName(empId)}님은 이 날 휴무입니다. 시간을 직접 입력해 주세요.`)
+    + (cov.length ? ` 이미 등록된 건: ${cov.map(c=>scCoverText(c, empId)).join(", ")}. 마감만 따로 넘기려면 시간을 마감 구간으로 고치고 '마감 근무'를 체크하세요.` : "");
   scPreview();
 }
 /* 저장하면 출근부가 어떻게 바뀌는지 미리 보여준다 */
@@ -902,8 +947,10 @@ pay=`<div style="margin-top:6px;opacity:.85">급여: <b>${esc(empName(a))}</b> �
   } else if(t==="대체"){
     const k=val("sc_absence")||"무급";
     const days=Number(val("sc_leavedays")||1);
-    html=L(date, empName(a), empName(b), time, k==="연차"?"연차":"휴무");
-    pay = k==="연차"
+    html=L(date, empName(a), empName(b), time, k==="연차"?"연차":k==="추가"?"(기존 처리)":"휴무");
+    pay = k==="추가"
+      ? `<div style="margin-top:6px;opacity:.85">급여: <b>${esc(empName(a))}</b> 기존 처리 그대로(추가 차감 없음) · <b>${esc(empName(b))}</b> 근무 1일 추가</div>`
+      : k==="연차"
       ? `<div style="margin-top:6px;opacity:.85">급여: <b>${esc(empName(a))}</b> 유급(연차 ${days}일 차감) · <b>${esc(empName(b))}</b> 근무 1일 추가</div>`
       : `<div style="margin-top:6px;opacity:.85">급여: <b>${esc(empName(a))}</b> 무급(근무 1일 감소) · <b>${esc(empName(b))}</b> 근무 1일 추가</div>`;
   } else {
