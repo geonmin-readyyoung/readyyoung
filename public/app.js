@@ -525,6 +525,7 @@ function syncShiftChanges(){
   const from = DB.schedResync0901 ? todayStr() : "2026-09-01";
   const bk = DB.schedResync0901 ? null : {};
   syncScheduleAttendance(from, bk);
+  if(schedResyncReq){ syncScheduleAttendance(schedResyncReq.from, null, schedResyncReq.empId); schedResyncReq=null; }
   if(!DB.schedResync0901){ DB.schedResync0901=true; DB.schedResyncBackup0901=bk; scheduleResyncDirty=true; }
   (DB.shiftChanges||[]).filter(c=>c.status==="승인").forEach(c=>{
     if(c.type==="변경"){
@@ -543,13 +544,14 @@ applySwapCell(c, c.employeeId, c.date, "결근", null, null, null, false);
 /* 출근부의 '근무표로 만든 기본 칸'(출근/휴무)을 현재 근무표에 맞춘다.
    연차·반차·결근·근무변경 칸은 건드리지 않음. from 이전 날짜(지난 기록)는 그대로 둔다. */
 let scheduleResyncDirty=false;
-function syncScheduleAttendance(from, backup){
+function syncScheduleAttendance(from, backup, onlyEmp){
   const emps=Object.fromEntries(DB.employees.map(e=>[e.id,e]));
   for(const k in DB.attendance){
     const r=DB.attendance[k];
     if(!r || r.swap || !r.date || r.date<from) continue;
     if(r.status!=="출근" && r.status!=="휴무") continue;
     const e=emps[r.employeeId]; if(!e) continue;
+    if(onlyEmp!=null && e.id!==onlyEmp) continue;
     if(e.leaveDate && r.date>e.leaveDate.slice(0,10)) continue;
     const sc=getSchedule(e.id, dateOf(r.date).getDay(), r.date);
     const co=!!(sc.on && sc.start && sc.start>="23:00");
@@ -1280,9 +1282,24 @@ function weekIndexOf(day){
 function biweekOf(day){ return (((weekIndexOf(day) % 2) + 2) % 2) === 0 ? "A" : "B"; }
 function biweekLabel(day){ return biweekOf(day)+"주"; }
 
+/* ---- 근무표 이력: 직원별로 "언제부터 이 주간 근무표"인지 버전을 둔다 ---- */
+function schedVersions(empId){ return (DB.scheduleVersions||{})[empId] || null; }
+// day 시점에 적용되는 그 직원의 주간 근무표 (day 없으면 근무표 화면 기준일)
+function weekFor(empId, day){
+  const vs=schedVersions(empId);
+  const d=day||schedViewDate||todayStr();
+  if(vs && vs.length){ let w=null; for(const v of vs){ if(v.from<=d) w=v.week; else break; } return w||{}; }
+  return (DB.weeklySchedule||{})[empId]||{};
+}
+function ensureSchedVersions(empId){
+  DB.scheduleVersions = DB.scheduleVersions || {};
+  if(!DB.scheduleVersions[empId] || !DB.scheduleVersions[empId].length)
+    DB.scheduleVersions[empId] = [{from:"0000-01-01", week: JSON.parse(JSON.stringify((DB.weeklySchedule||{})[empId]||{}))}];
+  return DB.scheduleVersions[empId];
+}
+let schedResyncReq=null;   // {empId, from} — 근무표 변경 시 그 직원의 출근부를 from부터 다시 맞춤
 function getSchedule(empId, dow, day){
-  const ws=DB.weeklySchedule||{};
-  const e=ws[empId]||{};
+  const e=weekFor(empId, day);
   const s=e[dow];
   if(!s) return {on:false,start:"09:00",end:"18:00",close:false};
   if(day && s.on && s.biweek && s.biweek!==biweekOf(day)) return {...s, on:false, biweekOff:true};
@@ -1290,12 +1307,14 @@ function getSchedule(empId, dow, day){
 }
 /* 등록된 근무표가 없으면 null — 출근부 월간 보기에서 "미등록"과 "휴무"를 구분하기 위함 */
 function scheduleEntry(empId, dow, day){
-  const ws=DB.weeklySchedule||{};
-  if(!ws[empId] || !ws[empId][dow]) return null;
+  const w=weekFor(empId, day);
+  if(!w || !w[dow]) return null;
   return getSchedule(empId, dow, day);
 }
+let schedViewDate = null;   // 근무표 화면 기준일 (null = 오늘)
 function renderSchedule(){
   DB.weeklySchedule = DB.weeklySchedule || {};
+  const vd = schedViewDate || todayStr();
   const emps=DB.employees.filter(e=>e.status!=="퇴사").sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));
   if(!emps.length){
     return headHTML("근무표","반복되는 주간 근무 스케줄을 등록하세요.", `<button class="btn" onclick="()">근무 타입 관리</button>`) + `<div class="panel" style="padding:40px;text-align:center;color:var(--muted)">등록된 직원이 없어요.</div>`;
@@ -1312,15 +1331,25 @@ function renderSchedule(){
       const __styleAttr = __c ? ` style="background:${__c.bg};color:${__c.fg}"` : "";
       return `<td class="${cls}"><button class="cell"${__styleAttr} data-emp="${e.id}" data-dow="${d}">${mark}</button></td>`;
     }).join("");
-    return `<tr><td class="emp">${esc(e.name)}</td>${cells}</tr>`;
+    const nxt=(schedVersions(e.id)||[]).find(v=>v.from>vd);
+    return `<tr><td class="emp">${esc(e.name)}${nxt?`<div class="hint">${fmtDate(nxt.from)}부터 변경</div>`:""}</td>${cells}</tr>`;
   }).join("");
+  const today=todayStr();
+  const upcoming=[];
+  emps.forEach(e=>(schedVersions(e.id)||[]).forEach(v=>{ if(v.from>="2000" && v.from>=addDays(today,-60)) upcoming.push({e, from:v.from}); }));
+  upcoming.sort((a,b)=>a.from.localeCompare(b.from));
+  const upHTML = upcoming.length ? `<div class="panel" style="margin-top:16px"><div class="p-head"><h2>근무표 변경 이력</h2><span class="hint">최근 60일 이후 · 예정 포함</span></div>
+    <div class="att-wrap"><table><thead><tr><th>적용 시작일</th><th>직원</th><th>상태</th><th></th></tr></thead><tbody>
+    ${upcoming.map(u=>`<tr><td>${fmtDate(u.from)}</td><td>${esc(u.e.name)}</td><td>${u.from>today?'<span class="tag t-ice">예정</span>':'<span class="tag t-gray">적용됨</span>'}</td>
+      <td class="num"><button class="btn sm" onclick="schedViewDate='${u.from}'; render(); wireSchedule();">그 날 기준 보기</button> <button class="btn sm ghost" onclick="cancelScheduleVersion(${u.e.id},'${u.from}')">취소</button></td></tr>`).join("")}
+    </tbody></table></div></div>` : "";
   return `
-    ${headHTML("근무표","반복되는 주간 근무 스케줄을 등록하면 출근부에 자동으로 반영돼요.", `<button class="btn" onclick="openShiftTypeManager()">근무 타입 관리</button>`)}
+    ${headHTML("근무표","반복되는 주간 근무 스케줄 — 바꿀 때 적용 시작일을 정하면 그 날부터만 반영돼요.", `<label class="hint" style="display:flex;align-items:center;gap:6px">기준일 <input type="date" value="${vd}" onchange="schedViewDate=this.value||null; render(); wireSchedule();" style="padding:6px 9px;border:1px solid var(--border-strong);border-radius:8px"></label>${schedViewDate&&schedViewDate!==todayStr()?`<button class="btn sm" onclick="schedViewDate=null; render(); wireSchedule();">오늘</button>`:""}<button class="btn" onclick="openShiftTypeManager()">근무 타입 관리</button>`)}
     <div class="panel"><div class="att-wrap">
     <table class="att"><thead>${head}</thead><tbody>${body}</tbody></table>
     </div>
-    <div class="legend"><span>셀을 클릭해 근무 시간을 설정하거나 휴무로 전환하세요</span><span><b class="biweek-tag">격주 A</b>/<b class="biweek-tag">격주 B</b> 는 2주에 한 번만 근무</span><span>이번 주는 <b>${biweekLabel(todayStr())}</b> · 다음 주는 <b>${biweekLabel(addDays(todayStr(),7))}</b></span></div>
-    </div>`;
+    <div class="legend"><span><b>${fmtDate(vd)}</b> 기준 근무표 · 셀을 클릭해 바꾸면 적용 시작일부터만 반영돼요</span><span><b class="biweek-tag">격주 A</b>/<b class="biweek-tag">격주 B</b> 는 2주에 한 번만 근무</span><span>이번 주는 <b>${biweekLabel(todayStr())}</b> · 다음 주는 <b>${biweekLabel(addDays(todayStr(),7))}</b></span></div>
+    </div>${upHTML}`;
 }
 function wireSchedule(){
   document.querySelectorAll(".att .cell").forEach(btn=>{
@@ -1332,8 +1361,12 @@ function wireSchedule(){
 }
 function openScheduleForm(empId, dow){
 const s=getSchedule(empId,dow);
+const defFrom = (schedViewDate && schedViewDate>todayStr()) ? schedViewDate : todayStr();
 const curType=!s.on?"off":shiftTypeOf(s);
 const body = `
+<div class="field" style="margin-bottom:12px"><label>적용 시작일 <span class="req">*</span></label>
+<input id="sf_from" type="date" value="${defFrom}">
+<div class="hint" style="margin-top:6px">이 날짜부터 ${DOW_LABELS[dow]}요일 근무가 바뀌어요. 그 이전 날짜의 근무·출근부는 그대로 남아요.</div></div>
 <div class="field" style="display:none"><label>근무 여부</label>
 <select id="sf_on"><option value="1" ${s.on?"selected":""}>근무</option><option value="0" ${!s.on?"selected":""}>휴무</option></select>
 </div>
@@ -1365,6 +1398,31 @@ const t=val("sf_type");
 const wrap=document.getElementById("sf_time_wrap");
 if(wrap) wrap.style.display = t==="custom" ? "" : "none"; const cwrap=document.getElementById("sf_close_wrap"); if(cwrap) cwrap.style.display = t==="off" ? "none" : ""; const rwrap=document.getElementById("sf_rep_wrap"); if(rwrap) rwrap.style.display = t==="off" ? "none" : "";
 }
+/* from 날짜부터 그 요일 근무를 entry로 — from 이전 날짜는 그대로 */
+function applyScheduleChange(empId, dow, entry, from){
+  const vs=ensureSchedVersions(empId);
+  let i=-1; vs.forEach((v,k)=>{ if(v.from<=from) i=k; });
+  if(i<0 || vs[i].from!==from){
+    const base = i<0 ? {} : vs[i].week;
+    vs.splice(i+1, 0, {from, week: JSON.parse(JSON.stringify(base))});
+  }
+  vs.forEach(v=>{ if(v.from>=from) v.week[dow]={...entry}; });
+  refreshCurrentWeekly(empId);
+  schedResyncReq={empId, from};
+  syncAll();
+}
+function refreshCurrentWeekly(empId){
+  DB.weeklySchedule = DB.weeklySchedule || {};
+  DB.weeklySchedule[empId] = JSON.parse(JSON.stringify(weekFor(empId, todayStr())));
+}
+function cancelScheduleVersion(empId, from){
+  const vs=schedVersions(empId); if(!vs) return;
+  if(!confirm(`${empName(empId)} — ${fmtDate(from)}부터 적용되는 근무표 변경을 취소할까요? 그 날짜부터는 이전 근무표가 이어집니다.`)) return;
+  DB.scheduleVersions[empId]=vs.filter(v=>v.from!==from);
+  refreshCurrentWeekly(empId);
+  schedResyncReq={empId, from};
+  syncAll(); saveDB(); render(); wireSchedule(); toast("근무표 변경을 취소했습니다");
+}
 function saveScheduleEntry(empId, dow){
 const type=val("sf_type"); const on=type!=="off";
 
@@ -1372,12 +1430,11 @@ let start, end;
 const __matchedType=getShiftTypes().find(t=>t.id===type);
 if(__matchedType){ start=__matchedType.start; end=__matchedType.end; }
 else if(type==="custom"){ const st=val("sf_start"), en=val("sf_end"), tre=/^([01][0-9]|2[0-3]):[0-5][0-9]$/; start = tre.test(st)?st:"09:00"; end = tre.test(en)?en:"18:00"; } else { start="09:00"; end="18:00"; }
-DB.weeklySchedule = DB.weeklySchedule || {};
-DB.weeklySchedule[empId] = DB.weeklySchedule[empId] || {};
 const closeEl=document.getElementById("sf_close"); const close = on && closeEl ? closeEl.checked : false;
 const biweek = on ? (val("sf_biweek")||null) : null;
-DB.weeklySchedule[empId][dow] = {on, start, end, close, biweek};
-syncAll();   // 오늘 이후 출근부를 바뀐 근무표에 맞춤
+const from = val("sf_from");
+if(!/^\d{4}-\d{2}-\d{2}$/.test(from)){ toast("적용 시작일을 선택하세요"); return; }
+applyScheduleChange(empId, dow, {on, start, end, close, biweek}, from);
 saveDB();
 closeModal();
 render();
