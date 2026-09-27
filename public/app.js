@@ -33,7 +33,7 @@ async function loadDB(){
     const r = await fetch("/api/db").then(x=>x.json());
     if(r && r.data){ DB = r.data; }
   }catch(e){ /* 최초 실행 = 데이터 없음 */ }
-  DB.employees ||= []; DB.leaves ||= []; DB.attendance ||= {}; DB.weeklySchedule ||= {}; DB.seq ||= 1; DB.leaveAdjustments ||= []; DB.holidays||=[]; DB.shiftChanges ||= []; migrateEmployeeNoFormat(); migrateHalfBoundaries(); syncAll(); autoFillPastAttendance();
+  DB.employees ||= []; DB.leaves ||= []; DB.attendance ||= {}; DB.weeklySchedule ||= {}; DB.seq ||= 1; DB.leaveAdjustments ||= []; DB.holidays||=[]; DB.shiftChanges ||= []; migrateEmployeeNoFormat(); migrateHalfBoundaries(); syncAll(); autoFillPastAttendance(); if(scheduleResyncDirty){ scheduleResyncDirty=false; saveDB(); }
 }
 let saveT=null;
 function saveDB(){
@@ -521,6 +521,11 @@ function syncShiftChanges(){
     if(prev.closeOverride===undefined) delete r.closeOverride; else r.closeOverride=prev.closeOverride;
     if(r.status===undefined && !Object.prototype.hasOwnProperty.call(r,"closeOverride")) delete DB.attendance[k];
   }
+  // 근무변경을 다시 얹기 전에, 출근부 기본값(출근/휴무)을 현재 근무표에 맞춘다
+  const from = DB.schedResync0901 ? todayStr() : "2026-09-01";
+  const bk = DB.schedResync0901 ? null : {};
+  syncScheduleAttendance(from, bk);
+  if(!DB.schedResync0901){ DB.schedResync0901=true; DB.schedResyncBackup0901=bk; scheduleResyncDirty=true; }
   (DB.shiftChanges||[]).filter(c=>c.status==="승인").forEach(c=>{
     if(c.type==="변경"){
       const base=scheduleOn(c.employeeId, c.date);
@@ -534,6 +539,26 @@ function syncShiftChanges(){
 applySwapCell(c, c.employeeId, c.date, "결근", null, null, null, false);
     }
   });
+}
+/* 출근부의 '근무표로 만든 기본 칸'(출근/휴무)을 현재 근무표에 맞춘다.
+   연차·반차·결근·근무변경 칸은 건드리지 않음. from 이전 날짜(지난 기록)는 그대로 둔다. */
+let scheduleResyncDirty=false;
+function syncScheduleAttendance(from, backup){
+  const emps=Object.fromEntries(DB.employees.map(e=>[e.id,e]));
+  for(const k in DB.attendance){
+    const r=DB.attendance[k];
+    if(!r || r.swap || !r.date || r.date<from) continue;
+    if(r.status!=="출근" && r.status!=="휴무") continue;
+    const e=emps[r.employeeId]; if(!e) continue;
+    if(e.leaveDate && r.date>e.leaveDate.slice(0,10)) continue;
+    const sc=getSchedule(e.id, dateOf(r.date).getDay(), r.date);
+    const co=!!(sc.on && sc.start && sc.start>="23:00");
+    const st=(sc.on && !co) ? "출근" : "휴무";
+    if(r.status!==st || (r.closeOverride??null)!==(co?true:null)){
+      if(backup) backup[k]={status:r.status, closeOverride:r.closeOverride};
+      r.status=st; r.closeOverride=co?true:null;
+    }
+  }
 }
 /* origId의 date 근무를 subId가 대신한다 */
 function applySwapPair(c, origId, subId, day, t){
@@ -1346,6 +1371,7 @@ DB.weeklySchedule[empId] = DB.weeklySchedule[empId] || {};
 const closeEl=document.getElementById("sf_close"); const close = on && closeEl ? closeEl.checked : false;
 const biweek = on ? (val("sf_biweek")||null) : null;
 DB.weeklySchedule[empId][dow] = {on, start, end, close, biweek};
+syncAll();   // 오늘 이후 출근부를 바뀐 근무표에 맞춤
 saveDB();
 closeModal();
 render();
