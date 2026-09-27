@@ -576,12 +576,15 @@ function applySwapCell(c, empId, day, role, partnerId, start, end, close){
   const key=attKey(empId, day);
   const rec=DB.attendance[key];
   const onLeave = rec && rec.status==="연차";
+  // 반차인 사람이 대체로 들어가면 — 반차는 그대로 두고, 대신 들어간 근무의 절반만 근무
+  const onHalf = rec && rec.status==="반차" && role==="대체";
   const prev = (rec && rec.swap) ? rec.swap.prev : {
     status: rec ? rec.status : undefined,
     closeOverride: (rec && Object.prototype.hasOwnProperty.call(rec,"closeOverride")) ? rec.closeOverride : undefined,
   };
   const next = {...(rec||{}), employeeId:empId, date:day};
   if(onLeave){ /* 연차가 우선 — 상태는 그대로 두고 표시만 남긴다 */ }
+  else if(onHalf){ next.closeOverride=!!close; }
   else if(role==="빠짐"){ next.status="휴무"; next.closeOverride=false; }
 else if(role==="결근"){ next.status="결근"; next.closeOverride=false; }
   else { next.status="출근"; next.closeOverride=!!close; }
@@ -1120,7 +1123,9 @@ const scClose=!!(sc&&sc.on&&sc.close);
 const closeOv=(rec&&Object.prototype.hasOwnProperty.call(rec,"closeOverride"))?rec.closeOverride:(autoCo?true:null);
 const effClose= closeOv===true?true:(closeOv===false?false:scClose);
 /* 오후 반차는 일찍 퇴근 — 마감 표시/집계 모두 제외 */
-const halfNoClose = (st==="반차" && sc && sc.start && sc.end && halfSideFor(sc.start, sc.end)==="전반");
+/* 대체로 들어간 날은 그 근무 시간 기준으로 반차 구간을 잡는다 */
+const hs = (rec && rec.swap && rec.swap.role==="대체" && rec.swap.start && rec.swap.end) ? {start:rec.swap.start, end:rec.swap.end} : sc;
+const halfNoClose = (st==="반차" && hs && hs.start && hs.end && halfSideFor(hs.start, hs.end)==="전반");
       const cls=st==="연차"?"leave":st==="반차"?"half":st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
 if(st==="출근"){ worked++; if(isHol) holCnt++; } else if(st==="반차"){ worked+=0.5; if(isHol) holCnt+=0.5; }
 /* 오후 반차는 일찍 퇴근하므로 마감으로 세지 않는다 */
@@ -1129,7 +1134,7 @@ const mark=st==="연차"?"연":st==="반차"?"반":st==="출근"?"○":st==="결
 const swp=swapCellInfo(rec); if(swp){ if(swp.cls==="swap-in") subCnt++; else if(swp.cls==="swap-out") outCnt++; }
 const closeCls = halfNoClose ? "" : (closeOv===true?" close close-forced":(closeOv===false?(scClose?" close-off":""):(scClose?" close":"")));
 const closeTitle = halfNoClose ? "" : (closeOv===true?"마감 지정 (근무변경)":(closeOv===false?"마감 해제 (근무변경)":(scClose?`마감조 (${sc.start}~${sc.end})`:"")));
-const __hw = (st==="반차" && sc && sc.start && sc.end) ? halfWindow(sc.start, sc.end) : null;
+const __hw = (st==="반차" && hs && hs.start && hs.end) ? halfWindow(hs.start, hs.end) : null;
 const halfTitle = st==="반차" ? `반차 — ${__hw?`${__hw.start}~${__hw.end} 근무`:"그 날 절반만 근무"} (0.5일)` : "";
 const cellTitle = [swp?swp.title:"", halfTitle, closeTitle].filter(Boolean).join(" · ");
 const swapBadge = swp ? `<i class="swap-badge">${swp.badge}</i>` : "";
