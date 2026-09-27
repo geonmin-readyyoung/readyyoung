@@ -612,15 +612,14 @@ function shiftChangeSummary(ym){
   const inM=d=>String(d||"").slice(0,7)===ym;
   const rows={};
   const row=id=>{ const e=DB.employees.find(x=>x.id===id); if(!e) return null;
-    if(!rows[id]) rows[id]={e, sub:0, 연차:0, 무급:0, 교대In:0, 교대Out:0, 변경:0};
+    if(!rows[id]) rows[id]={e, sub:0, 연차:0, 무급:0, 교대:0, 변경:0};
     return rows[id]; };
   (DB.shiftChanges||[]).filter(c=>c.status==="승인").forEach(c=>{
     if(c.type==="결근"){ if(inM(c.date)){ const r=row(c.employeeId); if(r) r.무급++; } return; }
 if(c.type==="변경"){ if(inM(c.date)){ const r=row(c.employeeId); if(r) r.변경++; } return; }
     if(c.type==="교대"){
-      // 맞교대 — 대체 근무가 아니라 서로 하루씩 맞바꾼 것. 이 달에 넘긴 날(Out)·대신 나온 날(In)만 센다
-      if(inM(c.date)){ const o=row(c.employeeId), sb=row(c.substituteId); if(o) o.교대Out++; if(sb) sb.교대In++; }
-      if(inM(c.swapDate)){ const o=row(c.substituteId), sb=row(c.employeeId); if(o) o.교대Out++; if(sb) sb.교대In++; }
+      // 맞교대 — 서로 하루씩 맞바꾼 것이라 근무일 증감 없음 (상대 날짜가 다른 달이어도). 건수만 센다
+      if(inM(c.date) || inM(c.swapDate)){ const a=row(c.employeeId), b=row(c.substituteId); if(a) a.교대++; if(b) b.교대++; }
       return;
     }
     if(inM(c.date)){
@@ -629,7 +628,7 @@ if(c.type==="변경"){ if(inM(c.date)){ const r=row(c.employeeId); if(r) r.변�
       if(sb) sb.sub++;
     }
   });
-  return Object.values(rows).filter(r=>r.sub||r.연차||r.무급||r.교대In||r.교대Out||r.변경)
+  return Object.values(rows).filter(r=>r.sub||r.연차||r.무급||r.교대||r.변경)
     .sort((a,b)=>(a.e.employeeNo||0)-(b.e.employeeNo||0));
 }
 function renderScSummary(){
@@ -641,15 +640,15 @@ function renderScSummary(){
       <thead><tr><th>이름</th><th class="num">대체 근무<div class="hint">남 대신 나옴</div></th>
       <th class="num">연차<div class="hint">유급</div></th><th class="num">무급<div class="hint">급여 차감</div></th>
       <th class="num">맞교대<div class="hint">상계</div></th><th class="num">시간변경</th><th class="num">근무일 증감</th></tr></thead>
-      <tbody>${list.map(r=>{ const net=r.sub-r.무급+r.교대In-r.교대Out;
-        const sw = !(r.교대In||r.교대Out) ? "—" : r.교대In===r.교대Out ? `${r.교대In}회` : `<span title="이 달에 대신 나온 날 ${r.교대In} · 넘긴 날 ${r.교대Out} — 나머지는 다른 달에 보충">+${r.교대In} / −${r.교대Out}</span>`;
+      <tbody>${list.map(r=>{ const net=r.sub-r.무급;
+        const sw = r.교대 ? `${r.교대}회` : "—";
         return `<tr><td><span class="name">${esc(r.e.name)}</span></td>
         <td class="num">${r.sub||"—"}</td><td class="num">${r.연차||"—"}</td>
         <td class="num">${r.무급?`<b style="color:var(--bad)">${r.무급}</b>`:"—"}</td>
         <td class="num">${sw}</td><td class="num">${r.변경||"—"}</td>
         <td class="num"><b style="color:${net>0?"#16A34A":net<0?"var(--bad)":"var(--muted)"}">${net>0?"+"+net:String(net)}</b></td></tr>`;}).join("")}</tbody>
     </table></div>
-    <div class="legend"><span><b>대체 근무</b> 남의 근무를 대신 나온 날 — 급여 지급 대상</span><span><b>무급</b> 근무를 넘기고 보충 없이 빠진 날 — 급여 차감</span><span><b>연차</b> 유급이라 급여는 그대로, 연차 잔여만 차감</span><span><b>맞교대</b> 다른 날 보충하므로 총 근무일수 변동 없음</span><span><b>근무일 증감</b> = 대체 근무 − 무급 (맞교대는 같은 달이면 0, 상대 날짜가 다른 달이면 +1/−1)</span></div>`
+    <div class="legend"><span><b>대체 근무</b> 남의 근무를 대신 나온 날 — 급여 지급 대상</span><span><b>무급</b> 근무를 넘기고 보충 없이 빠진 날 — 급여 차감</span><span><b>연차</b> 유급이라 급여는 그대로, 연차 잔여만 차감</span><span><b>맞교대</b> 다른 날 보충하므로 총 근무일수 변동 없음</span><span><b>근무일 증감</b> = 대체 근무 − 무급 (맞교대는 상대 날짜가 다른 달이어도 증감 없음)</span></div>`
     :`<div class="empty" style="padding:26px">${scMonth}에 승인된 근무변경이 없어요.</div>`}
   </div>`;
 }
