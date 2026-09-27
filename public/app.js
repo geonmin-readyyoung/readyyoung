@@ -525,7 +525,7 @@ function syncShiftChanges(){
   const from = DB.schedResync0901 ? todayStr() : "2026-09-01";
   const bk = DB.schedResync0901 ? null : {};
   syncScheduleAttendance(from, bk);
-  if(schedResyncReq){ syncScheduleAttendance(schedResyncReq.from, null, schedResyncReq.empId); schedResyncReq=null; }
+  if(schedResyncReq){ [].concat(schedResyncReq).forEach(q=>syncScheduleAttendance(q.from, null, q.empId)); schedResyncReq=null; }
   if(!DB.schedResync0901){ DB.schedResync0901=true; DB.schedResyncBackup0901=bk; scheduleResyncDirty=true; }
   (DB.shiftChanges||[]).filter(c=>c.status==="승인").forEach(c=>{
     if(c.type==="변경"){
@@ -1322,14 +1322,17 @@ function renderSchedule(){
   const head = `<tr><th class="emp">이름</th>${DOW_ORDER.map(d=>`<th class="${d===0?"we":""}">${DOW_LABELS[d]}</th>`).join("")}</tr>`;
   const body = emps.map(e=>{
     const cells = DOW_ORDER.map(d=>{
-      const s=getSchedule(e.id,d);
+      const cur=getSchedule(e.id,d), dr=draftEntry(e.id,d);
+      const s=dr||cur;
       const __typeId = s.on? shiftTypeOf(s):"off";
       const cls = "shift-"+__typeId+(s.on&&s.close?" closing":"");
       const bw = s.on&&s.biweek ? ` <b class="biweek-tag">격주 ${s.biweek}</b>` : "";
       const mark = s.on? `${s.start}~${s.end}${bw}${s.close?' <b class="close-tag">(마감)</b>':""}`:"휴무";
       const __c = (s.on && __typeId!=="custom") ? shiftColorFor(__typeId) : null;
       const __styleAttr = __c ? ` style="background:${__c.bg};color:${__c.fg}"` : "";
-      return `<td class="${cls}"><button class="cell"${__styleAttr} data-emp="${e.id}" data-dow="${d}">${mark}</button></td>`;
+      const drStyle = dr ? `box-shadow:inset 0 0 0 2px #F59E0B;` : "";
+      const st2 = __c||dr ? ` style="${__c?`background:${__c.bg};color:${__c.fg};`:""}${drStyle}"` : "";
+      return `<td class="${cls}"${dr?` title="고친 칸 — 지금: ${esc(schedLabel(cur))}"`:""}><button class="cell"${st2} data-emp="${e.id}" data-dow="${d}">${mark}${dr?`<div style="font-size:10px;color:#B45309;font-weight:700">고침 · 전 ${esc(schedLabel(cur))}</div>`:""}</button></td>`;
     }).join("");
     const nxt=(schedVersions(e.id)||[]).find(v=>v.from>vd);
     return `<tr><td class="emp">${esc(e.name)}${nxt?`<div class="hint">${fmtDate(nxt.from)}부터 변경</div>`:""}</td>${cells}</tr>`;
@@ -1344,11 +1347,14 @@ function renderSchedule(){
       <td class="num"><button class="btn sm" onclick="schedViewDate='${u.from}'; render(); wireSchedule();">그 날 기준 보기</button> <button class="btn sm ghost" onclick="cancelScheduleVersion(${u.e.id},'${u.from}')">취소</button></td></tr>`).join("")}
     </tbody></table></div></div>` : "";
   return `
-    ${headHTML("근무표","반복되는 주간 근무 스케줄 — 바꿀 때 적용 시작일을 정하면 그 날부터만 반영돼요.", `<label class="hint" style="display:flex;align-items:center;gap:6px">기준일 <input type="date" value="${vd}" onchange="schedViewDate=this.value||null; render(); wireSchedule();" style="padding:6px 9px;border:1px solid var(--border-strong);border-radius:8px"></label>${schedViewDate&&schedViewDate!==todayStr()?`<button class="btn sm" onclick="schedViewDate=null; render(); wireSchedule();">오늘</button>`:""}<button class="btn" onclick="openShiftTypeManager()">근무 타입 관리</button>`)}
+    ${headHTML("근무표","반복되는 주간 근무 스케줄 — 칸을 고친 뒤 [적용]에서 시작일을 정하면 그 날부터만 반영돼요.", `<label class="hint" style="display:flex;align-items:center;gap:6px">기준일 <input type="date" value="${vd}" onchange="schedViewDate=this.value||null; render(); wireSchedule();" style="padding:6px 9px;border:1px solid var(--border-strong);border-radius:8px"></label>${schedViewDate&&schedViewDate!==todayStr()?`<button class="btn sm" onclick="schedViewDate=null; render(); wireSchedule();">오늘</button>`:""}<button class="btn" onclick="openShiftTypeManager()">근무 타입 관리</button>`)}
+    ${draftCount()?`<div class="panel" style="margin-bottom:12px;padding:12px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid #F59E0B;background:rgba(245,158,11,.08)">
+      <b>고친 칸 ${draftCount()}개</b><span class="hint">아직 반영 전 — 적용 시작일을 정해야 출근부에 반영돼요</span>
+      <span style="flex:1"></span><button class="btn ghost" onclick="discardScheduleDraft()">모두 되돌리기</button><button class="btn primary" onclick="openApplyScheduleDraft()">적용…</button></div>`:""}
     <div class="panel"><div class="att-wrap">
     <table class="att"><thead>${head}</thead><tbody>${body}</tbody></table>
     </div>
-    <div class="legend"><span><b>${fmtDate(vd)}</b> 기준 근무표 · 셀을 클릭해 바꾸면 적용 시작일부터만 반영돼요</span><span><b class="biweek-tag">격주 A</b>/<b class="biweek-tag">격주 B</b> 는 2주에 한 번만 근무</span><span>이번 주는 <b>${biweekLabel(todayStr())}</b> · 다음 주는 <b>${biweekLabel(addDays(todayStr(),7))}</b></span></div>
+    <div class="legend"><span><b>${fmtDate(vd)}</b> 기준 근무표 · 칸을 여러 개 고친 뒤 <b>[적용]</b>에서 시작일을 한 번에 정하세요</span><span><b class="biweek-tag">격주 A</b>/<b class="biweek-tag">격주 B</b> 는 2주에 한 번만 근무</span><span>이번 주는 <b>${biweekLabel(todayStr())}</b> · 다음 주는 <b>${biweekLabel(addDays(todayStr(),7))}</b></span></div>
     </div>${upHTML}`;
 }
 function wireSchedule(){
@@ -1360,13 +1366,11 @@ function wireSchedule(){
   });
 }
 function openScheduleForm(empId, dow){
-const s=getSchedule(empId,dow);
-const defFrom = (schedViewDate && schedViewDate>todayStr()) ? schedViewDate : todayStr();
+const dr=draftEntry(empId,dow);
+const s=dr||getSchedule(empId,dow);
 const curType=!s.on?"off":shiftTypeOf(s);
 const body = `
-<div class="field" style="margin-bottom:12px"><label>적용 시작일 <span class="req">*</span></label>
-<input id="sf_from" type="date" value="${defFrom}">
-<div class="hint" style="margin-top:6px">이 날짜부터 ${DOW_LABELS[dow]}요일 근무가 바뀌어요. 그 이전 날짜의 근무·출근부는 그대로 남아요.</div></div>
+<div class="hint" style="margin-bottom:12px">${esc(empName(empId))} · 지금 근무: <b>${esc(schedLabel(getSchedule(empId,dow)))}</b>${dr?` → 고친 값 <b>${esc(schedLabel(dr))}</b>`:""}<br>저장하면 바로 반영되지 않고 <b>'고친 칸'</b>으로 표시돼요. 다 고친 뒤 위의 <b>[적용]</b>에서 시작일을 정하세요.</div>
 <div class="field" style="display:none"><label>근무 여부</label>
 <select id="sf_on"><option value="1" ${s.on?"selected":""}>근무</option><option value="0" ${!s.on?"selected":""}>휴무</option></select>
 </div>
@@ -1390,6 +1394,7 @@ ${getShiftTypes().map(t=>`<option value="${t.id}" ${curType===t.id?"selected":""
 </div>`;
 modal(`${DOW_LABELS[dow]}요일 근무 설정`, body, [
 `<button class="btn" onclick="closeModal()">취소</button>`,
+...(dr?[`<button class="btn ghost" onclick="discardScheduleDraft(${empId},${dow})">이 칸 되돌리기</button>`]:[]),
 `<button class="btn primary" onclick="saveScheduleEntry(${empId},${dow})">저장</button>`
 ]);
 }
@@ -1399,7 +1404,7 @@ const wrap=document.getElementById("sf_time_wrap");
 if(wrap) wrap.style.display = t==="custom" ? "" : "none"; const cwrap=document.getElementById("sf_close_wrap"); if(cwrap) cwrap.style.display = t==="off" ? "none" : ""; const rwrap=document.getElementById("sf_rep_wrap"); if(rwrap) rwrap.style.display = t==="off" ? "none" : "";
 }
 /* from 날짜부터 그 요일 근무를 entry로 — from 이전 날짜는 그대로 */
-function applyScheduleChange(empId, dow, entry, from){
+function applyScheduleChange(empId, dow, entry, from, noSync){
   const vs=ensureSchedVersions(empId);
   let i=-1; vs.forEach((v,k)=>{ if(v.from<=from) i=k; });
   if(i<0 || vs[i].from!==from){
@@ -1408,8 +1413,56 @@ function applyScheduleChange(empId, dow, entry, from){
   }
   vs.forEach(v=>{ if(v.from>=from) v.week[dow]={...entry}; });
   refreshCurrentWeekly(empId);
+  if(noSync) return;
   schedResyncReq={empId, from};
   syncAll();
+}
+/* ---- 근무표 임시 변경(초안): 칸을 여러 개 고친 뒤 [적용]에서 시작일을 한 번에 정한다 ---- */
+function schedDraft(){ DB.scheduleDraft = DB.scheduleDraft || {}; return DB.scheduleDraft; }
+function draftEntry(empId, dow){ const d=(DB.scheduleDraft||{})[empId]; return d && d[dow] ? d[dow] : null; }
+function draftCount(){ let n=0; Object.values(DB.scheduleDraft||{}).forEach(w=>n+=Object.keys(w).length); return n; }
+function sameEntry(a,b){ a=a||{}; b=b||{}; if(!a.on && !b.on) return true;
+  return !!a.on===!!b.on && a.start===b.start && a.end===b.end && !!a.close===!!b.close && (a.biweek||null)===(b.biweek||null); }
+function schedLabel(s){ return !s||!s.on ? "휴무" : `${s.start}~${s.end}${s.biweek?` 격주${s.biweek}`:""}${s.close?" 마감":""}`; }
+function discardScheduleDraft(empId, dow){
+  const d=schedDraft();
+  if(empId==null){ if(!confirm("근무표에서 고친 내용을 모두 되돌릴까요?")) return; DB.scheduleDraft={}; }
+  else { if(d[empId]){ delete d[empId][dow]; if(!Object.keys(d[empId]).length) delete d[empId]; } closeModal(); }
+  saveDB(); render(); wireSchedule();
+}
+function openApplyScheduleDraft(){
+  const d=schedDraft(); const rows=[];
+  Object.entries(d).forEach(([id,w])=>Object.entries(w).forEach(([dow,ent])=>rows.push({id:Number(id), dow:Number(dow), ent})));
+  if(!rows.length){ toast("고친 근무표가 없어요"); return; }
+  rows.sort((a,b)=>{ const ea=DB.employees.find(x=>x.id===a.id), eb=DB.employees.find(x=>x.id===b.id); return ((ea&&ea.employeeNo)||0)-((eb&&eb.employeeNo)||0) || DOW_ORDER.indexOf(a.dow)-DOW_ORDER.indexOf(b.dow); });
+  const vd=schedViewDate||todayStr();
+  const def = vd>todayStr() ? vd : todayStr();
+  modal("근무표 변경 적용", `
+    <div class="field"><label>적용 시작일 <span class="req">*</span></label>
+      <input id="sa_from" type="date" value="${def}">
+      <div class="hint" style="margin-top:6px">이 날짜부터 아래 ${rows.length}칸이 한꺼번에 바뀌어요. 그 이전 날짜의 근무·출근부는 그대로 남아요.</div></div>
+    <div class="att-wrap" style="margin-top:12px;max-height:320px;overflow:auto"><table><thead><tr><th>직원</th><th>요일</th><th>지금</th><th>변경</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(empName(r.id))}</td><td>${DOW_LABELS[r.dow]}</td><td class="hint">${esc(schedLabel(getSchedule(r.id,r.dow)))}</td><td><b>${esc(schedLabel(r.ent))}</b></td></tr>`).join("")}
+    </tbody></table></div>`, [
+    `<button class="btn" onclick="closeModal()">취소</button>`,
+    `<button class="btn primary" onclick="applyScheduleDraft()">적용</button>`,
+  ]);
+}
+function applyScheduleDraft(){
+  const from=val("sa_from");
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(from)){ toast("적용 시작일을 선택하세요"); return; }
+  const d=schedDraft(); const req=[];
+  Object.entries(d).forEach(([id,w])=>{
+    const empId=Number(id);
+    Object.entries(w).forEach(([dow,ent])=>applyScheduleChange(empId, Number(dow), ent, from, true));
+    req.push({empId, from});
+  });
+  DB.scheduleDraft={};
+  schedResyncReq=req;
+  syncAll(); saveDB(); closeModal();
+  schedViewDate = from>todayStr() ? from : null;
+  render(); wireSchedule();
+  toast(`${fmtDate(from)}부터 근무표를 적용했습니다`);
 }
 function refreshCurrentWeekly(empId){
   DB.weeklySchedule = DB.weeklySchedule || {};
@@ -1432,9 +1485,10 @@ if(__matchedType){ start=__matchedType.start; end=__matchedType.end; }
 else if(type==="custom"){ const st=val("sf_start"), en=val("sf_end"), tre=/^([01][0-9]|2[0-3]):[0-5][0-9]$/; start = tre.test(st)?st:"09:00"; end = tre.test(en)?en:"18:00"; } else { start="09:00"; end="18:00"; }
 const closeEl=document.getElementById("sf_close"); const close = on && closeEl ? closeEl.checked : false;
 const biweek = on ? (val("sf_biweek")||null) : null;
-const from = val("sf_from");
-if(!/^\d{4}-\d{2}-\d{2}$/.test(from)){ toast("적용 시작일을 선택하세요"); return; }
-applyScheduleChange(empId, dow, {on, start, end, close, biweek}, from);
+const entry={on, start, end, close, biweek};
+const d=schedDraft();
+if(sameEntry(entry, getSchedule(empId, dow))){ if(d[empId]){ delete d[empId][dow]; if(!Object.keys(d[empId]).length) delete d[empId]; } }
+else { d[empId]=d[empId]||{}; d[empId][dow]=entry; }
 saveDB();
 closeModal();
 render();
