@@ -33,18 +33,35 @@ app.get("/api/db", async (req, res) => {
   }
 });
 
+// 저장 충돌 방지: 클라이언트가 불러온 판(_rev)과 서버의 현재 판이 같을 때만 저장한다.
+// (다른 창·옛 화면이 먼저 저장된 최신 데이터를 덮어쓰지 못하게)
 app.put("/api/db", async (req, res) => {
+  const client = await pool.connect();
   try {
-    const data = req.body;
-    await pool.query(
+    const data = req.body || {};
+    await client.query("BEGIN");
+    const cur = await client.query("SELECT data FROM hr_store WHERE id = $1 FOR UPDATE", ["v1"]);
+    const curRev = cur.rows[0] && cur.rows[0].data ? Number(cur.rows[0].data._rev || 0) : 0;
+    const baseRev = Number(data._rev || 0);
+    if (cur.rows[0] && baseRev !== curRev) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ error: "conflict", rev: curRev });
+    }
+    const next = curRev + 1;
+    data._rev = next;
+    await client.query(
       `INSERT INTO hr_store (id, data, updated_at) VALUES ('v1', $1, now())
        ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = now()`,
       [data]
     );
-    res.json({ ok: true });
+    await client.query("COMMIT");
+    res.json({ ok: true, rev: next });
   } catch (e) {
+    try { await client.query("ROLLBACK"); } catch (_) {}
     console.error(e);
     res.status(500).json({ error: "save_failed" });
+  } finally {
+    client.release();
   }
 });
 
