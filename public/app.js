@@ -290,6 +290,7 @@ function openForm(id){
     </div>
   `, [
     isEdit?`<button class="btn danger" onclick="toggleRetire(${id})">${e.status==="퇴사"?"재직 처리":"퇴사 처리"}</button>`:"",
+    isEdit&&e.status==="퇴사"?`<button class="btn" onclick="openRetireForm(${id})">퇴사일 수정</button>`:"",
     `<div class="grow" style="flex:1"></div>`,
     `<button class="btn" onclick="closeModal()">취소</button>`,
     `<button class="btn primary" onclick="saveEmployee(${id||0})">${isEdit?"저장":"등록"}</button>`,
@@ -314,9 +315,30 @@ function saveEmployee(id){
 }
 function toggleRetire(id){
   const e=DB.employees.find(x=>x.id===id);
-  if(e.status==="재직"){ e.status="퇴사"; e.leaveDate=todayStr(); toast("퇴사 처리했습니다"); }
-  else { e.status="재직"; e.leaveDate=null; toast("재직 처리했습니다"); }
-  saveDB(); closeModal(); render();
+  if(e.status==="재직"){ openRetireForm(id); return; }
+  e.status="재직"; e.leaveDate=null; toast("재직 처리했습니다");
+  syncAll(); saveDB(); closeModal(); render();
+}
+/* 퇴사일(마지막 근무일)을 골라 퇴사 처리 / 이미 퇴사한 사람의 퇴사일 수정 */
+function openRetireForm(id){
+  const e=DB.employees.find(x=>x.id===id); if(!e) return;
+  const cur=(e.leaveDate||"").slice(0,10) || todayStr();
+  modal(`${esc(e.name)} — ${e.status==="퇴사"?"퇴사일 수정":"퇴사 처리"}`, `
+    <div class="field"><label>퇴사일 (마지막 근무일) <span class="req">*</span></label>
+      <input id="rt_date" type="date" value="${cur}">
+      <div class="hint" style="margin-top:6px">이 날짜까지 재직으로 계산돼요. 다음 날부터는 출근부·근무표·근무변경에서 빠지고, 그 이후로 남아 있던 근무표 기준 출근 기록은 지워져요. (연차·근무변경 기록은 그대로)</div></div>`, [
+    `<button class="btn" onclick="closeModal()">취소</button>`,
+    `<button class="btn primary" onclick="saveRetire(${id})">저장</button>`,
+  ]);
+}
+function saveRetire(id){
+  const e=DB.employees.find(x=>x.id===id); if(!e) return;
+  const d=val("rt_date");
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){ toast("퇴사일을 선택하세요"); return; }
+  if(e.joinDate && d<e.joinDate.slice(0,10)){ toast("퇴사일이 입사일보다 빠릅니다"); return; }
+  const was=e.status; e.status="퇴사"; e.leaveDate=d;
+  syncAll(); saveDB(); closeModal(); render();
+  toast(was==="퇴사" ? `퇴사일을 ${fmtDate(d)}로 바꿨습니다` : `${fmtDate(d)} 퇴사 처리했습니다`);
 }
 function deleteEmployee(id){
   if(!confirm("이 직원과 관련된 휴가·출근 기록이 모두 삭제됩니다. 계속할까요?")) return;
@@ -508,7 +530,16 @@ function syncLinkedLeaves(){
   });
 }
 /* 휴가 → 출근부 → 근무변경 순서로 한 번에 다시 계산 */
-function syncAll(){ syncLinkedLeaves(); syncLeaveAttendance(); syncShiftChanges(); }
+function syncAll(){ syncLinkedLeaves(); syncLeaveAttendance(); syncShiftChanges(); purgeAfterLeave(); }
+/* 퇴사일 다음 날부터 남아 있는 근무표 기준 출근/휴무 칸은 지운다 (연차·결근·근무변경 칸은 남김) */
+function purgeAfterLeave(){
+  const ld={}; DB.employees.forEach(e=>{ if(e.leaveDate) ld[e.id]=e.leaveDate.slice(0,10); });
+  for(const k in DB.attendance){
+    const r=DB.attendance[k]; if(!r || r.swap) continue;
+    const l=ld[r.employeeId];
+    if(l && r.date>l && (r.status==="출근"||r.status==="휴무")) delete DB.attendance[k];
+  }
+}
 
 /* 승인된 근무변경을 출근부에 투영한다. 이전 투영을 되돌린 뒤 다시 적용하므로 몇 번 호출해도 안전. */
 function syncShiftChanges(){
@@ -827,12 +858,18 @@ function scWorksOn(empId, day){
   }
   return !!scheduleOn(empId, day).on;
 }
-function scGroupEmps(){
+// day 기준 재직자 — 퇴사자도 그 날짜가 퇴사일 이전이면 포함 (지난 기록 정정용)
+function scEmployedOn(e, day){
+  if(day && (e.joinDate||"").slice(0,10) > day) return false;
+  if(e.status==="재직") return true;
+  return !!(e.leaveDate && day && day<=e.leaveDate.slice(0,10));
+}
+function scGroupEmps(day){
   const g=val("sc_group");
-  return DB.employees.filter(e=>e.status==="재직" && (!g || empGroup(e).key===g))
+  return DB.employees.filter(e=>scEmployedOn(e, day) && (!g || empGroup(e).key===g))
     .sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));
 }
-function scOpt(e, sel, note){ return `<option value="${e.id}" ${sel===e.id?"selected":""}>${esc(e.name)} (${esc(empGroup(e).key)})${note?" · "+esc(note):""}</option>`; }
+function scOpt(e, sel, note){ return `<option value="${e.id}" ${sel===e.id?"selected":""}>${esc(e.name)} (${esc(empGroup(e).key)})${e.status==="퇴사"?` · 퇴사 ${fmtDate(e.leaveDate)}`:""}${note?" · "+esc(note):""}</option>`; }
 // 원래 근무자 후보 — 근무표상 그 날 근무가 있거나 출근부상 출근인 사람 (연차·대체로 빠진 사람도 포함해 마감 등 남은 근무를 넘길 수 있게)
 function scHasShift(empId, day){
   if(!day) return false;
@@ -869,7 +906,7 @@ function scFillSelect(id, list, prev, emptyMsg){
 }
 function scFillEmpOptions(){
   const day=val("sc_date"), prev=Number(val("sc_emp"))||scKeep.eid;
-  const list=scGroupEmps().filter(e=>scHasShift(e.id, day) || e.id===scKeep.emp);
+  const list=scGroupEmps(day).filter(e=>scHasShift(e.id, day) || e.id===scKeep.emp);
   const el=document.getElementById("sc_emp");
   if(el){
     const cur = list.some(e=>e.id===prev) ? prev : (list[0]?list[0].id:null);
@@ -883,7 +920,7 @@ function scFillSubOptions(){
   const prev=Number(val("sc_sub"))||scKeep.sid;
   const el=document.getElementById("sc_sub"); if(!el) return;
   const h=document.getElementById("sc_sub_hint");
-  const base=scGroupEmps().filter(e=>e.id!==a);
+  const base=scGroupEmps(t==="교대" ? val("sc_swapdate") : val("sc_date")).filter(e=>e.id!==a);
   if(t==="교대"){
     const sd=val("sc_swapdate");
     const list=base.filter(e=>scWorksOn(e.id, sd) || e.id===scKeep.sub);
