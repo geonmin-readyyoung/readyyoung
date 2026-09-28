@@ -18,9 +18,10 @@ const PAY_TYPES = [
   {value:"HOURLY",label:"시급"},{value:"DAILY",label:"일급"},
 ];
 const PAY_LABEL = Object.fromEntries(PAY_TYPES.map(p=>[p.value,p.label]));
-const LEAVE_TYPES = ["연차","반차(오전)","반차(오후)","병가","기타"];
+/* 반차는 하나 — 몇 시에 근무하는지는 근무표의 근무 타입(반차 경계·반차 근무)이 정한다. 예전 기록의 반차(오전)/반차(오후)도 그대로 인식 */
+const LEAVE_TYPES = ["연차","반차","병가","기타"];
 const LEAVE_STATUSES = ["승인","대기","반려"];
-const DEDUCT_TYPES = ["연차","반차(오전)","반차(오후)"]; const LEAVE_ADJ_REASONS = ["근태불량","경조사","포상","오류정정","기타"];
+const DEDUCT_TYPES = ["연차","반차","반차(오전)","반차(오후)"]; function leaveTypeLabel(t){ return String(t||"").startsWith("반차") ? "반차" : (t||""); } const LEAVE_ADJ_REASONS = ["근태불량","경조사","포상","오류정정","기타"];
 
 /* ---- 상태 ---- */
 let DB = { employees:[], leaves:[], attendance:{}, weeklySchedule:{}, seq:1 };
@@ -419,7 +420,7 @@ function openCard(id){
       ${myLeaves.length?`<div class="panel"><table>
         <thead><tr><th>종류</th><th>기간</th><th class="num">일수</th><th>상태</th><th></th></tr></thead>
         <tbody>${myLeaves.map(l=>`<tr>
-          <td>${esc(l.leaveType)}</td>
+          <td>${esc(leaveTypeLabel(l.leaveType))}</td>
           <td>${fmtDate(l.startDate)}${l.endDate&&l.endDate!==l.startDate?` ~ ${fmtDate(l.endDate)}`:""}</td>
           <td class="num">${l.days}</td>
           <td>${leaveStatusTag(l.status)}</td>
@@ -448,7 +449,7 @@ function renderLeaves(){
     <div class="p-head"><h2>승인 대기 ${pending.length}건</h2></div>
     <table><thead><tr><th>직원</th><th>종류</th><th>기간</th><th class="num">일수</th><th></th></tr></thead>
     <tbody>${pending.map(l=>{const e=DB.employees.find(x=>x.id===l.employeeId)||{};return `<tr>
-      <td><span class="name">${esc(e.name||"?")}</span></td><td>${esc(l.leaveType)}</td>
+      <td><span class="name">${esc(e.name||"?")}</span></td><td>${esc(leaveTypeLabel(l.leaveType))}</td>
       <td>${fmtDate(l.startDate)}${l.endDate&&l.endDate!==l.startDate?` ~ ${fmtDate(l.endDate)}`:""}</td>
       <td class="num">${l.days}</td>
       <td class="num"><button class="btn sm primary" onclick="setLeaveStatus(${l.id},'승인')">승인</button>
@@ -456,7 +457,7 @@ function renderLeaves(){
     </tr>`;}).join("")}</tbody></table>
   </div>`:""}
   <div class="panel">
-    <div class="p-head"><h2>최근 휴가 내역</h2><button class="btn sm ghost" onclick="toggleLeaveViewAll()">${leaveViewAll?"최근 2개월만":"전체 보기"}</button></div>${recentLeaves.length?`<div class="att-wrap"><table><thead><tr><th>직원</th><th>종류</th><th>기간</th><th class="num">일수</th><th>상태</th><th></th></tr></thead><tbody>${recentLeaves.map(l=>{const e=DB.employees.find(x=>x.id===l.employeeId)||{};return `<tr><td><span class="name">${esc(e.name||"?")}</span></td><td>${esc(l.leaveType)}</td><td>${fmtDate(l.startDate)}${l.endDate&&l.endDate!==l.startDate?` ~ ${fmtDate(l.endDate)}`:""}</td><td class="num">${l.days}</td><td>${leaveStatusTag(l.status)} <select onchange="setLeaveStatus(${l.id}, this.value)">${LEAVE_STATUSES.map(s=>`<option ${l.status===s?"selected":""}>${s}</option>`).join("")}</select></td><td class="num"><button class="btn sm ghost" onclick="deleteLeave(${l.id},0)">삭제</button></td></tr>`;}).join("")}</tbody></table></div>`:`<div class="empty" style="padding:28px">최근 휴가 기록이 없어요.</div>`}</div><div class="panel"><div class="p-head"><h2>직원별 잔여 연차</h2><span class="hint">규칙: 1년 미만 매월 1일(최대 11) · 1년 이상 15일</span></div>
+    <div class="p-head"><h2>최근 휴가 내역</h2><button class="btn sm ghost" onclick="toggleLeaveViewAll()">${leaveViewAll?"최근 2개월만":"전체 보기"}</button></div>${recentLeaves.length?`<div class="att-wrap"><table><thead><tr><th>직원</th><th>종류</th><th>기간</th><th class="num">일수</th><th>상태</th><th></th></tr></thead><tbody>${recentLeaves.map(l=>{const e=DB.employees.find(x=>x.id===l.employeeId)||{};return `<tr><td><span class="name">${esc(e.name||"?")}</span></td><td>${esc(leaveTypeLabel(l.leaveType))}</td><td>${fmtDate(l.startDate)}${l.endDate&&l.endDate!==l.startDate?` ~ ${fmtDate(l.endDate)}`:""}</td><td class="num">${l.days}</td><td>${leaveStatusTag(l.status)} <select onchange="setLeaveStatus(${l.id}, this.value)">${LEAVE_STATUSES.map(s=>`<option ${l.status===s?"selected":""}>${s}</option>`).join("")}</select></td><td class="num"><button class="btn sm ghost" onclick="deleteLeave(${l.id},0)">삭제</button></td></tr>`;}).join("")}</tbody></table></div>`:`<div class="empty" style="padding:28px">최근 휴가 기록이 없어요.</div>`}</div><div class="panel"><div class="p-head"><h2>직원별 잔여 연차</h2><span class="hint">규칙: 1년 미만 매월 1일(최대 11) · 1년 이상 15일</span></div>
     <div class="att-wrap">${regs.length?`<table>
       <thead><tr><th>이름</th><th>입사일</th><th class="num">근속(개월)</th><th class="num">발생</th><th class="num">사용</th><th class="num">차감</th><th class="num">잔여</th><th></th></tr></thead>
       <tbody>${regs.map(({e,s})=>`<tr class="row-click" onclick="openCard(${e.id})">
@@ -482,7 +483,7 @@ function openLeaveForm(empId){
       <div class="field"><label>시작일 <span class="req">*</span></label><input id="l_start" type="date" value="${todayStr()}" onchange="autoDays()"></div>
       <div class="field"><label>종료일</label><input id="l_end" type="date" value="${todayStr()}" onchange="autoDays()"></div>
       <div class="field"><label>일수</label><input id="l_days" type="number" step="0.5" value="1"></div>
-      <div class="field"><label>&nbsp;</label><div class="hint" style="padding-top:9px" id="l_days_hint">반차는 0.5로 자동 설정돼요</div></div>
+      <div class="field"><label>&nbsp;</label><div class="hint" style="padding-top:9px" id="l_days_hint">반차는 0.5로 자동 설정 · 근무 구간은 근무표 기준</div></div>
       <div class="field full"><label>메모</label><input id="l_memo" placeholder="사유 등"></div>
     </div>
   `, [
@@ -493,9 +494,20 @@ function openLeaveForm(empId){
 function onLeaveType(){
   const t=val("l_type"); const d=document.getElementById("l_days");
   if(t.startsWith("반차")) d.value="0.5"; else autoDays();
+  leaveHalfHint();
+}
+/* 반차 선택 시 — 그 날 근무표 기준으로 실제 근무 구간 안내 */
+function leaveHalfHint(){
+  const h=document.getElementById("l_days_hint"); if(!h || !val("l_type").startsWith("반차")) return;
+  const emp=Number(val("l_emp")), day=val("l_start");
+  const sc=day?scheduleOn(emp, day):null;
+  if(!sc || !sc.on || !sc.start || !sc.end){ h.textContent="0.5일 · 이 날 근무표에 근무가 없어요"; return; }
+  const side=halfSideFor(sc.start, sc.end), w=halfWindow(sc.start, sc.end);
+  const t=getShiftTypes().find(x=>x.start===sc.start && x.end===sc.end);
+  h.innerHTML=`0.5일 · ${t?esc(t.name)+"조 ":""}${sc.start}~${sc.end} → <b>${w.start}~${w.end} 근무</b>${sc.close?(side==="전반"?" (마감 제외)":" (마감 포함)"):""}`;
 }
 function autoDays(){
-  const t=val("l_type"); if(t.startsWith("반차")){ document.getElementById("l_days").value="0.5"; return; }
+  const t=val("l_type"); if(t.startsWith("반차")){ document.getElementById("l_days").value="0.5"; leaveHalfHint(); return; }
   const a=val("l_start"), b=val("l_end")||a, emp=Number(val("l_emp"));
   if(!a || b<a) return;
   // 기간 안에서 그 직원의 근무표상 근무일만 센다 (휴무일은 연차 차감 안 함)
@@ -1153,8 +1165,8 @@ isLeave ? `<button class="btn primary" onclick="closeModal(); setView('leaves')"
 
 /* =========================== 출근부 =========================== */
 function attKey(empId, day){ return empId+"|"+day; }
-/* 반차(오전)/반차(오후) → "오전"/"오후", 그 외에는 null */
-function leaveHalfOf(t){ const s=String(t||""); return s.startsWith("반차") ? (s.includes("오전")?"오전":"오후") : null; }
+/* 반차(예전 기록 반차(오전)/반차(오후) 포함) → "반차", 그 외에는 null. 근무 구간은 근무표 타입이 정한다 */
+function leaveHalfOf(t){ return String(t||"").startsWith("반차") ? "반차" : null; }
 function fmtDays(n){ return Number.isInteger(n) ? String(n) : n.toFixed(1); }
 function syncLeaveAttendance(){
   for(const k in DB.attendance){ const st=DB.attendance[k].status; if(st==="연차"||st==="반차"||st==="휴가") delete DB.attendance[k]; }
@@ -1798,7 +1810,7 @@ function dayShifts(day){
     else if((st==="출근"||st==="반차") && rec && rec.start && rec.end){ start=rec.start; end=rec.end; }
     else if(st==="출근"||st==="반차"){ start="09:00"; end="18:00"; unknown=true; }   // 그 날 근무표 시간이 없음 — 자리만 표시
     if(!start||!end) return;
-    /* 반차 — 오전 반차면 후반만, 오후 반차면 전반만 근무 */
+    /* 반차 — 근무 타입의 반차 설정(전반/후반)대로 절반만 근무 */
     const half = st==="반차" ? (halfSideFor(start, end)) : null;
     if(half){
       const w=halfWindow(start, end);
@@ -2007,7 +2019,7 @@ function seedSample(){
   // 샘플 휴가 몇 건
   const chr=DB.employees.find(e=>e.name==="김지현");
   if(chr){ DB.leaves.push({id:nextId(),employeeId:chr.id,leaveType:"연차",days:2,startDate:"2026-05-04",endDate:"2026-05-05",status:"승인",memo:null});
-           DB.leaves.push({id:nextId(),employeeId:chr.id,leaveType:"반차(오후)",days:0.5,startDate:"2026-06-11",endDate:"2026-06-11",status:"대기",memo:"병원"}); }
+           DB.leaves.push({id:nextId(),employeeId:chr.id,leaveType:"반차",days:0.5,startDate:"2026-06-11",endDate:"2026-06-11",status:"대기",memo:"병원"}); }
   saveDB(); render(); toast("샘플 데이터를 채웠습니다");
 }
 
