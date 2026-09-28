@@ -731,8 +731,8 @@ function renderShiftChanges(){
   const list=[...(DB.shiftChanges||[])].filter(c=>scViewAll||(c.date||"")>=cut).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   // 누가 어느 날 대신 나오는지 한 줄에 하나씩 — 맞교대는 두 줄
   const legs=(c)=>{
-    const t=(c.start&&c.end?`${c.start}~${c.end}`:"근무표 기준")+(c.close?' <b class="close-tag">(마감)</b>':"");
-    const t2=(c.swapStart&&c.swapEnd?`${c.swapStart}~${c.swapEnd}`:"근무표 기준")+(c.swapClose?' <b class="close-tag">(마감)</b>':"");
+    const t=timeText(c.start,c.end,c.close,"근무표 기준")+closeSuffix(c.start,c.end,c.close,' <b class="close-tag">(마감)</b>');
+    const t2=timeText(c.swapStart,c.swapEnd,c.swapClose,"근무표 기준")+closeSuffix(c.swapStart,c.swapEnd,c.swapClose,' <b class="close-tag">(마감)</b>');
     if(c.type==="변경") return [{date:c.date, html:`<b>${esc(empName(c.employeeId))}</b> <span class="hint">시간변경</span>`, time:t}];
 if(c.type==="결근") return [{date:c.date, html:`<b>${esc(empName(c.employeeId))}</b> <span class="hint">결근</span>`, time:"—"}];
     const leg=(fromName,toName)=>`<span class="hint">${esc(fromName)}의 근무</span> <span class="hint">→</span> <b>${esc(toName)} 출근</b>`;
@@ -766,7 +766,7 @@ if(c.type==="결근") return [{date:c.date, html:`<b>${esc(empName(c.employeeId)
       <td><span class="tag t-gray">${SC_LABEL[c.type]||c.type}</span></td>
       <td>${c.type==="변경"?'<span class="hint">—</span>':absenceTag(absenceOf(c))}</td>
       <td>${(c.type==="변경"||c.type==="결근")?esc(empName(c.employeeId)):`${esc(empName(c.employeeId))} <span class="hint">→</span> <b>${esc(empName(c.substituteId))}</b>`}</td>
-      <td>${c.start&&c.end?`${c.start}~${c.end}`:"근무표 기준"}${c.close?' <b class="close-tag">(마감)</b>':""}${c.type==="교대"?`<div class="hint">↔ ${c.swapStart&&c.swapEnd?`${c.swapStart}~${c.swapEnd}`:"근무표 기준"}${c.swapClose?" (마감)":""}</div>`:""}</td>
+      <td>${timeText(c.start,c.end,c.close,"근무표 기준")}${closeSuffix(c.start,c.end,c.close,' <b class="close-tag">(마감)</b>')}${c.type==="교대"?`<div class="hint">↔ ${timeText(c.swapStart,c.swapEnd,c.swapClose,"근무표 기준")}${closeSuffix(c.swapStart,c.swapEnd,c.swapClose," (마감)")}</div>`:""}</td>
       <td class="hint">${esc(c.reason||"")}</td>
       <td class="num"><button class="btn sm primary" onclick="setShiftChangeStatus(${c.id},'승인')">승인</button>
         <button class="btn sm" onclick="openShiftChangeForm({id:${c.id}})">수정</button>
@@ -813,7 +813,8 @@ function openShiftChangeForm(prefill){
         <div class="field"><label>시작 시간</label><input id="sc_start" type="time" onchange="scPreview()"></div>
         <div class="field"><label>종료 시간</label><input id="sc_end" type="time" onchange="scPreview()"></div>
         <div class="field full" id="sc_close_wrap"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-          <input id="sc_close" type="checkbox" style="width:16px;height:16px" onchange="scPreview()"> 마감 근무 — 출근부에 (마감)으로 집계</label></div>
+          <input id="sc_close" type="checkbox" style="width:16px;height:16px" onchange="scPreview()"> 마감 근무 — 출근부에 (마감)으로 집계</label>
+          <button type="button" class="btn sm" style="margin-top:6px;width:auto;display:inline-flex" onclick="scSetCloseOnly('sc_start','sc_end','sc_close')">마감만 (23:00~익일 00:30)</button></div>
         <div class="hint" id="sc_hint" style="grid-column:1/-1"></div>
       </div>
 
@@ -827,7 +828,8 @@ function openShiftChangeForm(prefill){
         <div class="field sc-swap-only"><label>시작 시간</label><input id="sc_swapstart" type="time" onchange="scPreview()"></div>
         <div class="field sc-swap-only"><label>종료 시간</label><input id="sc_swapend" type="time" onchange="scPreview()"></div>
         <div class="field full sc-swap-only"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-          <input id="sc_swapclose" type="checkbox" style="width:16px;height:16px" onchange="scPreview()"> 마감 근무 — 출근부에 (마감)으로 집계</label></div>
+          <input id="sc_swapclose" type="checkbox" style="width:16px;height:16px" onchange="scPreview()"> 마감 근무 — 출근부에 (마감)으로 집계</label>
+          <button type="button" class="btn sm" style="margin-top:6px;width:auto;display:inline-flex" onclick="scSetCloseOnly('sc_swapstart','sc_swapend','sc_swapclose')">마감만 (23:00~익일 00:30)</button></div>
         <div class="hint" id="sc_swaphint" style="grid-column:1/-1"></div>
       </div>
 
@@ -924,7 +926,7 @@ function scCoverText(c, empId){
   const back = c.type==="교대" && c.substituteId===empId;
   const who = empName(back ? c.employeeId : c.substituteId);
   const st = back ? c.swapStart : c.start, en = back ? c.swapEnd : c.end, cl = back ? c.swapClose : c.close;
-  return `${who} 대체${st&&en?` ${st}~${en}`:""}${cl?" (마감 포함)":""}${c.status==="대기"?" · 승인대기":""}`;
+  return `${who} 대체${st&&en?` ${timeText(st,en,cl)}`:""}${closeSuffix(st,en,cl," (마감 포함)")}${c.status==="대기"?" · 승인대기":""}`;
 }
 function scEmpNote(empId, day){
   const rec=DB.attendance[attKey(empId, day)];
@@ -996,7 +998,7 @@ function scSwapHint(){
   if(val("sc_type")!=="교대" || !sd){ h.textContent=""; return; }
   const s=scheduleOn(b, sd);
   h.textContent = s.on
-    ? `근무표 기준: ${empName(b)}님은 이 날 ${s.start}~${s.end}${s.close?" (마감)":""} 근무 예정입니다. 필요하면 시간을 고쳐주세요.`
+    ? `근무표 기준: ${empName(b)}님은 이 날 ${timeText(s.start,s.end,s.close)}${closeSuffix(s.start,s.end,s.close," (마감)")} 근무 예정입니다. 필요하면 시간을 고쳐주세요.`
     : `근무표 기준: ${empName(b)}님은 이 날 휴무입니다. 시간을 직접 입력해 주세요.`;
 }
 function onScAbsenceHintOnly(){
@@ -1027,7 +1029,7 @@ function onScFillTime(){
   const h=document.getElementById("sc_hint");
   const cov=scCovers(empId, day);
   if(h) h.textContent = (s.on
-    ? `근무표 기준: ${empName(empId)}님은 이 날 ${s.start}~${s.end}${s.close?" (마감)":""} 근무 예정입니다. 필요하면 시간을 고쳐주세요.`
+    ? `근무표 기준: ${empName(empId)}님은 이 날 ${timeText(s.start,s.end,s.close)}${closeSuffix(s.start,s.end,s.close," (마감)")} 근무 예정입니다. 필요하면 시간을 고쳐주세요.`
     : `근무표 기준: ${empName(empId)}님은 이 날 휴무입니다. 시간을 직접 입력해 주세요.`)
     + (cov.length ? ` 이미 등록된 건: ${cov.map(c=>scCoverText(c, empId)).join(", ")}. 마감만 따로 넘기려면 시간을 마감 구간으로 고치고 '마감 근무'를 체크하세요.` : "");
   scPreview();
@@ -1038,9 +1040,9 @@ function scPreview(){
   const t=val("sc_type"), date=val("sc_date"), a=Number(val("sc_emp")), b=Number(val("sc_sub"));
   const sd=val("sc_swapdate"), st=val("sc_start"), en=val("sc_end");
   const cl=document.getElementById("sc_close"), scl=document.getElementById("sc_swapclose");
-  const time = (st&&en ? `${st}~${en}` : "근무표 기준") + (cl&&cl.checked?" · 마감":"");
+  const time = timeText(st,en,cl&&cl.checked,"근무표 기준") + closeSuffix(st,en,cl&&cl.checked," · 마감");
   const s2s=val("sc_swapstart"), s2e=val("sc_swapend");
-  const time2 = (s2s&&s2e ? `${s2s}~${s2e}` : "근무표 기준") + (scl&&scl.checked?" · 마감":"");
+  const time2 = timeText(s2s,s2e,scl&&scl.checked,"근무표 기준") + closeSuffix(s2s,s2e,scl&&scl.checked," · 마감");
   const L=(d,who,other,tm,ab)=>`<div>· <b>${esc(fmtDate(d))}</b> — ${esc(who)} <span style="opacity:.7">${ab||"휴무"}</span> / <b>${esc(other)} 출근</b> <span style="opacity:.7">(${tm})</span></div>`;
   let html="", pay="";
   if(t==="변경"){
@@ -1074,7 +1076,8 @@ function saveShiftChange(editId){
   if(type==="교대" && !swapDate){ toast("맞교대 상대 날짜를 입력하세요"); return; }
   if(type==="교대" && swapDate===date){ toast("맞교대는 서로 다른 날짜여야 합니다"); return; }
   const tre=/^([01][0-9]|2[0-3]):[0-5][0-9]$/;
-  if(type==="교대" && val("sc_swapstart") && val("sc_swapend") && val("sc_swapstart")===val("sc_swapend")){ toast("대체 근무자 시작·종료 시간을 확인하세요"); return; }
+  if(type==="교대" && val("sc_swapstart") && val("sc_swapend") && val("sc_swapstart")===val("sc_swapend") && !(document.getElementById("sc_swapclose")||{}).checked){ toast("대체 근무자 시작·종료 시간이 같아요 — 마감만이면 '마감만' 버튼을 누르세요"); return; }
+  if(type!=="결근" && val("sc_start") && val("sc_start")===val("sc_end") && !(document.getElementById("sc_close")||{}).checked){ toast("시작·종료 시간이 같아요 — 마감만이면 '마감만' 버튼을 누르세요"); return; }
   const st=val("sc_start"), en=val("sc_end");
   const closeEl=document.getElementById("sc_close");
   const fields={
@@ -1123,7 +1126,7 @@ const info=swapCellInfo(rec);
 modal("근무변경 상세", `<div class="hint" style="line-height:1.9">
 <div><b>${SC_LABEL[c.type]||c.type}</b> · ${fmtDate(c.date)}${c.swapDate?` ↔ ${fmtDate(c.swapDate)}`:""}</div>
 <div>${esc(empName(c.employeeId))}${c.substituteId?` → ${esc(empName(c.substituteId))}`:""}</div>
-<div>${c.start&&c.end?`${c.start}~${c.end}`:"근무표 기준"}${c.close?" (마감)":""}${c.type==="교대"?` ↔ ${c.swapStart&&c.swapEnd?`${c.swapStart}~${c.swapEnd}`:"근무표 기준"}${c.swapClose?" (마감)":""}`:""} · ${c.status}</div>
+<div>${timeText(c.start,c.end,c.close,"근무표 기준")}${closeSuffix(c.start,c.end,c.close," (마감)")}${c.type==="교대"?` ↔ ${timeText(c.swapStart,c.swapEnd,c.swapClose,"근무표 기준")}${closeSuffix(c.swapStart,c.swapEnd,c.swapClose," (마감)")}`:""} · ${c.status}</div>
 <div>이 칸: ${esc(info?info.title:"")}</div>
 ${c.reason?`<div>사유: ${esc(c.reason)}</div>`:""}${c.memo?`<div>메모: ${esc(c.memo)}</div>`:""}
 <div style="margin-top:8px">출근부에서는 수정할 수 없어요. 수정·삭제는 <b>근무변경</b> 메뉴에서 해주세요.</div>
@@ -1407,7 +1410,7 @@ function renderSchedule(){
       const __typeId = s.on? shiftTypeOf(s):"off";
       const cls = "shift-"+__typeId+(s.on&&s.close?" closing":"");
       const bw = s.on&&s.biweek ? ` <b class="biweek-tag">격주 ${s.biweek}</b>` : "";
-      const mark = s.on? `${s.start}~${s.end}${bw}${s.close?' <b class="close-tag">(마감)</b>':""}`:"휴무";
+      const mark = !s.on ? "휴무" : isCloseOnly(s.start,s.end,s.close) ? `<b class="close-tag">마감만</b> ${CLOSE_FROM}~${CLOSE_TO}${bw}` : `${s.start}~${s.end}${bw}${s.close?' <b class="close-tag">(마감)</b>':""}`;
       const __c = (s.on && __typeId!=="custom") ? shiftColorFor(__typeId) : null;
       const __styleAttr = __c ? ` style="background:${__c.bg};color:${__c.fg}"` : "";
       const drStyle = dr ? `box-shadow:inset 0 0 0 2px #F59E0B;` : "";
@@ -1448,7 +1451,7 @@ function wireSchedule(){
 function openScheduleForm(empId, dow){
 const dr=draftEntry(empId,dow);
 const s=dr||getSchedule(empId,dow);
-const curType=!s.on?"off":shiftTypeOf(s);
+const curType=!s.on?"off":(isCloseOnly(s.start,s.end,s.close)?"closeonly":shiftTypeOf(s));
 const body = `
 <div class="hint" style="margin-bottom:12px">${esc(empName(empId))} · 지금 근무: <b>${esc(schedLabel(getSchedule(empId,dow)))}</b>${dr?` → 고친 값 <b>${esc(schedLabel(dr))}</b>`:""}<br>저장하면 바로 반영되지 않고 <b>'고친 칸'</b>으로 표시돼요. 다 고친 뒤 위의 <b>[적용]</b>에서 시작일을 정하세요.</div>
 <div class="field" style="display:none"><label>근무 여부</label>
@@ -1457,6 +1460,7 @@ const body = `
 <div class="field"><label>근무 타입</label>
 <select id="sf_type" onchange="onShiftTypeChange()"><option value="off" ${curType==="off"?"selected":""}>휴무</option>
 ${getShiftTypes().map(t=>`<option value="${t.id}" ${curType===t.id?"selected":""}>${esc(t.name)} (${t.start}~${t.end})</option>`).join("")}
+<option value="closeonly" ${curType==="closeonly"?"selected":""}>마감만 (23:00~익일 00:30)</option>
 <option value="custom" ${curType==="custom"?"selected":""}>직접입력</option>
 </select>
 </div>
@@ -1468,7 +1472,7 @@ ${getShiftTypes().map(t=>`<option value="${t.id}" ${curType===t.id?"selected":""
 </select>
 <div class="hint" style="margin-top:6px">이번 주 <b>${biweekLabel(todayStr())}</b> · 다음 주 <b>${biweekLabel(addDays(todayStr(),7))}</b> · 그 다음 주 <b>${biweekLabel(addDays(todayStr(),14))}</b></div>
 </div>
-<div class="field" id="sf_close_wrap" style="${curType==="off"?"display:none":""}"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input id="sf_close" type="checkbox" style="width:16px;height:16px" ${s.close?"checked":""}> 마감조 (23:00 이후 마감 근무) — 출근부에 (마감) 표시</label></div><div class="grid2" id="sf_time_wrap" style="${curType==="custom"?"":"display:none"}">
+<div class="field" id="sf_close_wrap" style="${curType==="off"||curType==="closeonly"?"display:none":""}"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input id="sf_close" type="checkbox" style="width:16px;height:16px" ${s.close?"checked":""}> 마감조 (23:00 이후 마감 근무) — 출근부에 (마감) 표시</label></div><div class="grid2" id="sf_time_wrap" style="${curType==="custom"?"":"display:none"}">
 <div class="field"><label>시작 시간</label><input id="sf_start" type="time" value="${s.start||"09:00"}"></div>
 <div class="field"><label>종료 시간</label><input id="sf_end" type="time" value="${s.end||"18:00"}"></div>
 </div>`;
@@ -1481,7 +1485,7 @@ modal(`${DOW_LABELS[dow]}요일 근무 설정`, body, [
 function onShiftTypeChange(){
 const t=val("sf_type");
 const wrap=document.getElementById("sf_time_wrap");
-if(wrap) wrap.style.display = t==="custom" ? "" : "none"; const cwrap=document.getElementById("sf_close_wrap"); if(cwrap) cwrap.style.display = t==="off" ? "none" : ""; const rwrap=document.getElementById("sf_rep_wrap"); if(rwrap) rwrap.style.display = t==="off" ? "none" : "";
+if(wrap) wrap.style.display = t==="custom" ? "" : "none"; const cwrap=document.getElementById("sf_close_wrap"); if(cwrap) cwrap.style.display = t==="off"||t==="closeonly" ? "none" : ""; const rwrap=document.getElementById("sf_rep_wrap"); if(rwrap) rwrap.style.display = t==="off" ? "none" : "";
 }
 /* from 날짜부터 그 요일 근무를 entry로 — from 이전 날짜는 그대로 */
 /* 그 날짜에 버전 경계가 없으면 그 시점 근무표를 복사해 경계를 만든다 */
@@ -1509,7 +1513,7 @@ function draftEntry(empId, dow){ const d=(DB.scheduleDraft||{})[empId]; return d
 function draftCount(){ let n=0; Object.values(DB.scheduleDraft||{}).forEach(w=>n+=Object.keys(w).length); return n; }
 function sameEntry(a,b){ a=a||{}; b=b||{}; if(!a.on && !b.on) return true;
   return !!a.on===!!b.on && a.start===b.start && a.end===b.end && !!a.close===!!b.close && (a.biweek||null)===(b.biweek||null); }
-function schedLabel(s){ return !s||!s.on ? "휴무" : `${s.start}~${s.end}${s.biweek?` 격주${s.biweek}`:""}${s.close?" 마감":""}`; }
+function schedLabel(s){ return !s||!s.on ? "휴무" : isCloseOnly(s.start,s.end,s.close) ? `마감만 ${CLOSE_FROM}~${CLOSE_TO}${s.biweek?` 격주${s.biweek}`:""}` : `${s.start}~${s.end}${s.biweek?` 격주${s.biweek}`:""}${s.close?" 마감":""}`; }
 function discardScheduleDraft(empId, dow){
   const d=schedDraft();
   if(empId==null){ if(!confirm("근무표에서 고친 내용을 모두 되돌릴까요?")) return; DB.scheduleDraft={}; }
@@ -1565,14 +1569,22 @@ function cancelScheduleVersion(empId, from){
   schedResyncReq={empId, from};
   syncAll(); saveDB(); render(); wireSchedule(); toast("근무표 변경을 취소했습니다");
 }
+/* 근무변경 — "마감만" 버튼: 시작=종료=23:00 + 마감 체크 */
+function scSetCloseOnly(stId, enId, clId){
+  const st=document.getElementById(stId), en=document.getElementById(enId), cl=document.getElementById(clId);
+  if(st) st.value=CLOSE_FROM; if(en) en.value=CLOSE_FROM; if(cl) cl.checked=true;
+  scPreview();
+}
 function saveScheduleEntry(empId, dow){
 const type=val("sf_type"); const on=type!=="off";
 
 let start, end;
 const __matchedType=getShiftTypes().find(t=>t.id===type);
 if(__matchedType){ start=__matchedType.start; end=__matchedType.end; }
-else if(type==="custom"){ const st=val("sf_start"), en=val("sf_end"), tre=/^([01][0-9]|2[0-3]):[0-5][0-9]$/; start = tre.test(st)?st:"09:00"; end = tre.test(en)?en:"18:00"; } else { start="09:00"; end="18:00"; }
-const closeEl=document.getElementById("sf_close"); const close = on && closeEl ? closeEl.checked : false;
+else if(type==="closeonly"){ start=CLOSE_FROM; end=CLOSE_FROM; }
+else if(type==="custom"){ const st=val("sf_start"), en=val("sf_end"), tre=/^([01][0-9]|2[0-3]):[0-5][0-9]$/; start = tre.test(st)?st:"09:00"; end = tre.test(en)?en:"18:00";
+  if(start===end && !(document.getElementById("sf_close")||{}).checked){ toast("시작·종료 시간이 같아요 — 마감만이면 근무 타입에서 '마감만'을 고르세요"); return; } } else { start="09:00"; end="18:00"; }
+const closeEl=document.getElementById("sf_close"); const close = on && (type==="closeonly" || (closeEl ? closeEl.checked : false));
 const biweek = on ? (val("sf_biweek")||null) : null;
 const entry={on, start, end, close, biweek};
 const d=schedDraft();
@@ -1725,10 +1737,14 @@ function shiftSpan(s){
   if(b<=a) b=a+30;
   return {a,b,closeOnly,cf};
 }
+/* "마감만" 근무 = 시작=종료 + 마감 (예: 23:00~23:00 + 마감) */
+function isCloseOnly(st,en,cl){ return !!cl && !!st && st===en; }
+function timeText(st,en,cl,none){ if(isCloseOnly(st,en,cl)) return `마감만 ${CLOSE_FROM}~${CLOSE_TO}`; return st&&en?`${st}~${en}`:(none||""); }
+function closeSuffix(st,en,cl,txt){ return cl&&!isCloseOnly(st,en,cl)?txt:""; }
 function shiftTimeText(s){
   if(s.unknown) return "시간 미등록";
   const sp=shiftSpan(s);
-  if(sp&&sp.closeOnly) return `마감 ${CLOSE_FROM}~${CLOSE_TO}`;
+  if(sp&&sp.closeOnly) return `마감만 ${CLOSE_FROM}~${CLOSE_TO}`;
   return `${s.start}~${s.end}`;
 }
 function shiftCloseHTML(s){
