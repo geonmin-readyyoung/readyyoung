@@ -186,27 +186,27 @@ function renderDailySchedulePanel(){
 
   // 시간 범위 (기본 10:00~23:00, 실제 근무에 맞춰 확장)
   let lo=10*60, hi=23*60;
-  list.forEach(s=>{ const a=toMin(s.start); let b=toMin(s.end); if(a==null||b==null) return; if(b<=a) b+=24*60; lo=Math.min(lo,a); hi=Math.max(hi,b); });
+  list.forEach(s=>{ const sp=shiftSpan(s); if(!sp) return; lo=Math.min(lo,sp.a); hi=Math.max(hi,sp.b); });
   lo=Math.floor(lo/60)*60; hi=Math.ceil(hi/60)*60;
   const SLOT=30, rows=Math.max(1,(hi-lo)/SLOT);
   const hours=[]; for(let m=lo;m<=hi;m+=60) hours.push(m);
   const lanes=Math.max(1,list.length);
 
   const blocks=list.map((s,li)=>{
-    const a=toMin(s.start); let b=toMin(s.end); if(b<=a) b+=24*60;
+    const sp=shiftSpan(s)||{a:lo,b:lo+30}; const a=sp.a, b=sp.b;
     const r1=Math.round((a-lo)/SLOT)+1, r2=Math.round((b-lo)/SLOT)+1;
     const [bg,fg]=empColor(s.e);
     const tag = s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":"") : (s.half?"반":"");
-    const title=`${s.e.name} ${s.start}~${s.end}${s.close?" (마감)":""}${s.swap?" · "+(s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.half?" · 반차":""}${s.planned?" · 근무표 기준 예정":""}${s.unknown?" · 그 날 근무표에 시간이 없어 자리만 표시":""}`;
+    const title=`${s.e.name} ${shiftTimeText(s)}${s.close&&!(shiftSpan(s)||{}).closeOnly?` + 마감 ~익일 ${CLOSE_TO}`:""}${s.swap?" · "+(s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.half?" · 반차":""}${s.planned?" · 근무표 기준 예정":""}${s.unknown?" · 그 날 근무표에 시간이 없어 자리만 표시":""}`;
     return `<div class="wk-b${s.planned?" planned":""}" style="grid-row:${r1}/${r2};grid-column:${li+1};background:${bg};color:${fg}" title="${esc(title)}" data-emp="${s.e.id}"${s.swap?` data-swapid="${s.swap.id}"`:""}>
       <b>${esc(s.e.name)}</b>${tag?`<i class="wk-tag">${tag}</i>`:""}
-      <span>${s.unknown?"시간 미등록":`${s.start}~${s.end}`}</span>${s.close?'<span class="wk-close">마감</span>':""}
+      <span>${shiftTimeText(s)}</span>${shiftCloseHTML(s)}${shiftCloseZone(s)}
     </div>`;
   }).join("");
   const grid = list.length ? `<div class="att-wrap"><div class="wk dwk" style="--wk-rh:17px; min-width:${58+lanes*70}px">
       <div class="wk-brow" style="grid-template-columns:58px 1fr">
         <div class="wk-times" style="grid-template-rows:repeat(${rows},var(--wk-rh))">
-          ${hours.map(m=>{const r=Math.round((m-lo)/SLOT)+1; return `<div class="wk-t" style="grid-row:${r}${r<=rows?"/span 2":""}">${m>=24*60?"24:00":fromMin(m)}</div>`;}).join("")}
+          ${hours.map(m=>{const r=Math.round((m-lo)/SLOT)+1; return `<div class="wk-t" style="grid-row:${r}${r<=rows?"/span 2":""}">${hourLabel(m)}</div>`;}).join("")}
         </div>
         <div class="wk-col"><div class="wk-grid" style="grid-template-rows:repeat(${rows},var(--wk-rh));grid-template-columns:repeat(${lanes},minmax(62px,1fr))">
           ${Array.from({length:rows},(_,r)=>`<div class="wk-line" style="grid-row:${r+1};grid-column:1/-1${(lo+r*SLOT)%60===0?"":";border-top-style:dotted"}"></div>`).join("")}
@@ -1711,6 +1711,39 @@ function dateOf(s){ const p=String(s||"").split("-").map(Number); return new Dat
 function addDays(s,n){ const d=dateOf(s); d.setDate(d.getDate()+n); return ymdLocal(d); }
 function mondayStr(s){ const d=dateOf(s); d.setDate(d.getDate()-((d.getDay()+6)%7)); return ymdLocal(d); }
 function toMin(t){ const m=/^(\d{1,2}):(\d{2})$/.exec(t||""); return m?(+m[1])*60+(+m[2]):null; }
+/* ---- 마감 구간 ----
+   마감 체크된 근무는 표기 시간(예: 13:00~23:00) 뒤로 마감(23:00~익일 00:30)까지 이어서 그린다.
+   시작=종료(예: 23:00~23:00) + 마감 = "마감만" 근무 → 23:00~00:30 한 구간 (24시간으로 보지 않음) */
+const CLOSE_FROM="23:00", CLOSE_TO="00:30";
+function shiftSpan(s){
+  const a=toMin(s.start); let b=toMin(s.end);
+  if(a==null||b==null) return null;
+  const closeOnly=!!s.close && a===b;
+  if(closeOnly) b=a; else if(b<=a) b+=24*60;
+  let cf=null;
+  if(s.close){ cf=toMin(CLOSE_FROM); let ce=toMin(CLOSE_TO); if(ce<=cf) ce+=24*60; if(cf<a) cf=a; b=Math.max(b,ce); }
+  if(b<=a) b=a+30;
+  return {a,b,closeOnly,cf};
+}
+function shiftTimeText(s){
+  if(s.unknown) return "시간 미등록";
+  const sp=shiftSpan(s);
+  if(sp&&sp.closeOnly) return `마감 ${CLOSE_FROM}~${CLOSE_TO}`;
+  return `${s.start}~${s.end}`;
+}
+function shiftCloseHTML(s){
+  if(!s.close) return "";
+  const sp=shiftSpan(s);
+  return sp&&sp.closeOnly ? "" : `<span class="wk-close">마감 ~${CLOSE_TO}</span>`;
+}
+/* 블록 안에서 마감 구간(23:00 이후)을 빗금으로 구분 */
+function shiftCloseZone(s){
+  const sp=shiftSpan(s); if(!sp||!s.close||sp.cf==null) return "";
+  if(sp.closeOnly) return `<i class="wk-cz" style="height:100%;border-top:0"></i>`;
+  const pct=Math.max(0,Math.min(100,(sp.b-sp.cf)/(sp.b-sp.a)*100));
+  return pct>0?`<i class="wk-cz" style="height:${pct.toFixed(1)}%"></i>`:"";
+}
+function hourLabel(m){ return m>=24*60 ? "익일 "+fromMin(m) : fromMin(m); }
 function fromMin(v){ return String(Math.floor(v/60)%24).padStart(2,"0")+":"+String(v%60).padStart(2,"0"); }
 function setAttMode(m){ attMode=m; render(); if(attMode==="month") wireAttendance(); else wireWeek(); }
 function shiftWeek(n){ weekStart=addDays(weekStart, n*7); render(); wireWeek(); }
@@ -1781,10 +1814,8 @@ function renderAttendanceWeek(){
   // 표시할 시간 범위를 실제 근무에서 계산 (기본 10:00~23:00)
   let lo=10*60, hi=23*60;
   shifts.flat().forEach(s=>{
-    const a=toMin(s.start); let b=toMin(s.end);
-    if(a==null||b==null) return;
-    if(b<=a) b+=24*60;
-    lo=Math.min(lo,a); hi=Math.max(hi,b);
+    const sp=shiftSpan(s); if(!sp) return;
+    lo=Math.min(lo,sp.a); hi=Math.max(hi,sp.b);
   });
   lo=Math.floor(lo/60)*60; hi=Math.ceil(hi/60)*60;
   const SLOT=30, rows=Math.max(1,(hi-lo)/SLOT);
@@ -1804,14 +1835,14 @@ function renderAttendanceWeek(){
     const list=shifts[i];
     const lanes=laneCount[i];
     const blocks=list.map((s,li)=>{
-      const a=toMin(s.start); let b=toMin(s.end); if(b<=a) b+=24*60;
+      const sp=shiftSpan(s)||{a:lo,b:lo+30}; const a=sp.a, b=sp.b;
       const r1=Math.round((a-lo)/SLOT)+1, r2=Math.round((b-lo)/SLOT)+1;
       const [bg,fg]=empColor(s.e);
       const tag = s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":"") : (s.half?"반":"");
-      const title=`${s.e.name} ${s.start}~${s.end}${s.close?" (마감)":""}${s.swap?" · "+ (s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.half?" · 반차":""}${s.planned?" · 근무표 기준 예정":""}${s.unknown?" · 그 날 근무표에 시간이 없어 자리만 표시 (근무표 기간 적용으로 시간을 넣어 주세요)":""}`;
+      const title=`${s.e.name} ${shiftTimeText(s)}${s.close&&!(shiftSpan(s)||{}).closeOnly?` + 마감 ~익일 ${CLOSE_TO}`:""}${s.swap?" · "+ (s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:"근무시간 변경"):""}${s.half?" · 반차":""}${s.planned?" · 근무표 기준 예정":""}${s.unknown?" · 그 날 근무표에 시간이 없어 자리만 표시 (근무표 기간 적용으로 시간을 넣어 주세요)":""}`;
       return `<div class="wk-b${s.planned?" planned":""}" style="grid-row:${r1}/${r2};grid-column:${li+1};background:${bg};color:${fg}" title="${esc(title)}"${s.swap?` data-swapid="${s.swap.id}"`:""}>
         <b>${esc(s.e.name)}</b>${tag?`<i class="wk-tag">${tag}</i>`:""}
-        <span>${s.unknown?"시간 미등록":`${s.start}~${s.end}`}</span>${s.close?'<span class="wk-close">마감</span>':""}
+        <span>${shiftTimeText(s)}</span>${shiftCloseHTML(s)}${shiftCloseZone(s)}
       </div>`;
     }).join("");
     const off=absents[i].length?`<div class="wk-off">${absents[i].map(x=>x.status==="넘김"?`${esc(x.name)} <span class="wk-gave">→ ${esc(x.who)}</span>`:`${esc(x.name)} <span>${x.status}</span>`).join(" · ")}</div>`:"";
@@ -1841,7 +1872,7 @@ function renderAttendanceWeek(){
       <div class="wk-hrow" style="grid-template-columns:${tmpl}"><div class="wk-h corner"></div>${head}</div>
       <div class="wk-brow" style="grid-template-columns:${tmpl}">
         <div class="wk-times" style="grid-template-rows:repeat(${rows},var(--wk-rh))">
-          ${hours.map(m=>{const r=Math.round((m-lo)/SLOT)+1; return `<div class="wk-t" style="grid-row:${r}${r<=rows?"/span 2":""}">${m>=24*60?"24:00":fromMin(m)}</div>`;}).join("")}
+          ${hours.map(m=>{const r=Math.round((m-lo)/SLOT)+1; return `<div class="wk-t" style="grid-row:${r}${r<=rows?"/span 2":""}">${hourLabel(m)}</div>`;}).join("")}
         </div>
         ${cols}
       </div>
