@@ -243,7 +243,7 @@ function wireDayGraph(){
   });
   document.querySelectorAll(".dwk .wk-b[data-swapid]").forEach(el=>{
     el.onmouseenter=()=>{ clearSwapHighlight();
-      document.querySelectorAll(`.dwk .wk-b[data-swapid="${el.dataset.swapid}"]`).forEach(x=>x.classList.add(x===el?"swap-hl-self":"swap-hl")); };
+      document.querySelectorAll(`.dwk .wk-b[data-swapid="${el.dataset.swapid}"]`).forEach(x=>x.classList.add("swap-hl")); };
     el.onmouseleave=clearSwapHighlight;
   });
 }
@@ -1254,7 +1254,7 @@ return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${fmtDays(worked)
 <thead><tr><th class="emp">직원</th>${dayHdr.map(h=>{const hday=attMonth+"-"+String(h.d).padStart(2,"0");const hhol=(DB.holidays||[]).includes(hday);return `<th class="${h.we?'we':''}${hhol?' holiday':''}" style="cursor:pointer" title="클릭하여 휴일 지정/해제" onclick="toggleHoliday('${hday}')">${h.d}</th>`;}).join("")}</tr></thead>      <tbody>${body}</tbody>
     </table>`:`<div class="empty"><div class="big">이 달에 표시할 파트타임 직원이 없어요</div><div>직원을 파트타임으로 등록하면 여기에 나타납니다.</div></div>`}
   </div></div>
-  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><b style="color:#DC2626">휴</b> 병가·기타 휴가 (연차 차감 없음)</span><span><b style="color:#B45309">반</b> 반차 (0.5일 근무)</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span><i style="display:inline-block;width:10px;height:3px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 지정 (근무변경)</span><span><i style="display:inline-block;width:10px;height:3px;background:#CBD5E1;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 해제 (근무변경)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">대</b> 남의 근무를 대신함(출근)</span><span>–<b style="color:#0369A1;font-size:9px;vertical-align:super">↔</b> 내 근무를 넘김(휴무)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">변</b> 근무시간 변경</span><span><b>칸 클릭</b>: 상세 보기 · 직접 수정 불가 (근무변경에서 등록)</span><span style="opacity:.75">대체 칸에 마우스를 올리면 바뀐 상대 칸과 이름이 함께 반짝여요</span><span>근무표는 자동 반영돼요 — 근무표를 고치면 출근부도 바로 바뀝니다</span></div>`;
+  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><b style="color:#DC2626">휴</b> 병가·기타 휴가 (연차 차감 없음)</span><span><b style="color:#B45309">반</b> 반차 (0.5일 근무)</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span><i style="display:inline-block;width:10px;height:3px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 지정 (근무변경)</span><span><i style="display:inline-block;width:10px;height:3px;background:#CBD5E1;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 해제 (근무변경)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">대</b> 남의 근무를 대신함(출근)</span><span>–<b style="color:#0369A1;font-size:9px;vertical-align:super">↔</b> 내 근무를 넘김(휴무)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">변</b> 근무시간 변경</span><span><b>칸 클릭</b>: 상세 보기 · 직접 수정 불가 (근무변경에서 등록)</span><span style="opacity:.75">대체 칸에 마우스를 올리면 양쪽 칸과 이름이 함께 반짝여요</span><span>근무표는 자동 반영돼요 — 근무표를 고치면 출근부도 바로 바뀝니다</span></div>`;
 }
 function wireAttendance(){
 /* 출근부는 조회 전용 — 모든 변경은 근무변경(연차는 연차·휴가) 메뉴에서만 */
@@ -1274,8 +1274,8 @@ function wireSwapHighlight(){
       clearSwapHighlight();
       const id=td.dataset.swapid;
       document.querySelectorAll(`.att td[data-swapid="${id}"]`).forEach(x=>{
-        if(x===td){ x.classList.add("swap-hl-self"); return; }
         x.classList.add("swap-hl");
+        if(x===td) x.classList.add("swap-hl-self");
         const tr=x.closest("tr"), nameCell=tr&&tr.querySelector("td.emp");
         if(nameCell) nameCell.classList.add("swap-hl-emp");
       });
@@ -1917,7 +1917,7 @@ function wireWeek(){
   });
   document.querySelectorAll(".wk-b[data-swapid]").forEach(el=>{
     el.onmouseenter=()=>{ clearSwapHighlight();
-      document.querySelectorAll(`.wk-b[data-swapid="${el.dataset.swapid}"]`).forEach(x=>x.classList.add(x===el?"swap-hl-self":"swap-hl")); };
+      document.querySelectorAll(`.wk-b[data-swapid="${el.dataset.swapid}"]`).forEach(x=>x.classList.add("swap-hl")); };
     el.onmouseleave=clearSwapHighlight;
   });
 }
