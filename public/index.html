@@ -28,10 +28,15 @@
 <nav id="nav">
 <button data-view="dashboard" class="active"><span class="ico">▤</span> 대시보드</button>
 <button data-view="employees"><span class="ico">👥</span> 직원</button>
-<button data-view="leaves"><span class="ico">🗓</span> 연차·휴가</button>
+<div class="nav-group" data-group="leaves,shiftchanges">
+<button data-view="leaves" class="nav-group-head"><span class="ico">🗂</span> 근태관리<span class="caret">▾</span></button>
+<div class="nav-sub">
+<button data-view="leaves"><span class="ico">·</span> 휴가·시간차</button>
+<button data-view="shiftchanges"><span class="ico">·</span> 근무변경</button>
+</div>
+</div>
 <button data-view="attendance"><span class="ico">✔</span> 출근부</button>
 <button data-view="schedule"><span class="ico">⏰</span> 근무표</button>
-<button data-view="shiftchanges"><span class="ico">🔄</span> 근무변경</button>
   <button data-view="payroll" id="navPayroll"><span class="ico">💰</span> 급여관리</button>
 </nav>
 <div class="spacer"></div>

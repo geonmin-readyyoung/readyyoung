@@ -308,3 +308,38 @@ td .name{font-weight:700}
 
 /* 반차 — 절반 근무 */
 .att td.half .cell{background:#FEF3C7; color:#B45309; font-weight:800}
+
+/* ---- 근태관리 그룹 (사이드바) ---- */
+aside nav .nav-group{ margin:2px 0 }
+aside nav .nav-group-head .caret{ margin-left:auto; font-size:10px; opacity:.6 }
+aside nav .nav-group-head.active{ background:transparent; color:#fff }
+aside nav .nav-group.open .nav-group-head{ color:#fff; background:rgba(255,255,255,.06) }
+aside nav .nav-sub{ padding-left:14px; margin:2px 0 4px; border-left:1px solid rgba(255,255,255,.12); margin-left:20px }
+aside nav .nav-sub button{ padding:8px 10px; font-size:13px }
+aside nav .nav-sub button .ico{ width:8px }
+@media (max-width:860px){
+  aside nav .nav-group{ display:contents }
+  aside nav .nav-group-head{ display:none }
+  aside nav .nav-sub{ display:contents }
+}
+
+/* ---- 근태관리 상단 탭 ---- */
+.gtabs{ margin:-4px 0 18px; border-bottom:1px solid var(--border) }
+.gtabs-title{ font-size:11.5px; font-weight:700; color:var(--muted); letter-spacing:.04em; margin-bottom:6px }
+.gtabs-row{ display:flex; gap:4px }
+.gtab{ background:transparent; border:0; border-bottom:2px solid transparent; padding:9px 14px 10px; font-size:14.5px; font-weight:700; color:var(--muted); cursor:pointer; margin-bottom:-1px; display:flex; align-items:center; gap:6px }
+.gtab:hover{ color:var(--navy) }
+.gtab.active{ color:var(--navy); border-bottom-color:var(--navy) }
+.gtab-n{ background:#0EA5E9; color:#fff; font-size:11px; border-radius:10px; padding:1px 7px; font-weight:800 }
+
+/* ---- 휴가·시간차 ---- */
+.ltag{ display:inline-block; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700; background:var(--gray-bg); color:var(--text, #334155) }
+.kpi.kpi-warn{ border-color:#F59E0B } .kpi.kpi-warn .val{ color:#B45309 }
+.tb{ display:inline-block; font-style:normal; font-size:10px; font-weight:800; line-height:1; padding:2px 3px; border-radius:3px; margin-right:2px }
+.tb-late{ background:#FEF3C7; color:#92400E }
+.tb-early{ background:#FFE4E6; color:#9F1239 }
+.tb-out{ background:#E0F2FE; color:#075985 }
+.tb-timeoff{ background:#EDE9FE; color:#5B21B6 }
+.att td .cell{ position:relative }
+.att .tb.tb-cell{ position:absolute; left:1px; top:1px; font-size:8px; padding:1px 2px; margin:0; letter-spacing:-.5px }
+#l_tt .btn{ padding:7px 12px }
