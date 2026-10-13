@@ -20,20 +20,19 @@ const PAY_TYPES = [
 const PAY_LABEL = Object.fromEntries(PAY_TYPES.map(p=>[p.value,p.label]));
 /* 반차는 하나 — 몇 시에 근무하는지는 근무표의 근무 타입(반차 경계·반차 근무)이 정한다. 예전 기록의 반차(오전)/반차(오후)도 그대로 인식 */
 const LEAVE_TYPES = ["연차","반차","병가","경조사","기타"];   // 일 단위
-/* 시간 단위 근태 — 시간차(연차를 시간으로 사용)·지각·조퇴·외출 */
-const TIME_TYPES = ["시간차","지각","조퇴","외출"];
-const TIME_HANDLING = ["연차차감","무급","기록만"];
-const TIME_HANDLING_LABEL = {연차차감:"연차에서 차감", 무급:"무급 (급여 공제)", 기록만:"기록만 (차감·공제 없음)"};
-const TIME_TYPE_STYLE = {시간차:{bg:"#EDE9FE",fg:"#5B21B6",cls:"tb-timeoff",mark:"시"}, 지각:{bg:"#FEF3C7",fg:"#92400E",cls:"tb-late",mark:"지"}, 조퇴:{bg:"#FFE4E6",fg:"#9F1239",cls:"tb-early",mark:"조"}, 외출:{bg:"#E0F2FE",fg:"#075985",cls:"tb-out",mark:"외"}};
+/* 시간 단위 근태 — 지각·조퇴·외출. 연차와는 무관하고, 급여 정산 때 시간으로 차감하기 위한 기록 */
+const TIME_TYPES = ["지각","조퇴","외출"];
+const TIME_HANDLING = ["무급","기록만"];
+const TIME_HANDLING_LABEL = {무급:"급여에서 시간 차감", 기록만:"기록만 (차감 없음)"};
+const TIME_TYPE_STYLE = {지각:{bg:"#FEF3C7",fg:"#92400E",cls:"tb-late",mark:"지"}, 조퇴:{bg:"#FFE4E6",fg:"#9F1239",cls:"tb-early",mark:"조"}, 외출:{bg:"#E0F2FE",fg:"#075985",cls:"tb-out",mark:"외"}};
 function isTimeLeave(l){ return !!l && l.unit==="hour"; }
-function dayHours(){ return Number((DB.settings||{}).leaveDayHours)||8; }
-/* 이 기록이 잔여 연차에서 빼는 일수 (시간 단위는 기준시간으로 환산) */
-function leaveDeductDays(l){ if(isTimeLeave(l)) return l.handling==="연차차감" ? Number(l.hours||0)/dayHours() : 0; return DEDUCT_TYPES.includes(l.leaveType) ? Number(l.days||0) : 0; }
+/* 이 기록이 잔여 연차에서 빼는 일수 — 연차는 일 단위만 (시간 단위 기록은 연차와 무관) */
+function leaveDeductDays(l){ if(isTimeLeave(l)) return 0; return DEDUCT_TYPES.includes(l.leaveType) ? Number(l.days||0) : 0; }
 /* 1.5 → "1시간 30분" */
 function fmtHM(h){ const m=Math.round(Number(h||0)*60); const hh=Math.floor(m/60), mm=m%60; return hh&&mm?`${hh}시간 ${mm}분`:hh?`${hh}시간`:`${mm}분`; }
-/* 일수(소수) → "12일 4시간" (연차 1일 기준시간으로 환산) */
-function fmtDH(d){ d=Number(d||0); const neg=d<0; const dh=dayHours(); let m=Math.round(Math.abs(d)*dh*60); const dm=Math.round(dh*60); const dd=Math.floor(m/dm); m-=dd*dm; const hh=Math.floor(m/60), mm=m%60; let out=(dd||(!hh&&!mm))?dd+"일":""; if(hh) out+=(out?" ":"")+hh+"시간"; if(mm) out+=(out?" ":"")+mm+"분"; return (neg?"−":"")+out; }
 /* 그 날 승인된 시간 단위 기록 */
+/* 일수 표시 — 0.5 단위 */
+function fmtD(d){ d=Math.round(Number(d||0)*100)/100; return String(d)+"일"; }
 function timeLeavesOn(empId, day){ return (DB.leaves||[]).filter(l=>isTimeLeave(l) && l.status==="승인" && l.employeeId===empId && (l.startDate||"").slice(0,10)===day); }
 const LEAVE_STATUSES = ["승인","대기","반려"];
 const DEDUCT_TYPES = ["연차","반차","반차(오전)","반차(오후)"]; function leaveTypeLabel(t){ return String(t||"").startsWith("반차") ? "반차" : (t||""); } const LEAVE_ADJ_REASONS = ["근태불량","경조사","포상","오류정정","기타"];
@@ -115,7 +114,7 @@ function summarizeLeave(emp){
   const used = DB.leaves
     .filter(l=>l.employeeId===emp.id && l.status==="승인" && inP(l.startDate))
     .reduce((s,l)=>s+leaveDeductDays(l),0);
-  const adj = (DB.leaveAdjustments||[]).filter(a=>a.employeeId===emp.id && inP(a.date||pr.from)).reduce((s,a)=>s+(a.direction==="추가"?Number(a.days||0):-Number(a.days||0)),0); const remaining = Math.round((accrued - used + adj)*1000)/1000;
+  const adj = (DB.leaveAdjustments||[]).filter(a=>a.employeeId===emp.id && inP(a.date||pr.from)).reduce((s,a)=>s+(a.direction==="추가"?Number(a.days||0):-Number(a.days||0)),0); const remaining = Math.round((accrued - used + adj)*10)/10;
   return { serviceMonths:monthsSince(emp.joinDate), accrued, used, adj, remaining, period:pr };
 }
 
@@ -138,7 +137,7 @@ function render(){
   const m=document.getElementById("main");
   if(view==="dashboard"){ m.innerHTML=renderDashboard(); wireDayGraph(); }
   else if(view==="employees") m.innerHTML=renderEmployees();
-  else if(view==="leaves") m.innerHTML=renderLeaves();   // 근태관리 › 휴가·시간차
+  else if(view==="leaves") m.innerHTML=renderLeaves();   // 근태관리 › 휴가·근태
   else if(view==="attendance"){ if(attMode==="week"){ m.innerHTML=renderAttendanceWeek(); wireWeek(); } else { m.innerHTML=renderAttendance(); wireAttendance(); } }
   else if(view==="schedule"){ m.innerHTML=renderSchedule(); wireSchedule(); }
 else if(view==="shiftchanges"){ m.innerHTML=attGroupTabs("shiftchanges")+renderShiftChanges(); }
@@ -305,7 +304,7 @@ function renderEmployees(){
           <td>${e.team==="중국어"?'<span class="tag t-cn">중국어</span>':e.team==="일본어"?'<span class="tag t-jp">일본어</span>':"—"}</td>
           <td>${fmtDate(e.joinDate)}</td>
           
-          <td class="num">${s?`<b>${fmtDH(s.remaining)}</b> / ${s.accrued}일`:"—"}</td>
+          <td class="num">${s?`<b>${fmtD(s.remaining)}</b> / ${s.accrued}일`:"—"}</td>
           <td>${statusTag(e.status)}</td>
         </tr>`;}).join("")}</tbody>
     </table>` : `<div class="empty"><div class="big">조건에 맞는 직원이 없어요</div><div>필터를 바꾸거나 새 직원을 등록해 보세요.</div></div>`}
@@ -419,11 +418,11 @@ function openCard(id){
       <div>
         ${showLeave?`<div class="leave-box">
           <div class="hint" style="margin-bottom:4px">잔여 연차</div>
-          <div class="rem">${fmtDH(s.remaining)}</div>
+          <div class="rem">${fmtD(s.remaining)}</div>
           <div style="margin-top:12px; border-top:1px solid #D3E0FB; padding-top:8px">
             <div class="leave-line">연차 기간 <b>${fmtDate(s.period.from)} ~ ${fmtDate(addDays(s.period.to,-1))}</b></div>
             <div class="leave-line">발생 <b>${s.accrued}일</b></div>
-            <div class="leave-line">사용 <b>${fmtDH(s.used)}</b></div>
+            <div class="leave-line">사용 <b>${fmtD(s.used)}</b></div>
           </div>
         </div>`:`<div class="leave-box" style="background:var(--gray-bg); border-color:var(--border)"><div class="hint">파트타임은 연차 자동계산 대상이 아니에요. 출근부에서 근무일을 관리하세요.</div></div>`}
       </div>
@@ -454,13 +453,11 @@ function openCard(id){
 }
 
 /* =========================== 연차·휴가 =========================== */
-/* =========================== 근태관리 › 휴가·시간차 ===========================
-   일 단위(연차·반차·병가·경조사·기타)와 시간 단위(시간차·지각·조퇴·외출)를 한 곳에서 관리.
-   시간 단위 기록은 "처리" 방식에 따라
-     - 연차차감: 시간 ÷ (연차 1일 기준시간) 만큼 잔여 연차에서 차감
-     - 무급    : 급여 공제 대상 시간으로 집계
-     - 기록만  : 근태 기록만 남김 (차감·공제 없음)
-   출근부 칸은 그대로 출근으로 두고, 칸 모서리에 지/조/외/시 표시만 붙는다. */
+/* =========================== 근태관리 › 휴가·근태 ===========================
+   일 단위(연차·반차·병가·경조사·기타 — 잔여 연차는 일 단위로만 계산)와
+   시간 단위(지각·조퇴·외출 — 급여 정산 때 시간으로 차감)를 한 곳에서 관리.
+   시간 단위 처리: 무급 = 급여에서 시간 차감(근무변경 › 급여 정산 요약에 집계) / 기록만.
+   출근부 칸은 그대로 출근으로 두고, 칸 모서리에 지/조/외 표시만 붙는다. */
 let leaveFilter="all";      // all | day | hour
 let leaveMonth=ymNow();     // 월별 근태 집계 기준 월
 function setLeaveFilter(f){ leaveFilter=f; render(); }
@@ -471,7 +468,7 @@ function attGroupTabs(active){
   const pendL=DB.leaves.filter(l=>l.status==="대기").length;
   const pendS=(DB.shiftChanges||[]).filter(c=>c.status==="대기").length;
   const tab=(v,label,n)=>`<button class="gtab${active===v?" active":""}" onclick="setView('${v}')">${label}${n?`<span class="gtab-n">${n}</span>`:""}</button>`;
-  return `<div class="gtabs"><div class="gtabs-title">근태관리</div><div class="gtabs-row">${tab("leaves","휴가·시간차",pendL)}${tab("shiftchanges","근무변경",pendS)}</div></div>`;
+  return `<div class="gtabs"><div class="gtabs-title">근태관리</div><div class="gtabs-row">${tab("leaves","휴가·근태",pendL)}${tab("shiftchanges","근무변경",pendS)}</div></div>`;
 }
 
 function leaveDateRange(l){ return `${fmtDate(l.startDate)}${l.endDate&&l.endDate!==l.startDate?` ~ ${fmtDate(l.endDate)}`:""}`; }
@@ -485,10 +482,7 @@ function leaveAmountHTML(l){
 }
 function leaveHandlingHTML(l){
   if(isTimeLeave(l)){
-    const h=l.handling||"기록만";
-    if(h==="연차차감") return `<span class="tag t-warn">연차 −${fmtDH(leaveDeductDays(l))}</span>`;
-    if(h==="무급") return `<span class="tag t-bad">무급 공제</span>`;
-    return `<span class="tag t-gray">기록만</span>`;
+    return (l.handling||"기록만")==="무급" ? `<span class="tag t-bad">급여 −${fmtHM(l.hours)}</span>` : `<span class="tag t-gray">기록만</span>`;
   }
   return DEDUCT_TYPES.includes(l.leaveType) ? `<span class="tag t-warn">연차 −${fmtDays(Number(l.days||0))}일</span>` : `<span class="tag t-gray">차감 없음</span>`;
 }
@@ -518,10 +512,10 @@ function leaveRow(l, opts={}){
 function monthLeaveStats(ym){
   const rows={};
   DB.leaves.filter(l=>l.status==="승인" && (l.startDate||"").slice(0,7)===ym).forEach(l=>{
-    const r=rows[l.employeeId] ||= {annual:0, half:0, timeoff:{n:0,h:0}, late:{n:0,h:0}, early:{n:0,h:0}, out:{n:0,h:0}, other:0, deduct:0, unpaid:0};
+    const r=rows[l.employeeId] ||= {annual:0, half:0, late:{n:0,h:0}, early:{n:0,h:0}, out:{n:0,h:0}, other:0, deduct:0, unpaid:0};
     const t=leaveTypeLabel(l.leaveType);
     if(isTimeLeave(l)){
-      const k=t==="시간차"?"timeoff":t==="지각"?"late":t==="조퇴"?"early":"out";
+      const k=t==="지각"?"late":t==="조퇴"?"early":"out";
       r[k].n++; r[k].h+=Number(l.hours||0);
       if(l.handling==="무급") r.unpaid+=Number(l.hours||0);
     } else if(t==="연차") r.annual+=Number(l.days||0);
@@ -553,14 +547,14 @@ function renderLeaves(){
 
   return `
   ${attGroupTabs("leaves")}
-  ${headHTML("휴가·시간차","연차·반차는 일 단위, 시간차·지각·조퇴·외출은 시간 단위로 기록해요 — 승인되면 잔여 연차와 출근부에 반영",
+  ${headHTML("휴가·근태","연차·반차·휴가는 일 단위(잔여 연차 차감), 지각·조퇴·외출은 시간 단위(급여 정산 시 시간 차감)로 기록해요",
     `<button class="btn" onclick="openLeaveForm(null,'hour')">＋ 시간 단위 등록</button> <button class="btn primary" onclick="openLeaveForm(null,'day')">＋ 휴가 등록</button>`)}
 
   <div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
     <div class="kpi${pending.length?" kpi-alert":""}"><div class="label">승인 대기</div><div class="val">${pending.length}<small>건</small></div></div>
     <div class="kpi"><div class="label">${lm}월 지각</div><div class="val">${sum("late")}<small>회</small></div></div>
     <div class="kpi"><div class="label">${lm}월 조퇴·외출</div><div class="val">${sum("early")+sum("out")}<small>회</small></div></div>
-    <div class="kpi"><div class="label">${lm}월 무급 공제</div><div class="val" style="font-size:22px">${unpaidH?fmtHM(unpaidH):"0"}<small>${unpaidH?"":"시간"}</small></div></div>
+    <div class="kpi"><div class="label">${lm}월 급여 차감 시간</div><div class="val" style="font-size:22px">${unpaidH?fmtHM(unpaidH):"0"}<small>${unpaidH?"":"시간"}</small></div></div>
     <div class="kpi${lowLeave.length?" kpi-warn":""}"><div class="label">잔여 연차 3일 이하</div><div class="val">${lowLeave.length}<small>명</small></div></div>
   </div>
 
@@ -579,17 +573,16 @@ function renderLeaves(){
       </div>
     </div>
     ${statEmps.length?`<div class="att-wrap"><table>
-      <thead><tr><th>직원</th><th class="num">연차</th><th class="num">반차</th><th class="num">시간차</th><th class="num">지각</th><th class="num">조퇴</th><th class="num">외출</th><th class="num">병가·기타</th><th class="num">연차 차감 계</th><th class="num">무급 공제</th></tr></thead>
+      <thead><tr><th>직원</th><th class="num">연차</th><th class="num">반차</th><th class="num">지각</th><th class="num">조퇴</th><th class="num">외출</th><th class="num">병가·기타</th><th class="num">연차 사용 계</th><th class="num">급여 차감 시간</th></tr></thead>
       <tbody>${statEmps.map(e=>{ const r=stats[e.id]; return `<tr class="row-click" onclick="openCard(${e.id})">
         <td><span class="name">${esc(e.name)}</span> <span class="hint">${esc(e.empType||"")}</span></td>
         <td class="num">${r.annual?fmtDays(r.annual)+"일":'<span class="hint">—</span>'}</td>
         <td class="num">${r.half?r.half+"회":'<span class="hint">—</span>'}</td>
-        <td class="num">${statCell(r.timeoff)}</td>
         <td class="num">${statCell(r.late)}</td>
         <td class="num">${statCell(r.early)}</td>
         <td class="num">${statCell(r.out)}</td>
         <td class="num">${r.other?fmtDays(r.other)+"일":'<span class="hint">—</span>'}</td>
-        <td class="num">${r.deduct?`<b>${fmtDH(r.deduct)}</b>`:'<span class="hint">—</span>'}</td>
+        <td class="num">${r.deduct?`<b>${fmtD(r.deduct)}</b>`:'<span class="hint">—</span>'}</td>
         <td class="num">${r.unpaid?`<b style="color:var(--bad)">${fmtHM(r.unpaid)}</b>`:'<span class="hint">—</span>'}</td>
       </tr>`; }).join("")}</tbody></table></div>`
       :`<div class="empty" style="padding:24px">${ly}년 ${lm}월에 승인된 휴가·근태 기록이 없어요.</div>`}
@@ -607,7 +600,7 @@ function renderLeaves(){
   </div>
 
   <div class="panel">
-    <div class="p-head"><h2>직원별 잔여 연차</h2><span class="hint">1년 미만 매월 1일(최대 11) · 1년 이상 15일 · <b>연차 1일 = ${dayHours()}시간</b> <button class="btn sm ghost" onclick="openDayHoursForm()">기준 변경</button></span></div>
+    <div class="p-head"><h2>직원별 잔여 연차</h2><span class="hint">1년 미만 매월 1일(최대 11) · 1년 이상 15일</span></div>
     <div class="att-wrap">${regs.length?`<table>
       <thead><tr><th>이름</th><th>입사일</th><th class="num">근속(개월)</th><th class="num">발생</th><th class="num">사용</th><th class="num">조정</th><th class="num">잔여</th><th></th></tr></thead>
       <tbody>${regs.map(({e,s})=>`<tr class="row-click" onclick="openCard(${e.id})">
@@ -615,32 +608,19 @@ function renderLeaves(){
         <td>${fmtDate(e.joinDate)}</td>
         <td class="num">${s.serviceMonths}</td>
         <td class="num">${s.accrued}일</td>
-        <td class="num">${fmtDH(s.used)}</td>
+        <td class="num">${fmtD(s.used)}</td>
         <td class="num">${s.adj?(s.adj>0?'+':'')+s.adj+"일":'-'}</td>
-        <td class="num"><b style="color:${s.remaining<=1?'var(--bad)':s.remaining<=3?'var(--warn)':'var(--navy)'}">${fmtDH(s.remaining)}</b></td>
+        <td class="num"><b style="color:${s.remaining<=1?'var(--bad)':s.remaining<=3?'var(--warn)':'var(--navy)'}">${fmtD(s.remaining)}</b></td>
         <td class="num"><button class="btn sm ghost" onclick="event.stopPropagation(); toggleLeaveAdjRow(${e.id})">조정/내역</button></td></tr>${leaveAdjExpandedId===e.id?`<tr><td colspan="8" style="padding:0"><div style="padding:14px 6px 18px">${renderLeaveAdjPanel(e)}</div></td></tr>`:""}`).join("")}</tbody>
     </table>`:`<div class="empty"><div class="big">정규직 재직자가 없어요</div></div>`}</div>
   </div>
   <div class="legend">
-    <span><b>시간차</b> 연차를 시간 단위로 사용 — 잔여 연차에서 시간만큼 차감</span>
-    <span><b>지각·조퇴·외출</b> 처리 방식 선택: 연차차감 / 무급(급여 공제) / 기록만</span>
-    <span><b>출근부</b> 출근은 그대로 두고 칸에 <i class="tb tb-late">지</i><i class="tb tb-early">조</i><i class="tb tb-out">외</i><i class="tb tb-timeoff">시</i> 표시 · 조퇴한 날은 마감 집계 제외</span>
+    <span><b>잔여 연차</b> 일 단위 — 연차 1일, 반차 0.5일 차감</span>
+    <span><b>지각·조퇴·외출</b> 연차와 무관 · "급여에서 시간 차감"이면 근무변경 › 급여 정산 요약에 시간으로 집계</span>
+    <span><b>출근부</b> 출근은 그대로 두고 칸에 <i class="tb tb-late">지</i><i class="tb tb-early">조</i><i class="tb tb-out">외</i> 표시 · 조퇴한 날은 마감 집계 제외</span>
   </div>`;
 }
 
-function openDayHoursForm(){
-  modal("연차 1일 기준시간", `
-    <div class="field"><label>연차 1일 = 몇 시간으로 환산할까요?</label>
-      <input id="dh_val" type="number" min="1" max="12" step="0.5" value="${dayHours()}"></div>
-    <div class="hint" style="margin-top:8px">시간 단위 기록을 연차 일수로 바꿀 때 쓰는 기준이에요. 보통 1일 소정근로시간(8시간)을 씁니다.<br>바꾸면 이미 등록된 시간 단위 기록의 차감 일수도 새 기준으로 다시 계산돼요.</div>
-  `, [`<button class="btn" onclick="closeModal()">취소</button>`, `<button class="btn primary" onclick="saveDayHours()">저장</button>`]);
-}
-function saveDayHours(){
-  const v=Number(val("dh_val")); if(!v||v<1||v>12){ toast("1~12 사이로 입력하세요"); return; }
-  DB.settings=DB.settings||{}; DB.settings.leaveDayHours=v;
-  DB.leaves.forEach(l=>{ if(isTimeLeave(l)) l.days=Math.round(Number(l.hours||0)/v*1000)/1000; });
-  saveDB(); closeModal(); render(); toast(`연차 1일 = ${v}시간으로 저장했습니다`);
-}
 
 /* ---- 등록/수정 폼 ---- */
 function openLeaveForm(empId, mode, editId){
@@ -653,7 +633,7 @@ function openLeaveForm(empId, mode, editId){
   const d = editing ? editing.startDate.slice(0,10) : todayStr();
   const tabs = editing ? "" : `<div class="seg" style="margin-bottom:14px">
       <button class="btn sm${mode==="day"?" active":""}" onclick="openLeaveForm(${empId||"null"},'day')">일 단위 · 연차/반차/휴가</button>
-      <button class="btn sm${mode==="hour"?" active":""}" onclick="openLeaveForm(${empId||"null"},'hour')">시간 단위 · 시간차/지각/조퇴/외출</button></div>`;
+      <button class="btn sm${mode==="hour"?" active":""}" onclick="openLeaveForm(${empId||"null"},'hour')">시간 단위 · 지각/조퇴/외출</button></div>`;
   const empSel = `<div class="field full"><label>직원 <span class="req">*</span></label>
         <select id="l_emp" onchange="${mode==="hour"?"onTimeLeaveChange(true)":"autoDays()"}">${emps.map(e=>`<option value="${e.id}" ${selEmp===e.id?"selected":""}>${esc(e.name)} (${esc(e.role)} · ${esc(e.empType||"")})</option>`).join("")}</select></div>`;
   const statusSel = `<div class="field"><label>상태</label><select id="l_status">${LEAVE_STATUSES.map(t=>`<option ${(editing?editing.status:"승인")===t?"selected":""}>${t}</option>`).join("")}</select></div>`;
@@ -712,22 +692,17 @@ function onTimeLeaveChange(refill){
   const sh=day?shiftForDay(emp, day):{on:false};
   const hint=document.getElementById("l_shift_hint");
   if(hint) hint.innerHTML = sh.on ? `이 날 근무 <b>${sh.start}~${sh.end}</b>` : `<span style="color:var(--warn)">이 날 근무표에 근무가 없어요 — 시간을 직접 입력하세요</span>`;
-  const L={지각:["출근 예정","실제 출근"], 조퇴:["조퇴(퇴근) 시각","퇴근 예정"], 외출:["외출 시작","복귀"], 시간차:["시작","종료"]}[t]||["시작","종료"];
+  const L={지각:["출근 예정","실제 출근"], 조퇴:["조퇴(퇴근) 시각","퇴근 예정"], 외출:["외출 시작","복귀"]}[t]||["시작","종료"];
   document.getElementById("l_t1_lbl").textContent=L[0]; document.getElementById("l_t2_lbl").textContent=L[1];
   const hs=document.getElementById("l_handling");
-  // 시간차는 항상 연차 차감 · 파트타임은 연차 자동계산 대상이 아니라 연차차감을 막는다
-  [...hs.options].forEach(o=>{ o.disabled = (t==="시간차" && o.value!=="연차차감") || (t!=="시간차" && o.value==="연차차감" && e.empType==="파트타임"); });
   if(refill){
-    if(t==="시간차") hs.value="연차차감";
-    else hs.value = e.empType==="정규직" ? (t==="지각"?"무급":"연차차감") : "무급";
-    if(hs.selectedOptions[0] && hs.selectedOptions[0].disabled) hs.value="무급";
+    hs.value="무급";
     if(sh.on){
       const s=toMin(sh.start), en=toMin(sh.end);
       const t1=document.getElementById("l_t1"), t2=document.getElementById("l_t2");
       if(t==="지각"){ t1.value=sh.start; t2.value=minToHHMM(s+30); }
       else if(t==="조퇴"){ t1.value=minToHHMM(en-120); t2.value=sh.end; }
-      else if(t==="외출"){ t1.value=minToHHMM(s+180); t2.value=minToHHMM(s+240); }
-      else { t1.value=sh.start; t2.value=minToHHMM(s+120); }
+      else { t1.value=minToHHMM(s+180); t2.value=minToHHMM(s+240); }
     }
     calcTimeHours();
   } else timeLeavePreview();
@@ -741,12 +716,8 @@ function timeLeavePreview(){
   const p=document.getElementById("l_preview"); if(!p) return;
   const h=Number(val("l_hours")||0), hd=val("l_handling");
   if(!h){ p.textContent=""; return; }
-  if(hd==="연차차감"){
-    const emp=DB.employees.find(x=>x.id===Number(val("l_emp")));
-    const rem=emp&&emp.empType==="정규직"?summarizeLeave(emp).remaining:null;
-    p.innerHTML=`${fmtHM(h)} = <b>연차 ${fmtDH(h/dayHours())}</b> 차감${rem!=null?` · 현재 잔여 ${fmtDH(rem)}`:""}`;
-  } else if(hd==="무급") p.innerHTML=`<b style="color:var(--bad)">${fmtHM(h)} 무급</b> — 급여 공제 대상`;
-  else p.textContent=`${fmtHM(h)} 기록만 (차감·공제 없음)`;
+  if(hd==="무급") p.innerHTML=`<b style="color:var(--bad)">급여에서 ${fmtHM(h)} 차감</b> — 급여 정산 요약에 집계`;
+  else p.textContent=`${fmtHM(h)} 기록만 (차감 없음)`;
 }
 function onLeaveType(){
   const t=val("l_type"); const d=document.getElementById("l_days");
@@ -785,7 +756,7 @@ function saveLeave(editId){
     if(!(hours>0)){ toast("사용 시간을 확인하세요"); return; }
     data={ employeeId:empId, unit:"hour", leaveType:val("l_type"), startDate:start, endDate:start,
       startTime:val("l_t1"), endTime:val("l_t2"), hours, handling:val("l_handling")||"기록만",
-      days:Math.round(hours/dayHours()*1000)/1000, status:val("l_status"), memo:val("l_memo")||null };
+      days:0, status:val("l_status"), memo:val("l_memo")||null };
   } else {
     const end=val("l_end")||start; if(end<start){ toast("종료일이 시작일보다 빨라요"); return; }
     data={ employeeId:empId, leaveType:val("l_type"), days:Number(val("l_days")||0), startDate:start, endDate:end,
@@ -977,7 +948,7 @@ function shiftChangeSummary(ym){
   const inM=d=>String(d||"").slice(0,7)===ym;
   const rows={};
   const row=id=>{ const e=DB.employees.find(x=>x.id===id); if(!e) return null;
-    if(!rows[id]) rows[id]={e, sub:0, 연차:0, 무급:0, 교대:0, 이동:0, 변경:0};
+    if(!rows[id]) rows[id]={e, sub:0, 연차:0, 무급:0, 교대:0, 이동:0, 변경:0, 시간:0, 시간건:0};
     return rows[id]; };
   (DB.shiftChanges||[]).filter(c=>c.status==="승인").forEach(c=>{
     if(c.type==="결근"){ if(inM(c.date)){ const r=row(c.employeeId); if(r) r.무급++; } return; }
@@ -998,7 +969,9 @@ if(c.type==="변경"){ if(inM(c.date)){ const r=row(c.employeeId); if(r) r.변�
       if(sb) sb.sub++;
     }
   });
-  return Object.values(rows).filter(r=>r.sub||r.연차||r.무급||r.교대||r.이동||r.변경)
+  // 지각·조퇴·외출 중 "급여에서 시간 차감"으로 승인된 시간
+  (DB.leaves||[]).filter(l=>isTimeLeave(l) && l.status==="승인" && l.handling==="무급" && inM(l.startDate)).forEach(l=>{ const r=row(l.employeeId); if(r){ r.시간+=Number(l.hours||0); r.시간건++; } });
+  return Object.values(rows).filter(r=>r.sub||r.연차||r.무급||r.교대||r.이동||r.변경||r.시간)
     .sort((a,b)=>(a.e.employeeNo||0)-(b.e.employeeNo||0));
 }
 function renderScSummary(){
@@ -1009,17 +982,18 @@ function renderScSummary(){
     ${list.length?`<div class="att-wrap"><table>
       <thead><tr><th>이름</th><th class="num">대체 근무<div class="hint">남 대신 나옴</div></th>
       <th class="num">연차<div class="hint">유급</div></th><th class="num">무급<div class="hint">급여 차감</div></th>
-      <th class="num">맞교대<div class="hint">상계</div></th><th class="num">일자변경<div class="hint">증감 없음</div></th><th class="num">시간변경</th><th class="num">근무일 증감</th></tr></thead>
+      <th class="num">맞교대<div class="hint">상계</div></th><th class="num">일자변경<div class="hint">증감 없음</div></th><th class="num">시간변경</th><th class="num">근무일 증감</th><th class="num">시간 차감<div class="hint">지각·조퇴·외출</div></th></tr></thead>
       <tbody>${list.map(r=>{ const net=r.sub-r.무급;
         const sw = r.교대 ? `${r.교대}회` : "—";
         return `<tr><td><span class="name">${esc(r.e.name)}</span></td>
         <td class="num">${r.sub||"—"}</td><td class="num">${r.연차||"—"}</td>
         <td class="num">${r.무급?`<b style="color:var(--bad)">${r.무급}</b>`:"—"}</td>
         <td class="num">${sw}</td><td class="num">${r.이동?`${r.이동}회`:"—"}</td><td class="num">${r.변경||"—"}</td>
-        <td class="num"><b style="color:${net>0?"#16A34A":net<0?"var(--bad)":"var(--muted)"}">${net>0?"+"+net:String(net)}</b></td></tr>`;}).join("")}</tbody>
+        <td class="num"><b style="color:${net>0?"#16A34A":net<0?"var(--bad)":"var(--muted)"}">${net>0?"+"+net:String(net)}</b></td>
+        <td class="num">${r.시간?`<b style="color:var(--bad)">−${fmtHM(r.시간)}</b> <span class="hint">${r.시간건}건</span>`:"—"}</td></tr>`;}).join("")}</tbody>
     </table></div>
-    <div class="legend"><span><b>대체 근무</b> 남의 근무를 대신 나온 날 — 급여 지급 대상</span><span><b>무급</b> 근무를 넘기고 보충 없이 빠진 날 — 급여 차감</span><span><b>연차</b> 유급이라 급여는 그대로, 연차 잔여만 차감</span><span><b>맞교대</b> 다른 날 보충하므로 총 근무일수 변동 없음</span><span><b>근무일자 변경</b> 본인 근무를 다른 날로 옮김 — 총 근무일수 변동 없음</span><span><b>근무일 증감</b> = 대체 근무 − 무급 (맞교대·근무일자 변경은 다른 달로 옮겨도 증감 없음)</span></div>`
-    :`<div class="empty" style="padding:26px">${scMonth}에 승인된 근무변경이 없어요.</div>`}
+    <div class="legend"><span><b>대체 근무</b> 남의 근무를 대신 나온 날 — 급여 지급 대상</span><span><b>무급</b> 근무를 넘기고 보충 없이 빠진 날 — 급여 차감</span><span><b>연차</b> 유급이라 급여는 그대로, 연차 잔여만 차감</span><span><b>맞교대</b> 다른 날 보충하므로 총 근무일수 변동 없음</span><span><b>근무일자 변경</b> 본인 근무를 다른 날로 옮김 — 총 근무일수 변동 없음</span><span><b>근무일 증감</b> = 대체 근무 − 무급 (맞교대·근무일자 변경은 다른 달로 옮겨도 증감 없음)</span><span><b>시간 차감</b> 휴가·근태 탭에서 "급여에서 시간 차감"으로 승인한 지각·조퇴·외출 시간</span></div>`
+    :`<div class="empty" style="padding:26px">${scMonth}에 승인된 근무변경·시간 차감이 없어요.</div>`}
   </div>`;
 }
 function renderShiftChanges(){
@@ -1476,7 +1450,7 @@ modal("출근부 · 조회 전용", `<div class="hint" style="line-height:1.9">
 <div style="margin-top:8px">${isLeave?`${st==="반차"?"반차":"연차"}는 <b>연차·휴가</b> 메뉴에서 관리해요.`:"출근부는 직접 수정할 수 없어요. 대체근무·시간변경·맞교대·근무일자 변경·결근은 <b>근무변경</b>에서 등록하고, 승인되면 출근부에 자동 반영됩니다."}</div>
 </div>`, [
 `<button class="btn" onclick="closeModal()">닫기</button>`,
-isLeave ? `<button class="btn primary" onclick="closeModal(); setView('leaves')">휴가·시간차로 이동</button>`
+isLeave ? `<button class="btn primary" onclick="closeModal(); setView('leaves')">휴가·근태로 이동</button>`
 : `<button class="btn primary" onclick="goShiftChange({date:'${day}', employeeId:${empId}})">근무변경 등록</button>`,
 ]);
 }
@@ -1552,7 +1526,7 @@ const closeTitle = halfNoClose ? "" : (closeOv===true?"마감 지정 (근무변�
 const __hw = (st==="반차" && hs && hs.start && hs.end) ? halfWindow(hs.start, hs.end) : null;
 const leaveTitle = st==="휴가" ? `휴가(${rec&&rec.leaveKind||"기타"})${rec&&rec.leaveMemo?` — ${rec.leaveMemo}`:""} · 연차 차감 없음` : "";
 const halfTitle = st==="반차" ? `반차 — ${__hw?`${__hw.start}~${__hw.end} 근무`:"그 날 절반만 근무"} (0.5일)` : "";
-const timeTitle = __tl.map(l=>`${l.leaveType} ${l.startTime}~${l.endTime} (${fmtHM(l.hours)}, ${l.handling==="연차차감"?"연차 차감":l.handling==="무급"?"무급":"기록만"})`).join(" · ") + (earlyLeft&&effClose?" · 조퇴로 마감 제외":"");
+const timeTitle = __tl.map(l=>`${l.leaveType} ${l.startTime}~${l.endTime} (${fmtHM(l.hours)}, ${l.handling==="무급"?"급여 차감":"기록만"})`).join(" · ") + (earlyLeft&&effClose?" · 조퇴로 마감 제외":"");
 const cellTitle = [swp?swp.title:"", leaveTitle, halfTitle, timeTitle, earlyLeft?"":closeTitle].filter(Boolean).join(" · ");
 const timeBadge = __tl.length ? `<i class="tb tb-cell ${TIME_TYPE_STYLE[__tl[0].leaveType]?.cls||""}">${__tl.map(l=>TIME_TYPE_STYLE[l.leaveType]?.mark||"").join("")}</i>` : "";
 const swapBadge = swp ? `<i class="swap-badge">${swp.badge}</i>` : "";
@@ -1575,7 +1549,7 @@ return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${fmtDays(worked)
 <thead><tr><th class="emp">직원</th>${dayHdr.map(h=>{const hday=attMonth+"-"+String(h.d).padStart(2,"0");const hhol=(DB.holidays||[]).includes(hday);return `<th class="${h.we?'we':''}${hhol?' holiday':''}" style="cursor:pointer" title="클릭하여 휴일 지정/해제" onclick="toggleHoliday('${hday}')">${h.d}</th>`;}).join("")}</tr></thead>      <tbody>${body}</tbody>
     </table>`:`<div class="empty"><div class="big">이 달에 표시할 파트타임 직원이 없어요</div><div>직원을 파트타임으로 등록하면 여기에 나타납니다.</div></div>`}
   </div></div>
-  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><b style="color:#DC2626">휴</b> 병가·기타 휴가 (연차 차감 없음)</span><span><b style="color:#B45309">반</b> 반차 (0.5일 근무)</span><span><i class="tb tb-late">지</i><i class="tb tb-early">조</i><i class="tb tb-out">외</i><i class="tb tb-timeoff">시</i> 지각·조퇴·외출·시간차 (조퇴한 날은 마감 제외)</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span><i style="display:inline-block;width:10px;height:3px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 지정 (근무변경)</span><span><i style="display:inline-block;width:10px;height:3px;background:#CBD5E1;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 해제 (근무변경)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">대</b> 남의 근무를 대신함(출근)</span><span>–<b style="color:#0369A1;font-size:9px;vertical-align:super">↔</b> 내 근무를 넘김(휴무)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">변</b> 근무시간 변경</span><span>○<b style="color:#059669;font-size:9px;vertical-align:super">이</b> / –<b style="color:#059669;font-size:9px;vertical-align:super">이</b> 근무일자 변경 (옮겨온 날 / 옮겨간 날)</span><span><b>칸 클릭</b>: 상세 보기 · 직접 수정 불가 (근무변경에서 등록)</span><span style="opacity:.75">대체 칸에 마우스를 올리면 양쪽 칸과 이름이 함께 반짝여요</span><span>근무표는 자동 반영돼요 — 근무표를 고치면 출근부도 바로 바뀝니다</span></div>`;
+  <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><b style="color:#DC2626">휴</b> 병가·기타 휴가 (연차 차감 없음)</span><span><b style="color:#B45309">반</b> 반차 (0.5일 근무)</span><span><i class="tb tb-late">지</i><i class="tb tb-early">조</i><i class="tb tb-out">외</i> 지각·조퇴·외출 (조퇴한 날은 마감 제외)</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span><i style="display:inline-block;width:10px;height:3px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 지정 (근무변경)</span><span><i style="display:inline-block;width:10px;height:3px;background:#CBD5E1;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 해제 (근무변경)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">대</b> 남의 근무를 대신함(출근)</span><span>–<b style="color:#0369A1;font-size:9px;vertical-align:super">↔</b> 내 근무를 넘김(휴무)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">변</b> 근무시간 변경</span><span>○<b style="color:#059669;font-size:9px;vertical-align:super">이</b> / –<b style="color:#059669;font-size:9px;vertical-align:super">이</b> 근무일자 변경 (옮겨온 날 / 옮겨간 날)</span><span><b>칸 클릭</b>: 상세 보기 · 직접 수정 불가 (근무변경에서 등록)</span><span style="opacity:.75">대체 칸에 마우스를 올리면 양쪽 칸과 이름이 함께 반짝여요</span><span>근무표는 자동 반영돼요 — 근무표를 고치면 출근부도 바로 바뀝니다</span></div>`;
 }
 function wireAttendance(){
 /* 출근부는 조회 전용 — 모든 변경은 근무변경(연차는 연차·휴가) 메뉴에서만 */
