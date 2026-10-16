@@ -344,10 +344,14 @@ aside nav .nav-sub button .ico{ width:8px }
 .att .tb.tb-cell{ position:absolute; left:1px; top:1px; font-size:8px; padding:1px 2px; margin:0; letter-spacing:-.5px }
 #l_tt .btn{ padding:7px 12px }
 
-/* 출근부 하단 날짜별 마감자 행 */
-.att tfoot tr.close-row td{border-top:2px solid #8B5CF6; vertical-align:top; padding:4px 1px; background:#FAF7FF}
-.att tfoot tr.close-row td.emp{background:#F3EEFF; color:#6B21A8; vertical-align:middle}
-.att tfoot .cn{font-size:10.5px; line-height:1.35; font-weight:700; color:#5B21B6; white-space:nowrap}
-.att tfoot .cn.only{color:#7C3AED; font-style:italic}
-.att tfoot .cn.forced{color:#B45309}
-.att tfoot td.close-none{background:#FEF2F2; color:#DC2626; font-size:10.5px; font-weight:800; vertical-align:middle}
+/* 출근부 하단 마감표 */
+.att tfoot tr.close-head td{border-top:3px solid #8B5CF6; background:#F3EEFF; color:#6B21A8; font-weight:800; padding:6px 2px}
+.att tfoot tr.close-head td.emp{background:#F3EEFF}
+.att tfoot tr.close-emp td{height:28px; font-size:13px; font-weight:800; color:#7C3AED; padding:0; vertical-align:middle; background:#fff}
+.att tfoot tr.close-emp td.emp{font-size:12px; color:inherit}
+.att tfoot tr.close-emp td.ck{background:#F5F0FF}
+.att tfoot tr.close-emp td.ck.only{font-size:11px}
+.att tfoot tr.close-emp td.ck.forced{background:#FFF7E6; color:#B45309}
+.att tfoot tr.close-total td{border-top:2px solid #C4B5FD; background:#FAF7FF; font-weight:800; color:#5B21B6; padding:6px 2px; vertical-align:middle}
+.att tfoot tr.close-total td.emp{background:#F3EEFF}
+.att tfoot tr.close-total td.close-none{background:#FEF2F2; color:#DC2626}

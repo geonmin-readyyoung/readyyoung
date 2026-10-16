@@ -1479,24 +1479,40 @@ function syncLeaveAttendance(){
     }
   });
 }
-/* 마감 행용 짧은 이름 — 한글 3글자는 이름 2글자, 그 외는 앞 3글자 */
-function shortName(n){ n=String(n||"").trim(); if(/^[가-힣]{3}$/.test(n)) return n.slice(1); return n.split(/\s+/)[0].slice(0,3); }
+/* 출근부 하단 마감표 — 마감한 직원별 행(월 마감횟수) × 날짜 체크, 맨 아래 날짜별 인원 */
+function closeTableHTML(dayHdr, closers, closeByEmp, emps){
+  const rows=emps.filter(e=>closeByEmp[e.id]).map(e=>closeByEmp[e.id]);
+  const head=`<tr class="close-head"><td class="emp">마감표 <span class="hint">(${rows.length}명)</span></td>${dayHdr.map(({d})=>`<td>${d}</td>`).join("")}</tr>`;
+  const body=rows.map(({e,days})=>{
+    const n=Object.keys(days).length;
+    return `<tr class="close-emp"><td class="emp">${esc(e.name)} <span class="hint">(마감 ${n}회)</span></td>${dayHdr.map(({d})=>{const c=days[d]; if(!c) return `<td></td>`;
+      return `<td class="ck${c.only?" only":""}${c.forced?" forced":""}" title="${esc(`${d}일 ${e.name} 마감${c.only?" (마감만 23:00~익일 00:30)":c.forced?" (근무변경 지정)":""}`)}">${c.only?"마":"✓"}</td>`;}).join("")}</tr>`;
+  }).join("");
+  const total=`<tr class="close-total"><td class="emp">마감 인원</td>${dayHdr.map(({d})=>{const n=(closers[d]||[]).length; return n?`<td title="${esc(d+"일 마감: "+closers[d].map(c=>c.name).join(", "))}">${n}</td>`:`<td class="close-none" title="${d}일 마감자 없음">0</td>`;}).join("")}</tr>`;
+  return head+body+total;
+}
 function daysInMonth(ym){ const [y,m]=ym.split("-").map(Number); return new Date(y,m,0).getDate(); }
 function renderAttendance(){
   const [y,m]=attMonth.split("-").map(Number);
   const dim=daysInMonth(attMonth);
   // 파트타임 재직자 + 그 달에 걸치는 사람
-  const emps=DB.employees.filter(e=>{
+  const allEmps=DB.employees.filter(e=>{
     if(e.status==="퇴사" && !e.leaveDate) return false;
     const first=attMonth+"-01", last=attMonth+"-"+String(dim).padStart(2,"0");
     if((e.joinDate||"").slice(0,10) > last) return false;
     if(e.leaveDate && e.leaveDate.slice(0,10) < first) return false;
     return true;
   });
-  emps.sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));const dayHdr=[];
+  allEmps.sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));
+  /* 직무별 보기 — 약사 / 중국어 / 일본어 / 물류 */
+  const grpCnt={}; allEmps.forEach(e=>{ const k=empGroup(e).key; grpCnt[k]=(grpCnt[k]||0)+1; });
+  if(attGroup && !grpCnt[attGroup]) attGroup="";
+  const emps = attGroup ? allEmps.filter(e=>empGroup(e).key===attGroup) : allEmps;
+  const grpSeg = `<div class="seg">${[{key:"",label:"전체"},...WK_GROUPS.filter(g=>grpCnt[g.key])].map(g=>`<button class="btn sm${attGroup===g.key?" active":""}" onclick="setAttGroup('${g.key}')">${g.key?`<i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${g.bg};border:1px solid ${g.fg};margin-right:5px"></i>`:""}${g.label} ${g.key?grpCnt[g.key]:allEmps.length}</button>`).join("")}</div>`;
+  const dayHdr=[];
   for(let d=1; d<=dim; d++){ const dow=new Date(y,m-1,d).getDay(); dayHdr.push({d,we:(dow===0||dow===6)}); }
 
-  const closers={};   // 날짜별 마감자 — 아래 '마감' 행
+  const closers={}, closeByEmp={};   // 날짜별·직원별 마감 — 아래 '마감표'
   const body = emps.map(e=>{
     let worked=0,closeCnt=0,holCnt=0,subCnt=0,outCnt=0;
     const cells=dayHdr.map(({d})=>{
@@ -1523,7 +1539,7 @@ const halfNoClose = (st==="반차" && hs && hs.start && hs.end && halfSideFor(hs
 if(st==="출근"){ worked++; if(isHol) holCnt++; } else if(st==="반차"){ worked+=0.5; if(isHol) holCnt+=0.5; }
 /* 오후 반차는 일찍 퇴근하므로 마감으로 세지 않는다 */
 const __tl=timeLeavesOn(e.id, day); const earlyLeft=__tl.some(l=>l.leaveType==="조퇴");
-if(effClose && (st==="출근"||st==="반차"||closeOnlyDay) && !halfNoClose && !earlyLeft){ closeCnt++; (closers[d]=closers[d]||[]).push({name:e.name, only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); }
+if(effClose && (st==="출근"||st==="반차"||closeOnlyDay) && !halfNoClose && !earlyLeft){ closeCnt++; (closers[d]=closers[d]||[]).push({name:e.name, only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); ((closeByEmp[e.id]=closeByEmp[e.id]||{e,days:{}}).days[d]={only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); }
 const mark=closeOnlyDay?"마":st==="연차"?"연":st==="휴가"?"휴":st==="반차"?"반":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
 const swp=swapCellInfo(rec); if(swp){ if(swp.cls==="swap-in") subCnt++; else if(swp.cls==="swap-out") outCnt++; }
 const closeCls = closeOnlyDay ? (earlyLeft?"":" close") : (halfNoClose || earlyLeft || !(st==="출근"||st==="반차")) ? "" : (closeOv===true?" close close-forced":(closeOv===false?(scClose?" close-off":""):(scClose?" close":"")));
@@ -1547,12 +1563,13 @@ return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${fmtDays(worked)
     <button class="btn sm" onclick="shiftMonth(1)">다음달 ›</button>
     
     <button class="btn sm" onclick="goShiftChange({})">＋ 근무변경</button>
+    ${grpSeg}
     <div class="grow"></div>
 <span class="hint">${emps.length}명 · 괄호(출근,마감,휴일근로) · 날짜 클릭 시 휴일 지정</span>  </div>
   <div class="panel"><div class="att-wrap">
     ${emps.length? `<table class="att">
 <thead><tr><th class="emp">직원</th>${dayHdr.map(h=>{const hday=attMonth+"-"+String(h.d).padStart(2,"0");const hhol=(DB.holidays||[]).includes(hday);return `<th class="${h.we?'we':''}${hhol?' holiday':''}" style="cursor:pointer" title="클릭하여 휴일 지정/해제" onclick="toggleHoliday('${hday}')">${h.d}</th>`;}).join("")}</tr></thead>      <tbody>${body}</tbody>
-<tfoot><tr class="close-row"><td class="emp">마감 <span class="hint">(날짜별)</span></td>${dayHdr.map(({d})=>{const list=closers[d]||[];if(!list.length) return `<td class="close-none" title="${d}일 마감자 없음">없음</td>`;return `<td title="${esc(d+'일 마감: '+list.map(c=>c.name+(c.only?' (마감만)':c.forced?' (근무변경)':'')).join(', '))}">${list.map(c=>`<div class="cn${c.only?' only':''}${c.forced?' forced':''}">${esc(shortName(c.name))}</div>`).join('')}</td>`;}).join("")}</tr></tfoot>
+<tfoot>${closeTableHTML(dayHdr, closers, closeByEmp, emps)}</tfoot>
     </table>`:`<div class="empty"><div class="big">이 달에 표시할 파트타임 직원이 없어요</div><div>직원을 파트타임으로 등록하면 여기에 나타납니다.</div></div>`}
   </div></div>
   <div class="legend"><span><b>○</b> 출근</span><span><b>–</b> 휴무</span><span><b>×</b> 결근</span><span><b style="color:#DC2626">연</b> 연차</span><span><b style="color:#DC2626">휴</b> 병가·기타 휴가 (연차 차감 없음)</span><span><b style="color:#B45309">반</b> 반차 (0.5일 근무)</span><span><i class="tb tb-late">지</i><i class="tb tb-early">조</i><i class="tb tb-out">외</i> 지각·조퇴·외출 (조퇴한 날은 마감 제외)</span><span><i style="display:inline-block;width:10px;height:3px;background:#8B5CF6;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감조 (근무표에서 지정)</span><span><b>마</b> 마감만 23:00~익일 00:30 (마감 집계 O · 근무일 미포함)</span><span><i style="display:inline-block;width:10px;height:3px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 지정 (근무변경)</span><span><i style="display:inline-block;width:10px;height:3px;background:#CBD5E1;border-radius:2px;vertical-align:middle;margin-right:5px"></i>마감 해제 (근무변경)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">대</b> 남의 근무를 대신함(출근)</span><span>–<b style="color:#0369A1;font-size:9px;vertical-align:super">↔</b> 내 근무를 넘김(휴무)</span><span>○<b style="color:#0369A1;font-size:9px;vertical-align:super">변</b> 근무시간 변경</span><span>○<b style="color:#059669;font-size:9px;vertical-align:super">이</b> / –<b style="color:#059669;font-size:9px;vertical-align:super">이</b> 근무일자 변경 (옮겨온 날 / 옮겨간 날)</span><span><b>칸 클릭</b>: 상세 보기 · 직접 수정 불가 (근무변경에서 등록)</span><span style="opacity:.75">대체 칸에 마우스를 올리면 양쪽 칸과 이름이 함께 반짝여요</span><span>근무표는 자동 반영돼요 — 근무표를 고치면 출근부도 바로 바뀝니다</span></div>`;
@@ -2029,6 +2046,8 @@ function shiftMonth(delta){
 
 
 /* =========================== 출근부 — 주간 보기 =========================== */
+let attGroup = "";                     // 출근부 직무 필터 — "" 전체 | 약무 | 중국어 | 일본어 | 물류 | 기타
+function setAttGroup(g){ attGroup=g; render(); }
 let attMode = "month";                 // "month" | "week"
 let weekStart = mondayStr(todayStr());
 function ymdLocal(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
