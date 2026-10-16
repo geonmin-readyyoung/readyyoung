@@ -1694,6 +1694,33 @@ function closeTableHTML(dayHdr, closers, closeByEmp, emps){
   return head+blocks;
 }
 function daysInMonth(ym){ const [y,m]=ym.split("-").map(Number); return new Date(y,m,0).getDate(); }
+/* 출근부 한 칸(직원 e · 날짜 day)의 판정 — 출근부 화면과 급여정산이 같은 기준을 쓰도록 한 곳에 둔다 */
+function attDayInfo(e, day){
+  const rec=DB.attendance[attKey(e.id,day)];
+  let st=rec?.status || "";
+  const sc=scheduleEntry(e.id, dateOf(day).getDay(), day); const isHol=(DB.holidays||[]).includes(day);
+  /* 근무표 자동 반영: 출근부 기록(근무변경·연차·기존 기록)이 없는 날은 근무표 기준으로 계산 */
+  const inEmp=(e.joinDate||"").slice(0,10)<=day && (!e.leaveDate || e.leaveDate.slice(0,10)>=day);
+  const autoCo=!st && inEmp && !!(sc&&sc.on&&sc.start&&sc.start>="23:00");
+  if(!st && inEmp && sc) st = (sc.on && !autoCo) ? "출근" : "휴무";
+  const scClose=!!(sc&&sc.on&&sc.close);
+  const closeOv=(rec&&Object.prototype.hasOwnProperty.call(rec,"closeOverride"))?rec.closeOverride:(autoCo?true:null);
+  /* 근무시간 일부 이동 — 마감까지 옮겼으면 원래 날 마감 해제, 옮긴 날 마감 */
+  const parts=(st==="연차"||st==="휴가"||st==="결근")?[]:partsOf(rec);
+  const pOutClose=parts.some(p=>p.dir==="out"&&p.close), pInClose=parts.some(p=>p.dir==="in"&&p.close);
+  const effClose= pOutClose?false:pInClose?true:(closeOv===true?true:(closeOv===false?false:scClose));
+  /* 마감만(23:00~익일 00:30) 근무 — 근무일로는 안 세지만(휴무) 마감은 표시·집계 */
+  const closeOnlyDay = st==="휴무" && ((closeOv===true && !(rec&&rec.swap) && !pOutClose) || pInClose);
+  /* 오후 반차는 일찍 퇴근 — 마감 표시/집계 모두 제외 */
+  /* 대체로 들어간 날은 그 근무 시간 기준으로 반차 구간을 잡는다 */
+  const hs = (rec && rec.swap && (rec.swap.role==="대체"||rec.swap.role==="이동후") && rec.swap.start && rec.swap.end) ? {start:rec.swap.start, end:rec.swap.end} : sc;
+  const halfNoClose = (st==="반차" && hs && hs.start && hs.end && halfSideFor(hs.start, hs.end)==="전반");
+  const work = st==="출근" ? 1 : st==="반차" ? 0.5 : 0;
+  /* 조퇴한 날은 마감으로 세지 않는다 */
+  const tl=timeLeavesOn(e.id, day); const earlyLeft=tl.some(l=>l.leaveType==="조퇴");
+  const closed = effClose && (st==="출근"||st==="반차"||closeOnlyDay) && !halfNoClose && !earlyLeft;
+  return {rec, st, sc, isHol, scClose, closeOv, parts, pOutClose, pInClose, effClose, closeOnlyDay, hs, halfNoClose, tl, earlyLeft, work, closed};
+}
 function renderAttendance(){
   const [y,m]=attMonth.split("-").map(Number);
   const dim=daysInMonth(attMonth);
@@ -1720,32 +1747,10 @@ function renderAttendance(){
     let worked=0,closeCnt=0,holCnt=0,subCnt=0,outCnt=0;
     const cells=dayHdr.map(({d})=>{
       const day=attMonth+"-"+String(d).padStart(2,"0");
-      const rec=DB.attendance[attKey(e.id,day)];
-let st=rec?.status || "";
-const half=rec?.half || null;
-      const dow=new Date(y,m-1,d).getDay();
-      const sc=scheduleEntry(e.id, dow, day); const isHol=(DB.holidays||[]).includes(day);
-/* 근무표 자동 반영: 출근부 기록(근무변경·연차·기존 기록)이 없는 날은 근무표 기준으로 계산 */
-const inEmp=(e.joinDate||"").slice(0,10)<=day && (!e.leaveDate || e.leaveDate.slice(0,10)>=day);
-const autoCo=!st && inEmp && !!(sc&&sc.on&&sc.start&&sc.start>="23:00");
-if(!st && inEmp && sc) st = (sc.on && !autoCo) ? "출근" : "휴무";
-const scClose=!!(sc&&sc.on&&sc.close);
-const closeOv=(rec&&Object.prototype.hasOwnProperty.call(rec,"closeOverride"))?rec.closeOverride:(autoCo?true:null);
-/* 근무시간 일부 이동 — 마감까지 옮겼으면 원래 날 마감 해제, 옮긴 날 마감 */
-const __parts=(st==="연차"||st==="휴가"||st==="결근")?[]:partsOf(rec);
-const __pOutClose=__parts.some(p=>p.dir==="out"&&p.close), __pInClose=__parts.some(p=>p.dir==="in"&&p.close);
-const effClose= __pOutClose?false:__pInClose?true:(closeOv===true?true:(closeOv===false?false:scClose));
-/* 마감만(23:00~익일 00:30) 근무 — 근무일로는 안 세지만(휴무) 마감은 표시·집계 */
-const closeOnlyDay = st==="휴무" && ((closeOv===true && !(rec&&rec.swap) && !__pOutClose) || __pInClose);
-/* 오후 반차는 일찍 퇴근 — 마감 표시/집계 모두 제외 */
-/* 대체로 들어간 날은 그 근무 시간 기준으로 반차 구간을 잡는다 */
-const hs = (rec && rec.swap && (rec.swap.role==="대체"||rec.swap.role==="이동후") && rec.swap.start && rec.swap.end) ? {start:rec.swap.start, end:rec.swap.end} : sc;
-const halfNoClose = (st==="반차" && hs && hs.start && hs.end && halfSideFor(hs.start, hs.end)==="전반");
+      const {rec, st, sc, isHol, scClose, closeOv, parts:__parts, pOutClose:__pOutClose, pInClose:__pInClose, effClose, closeOnlyDay, hs, halfNoClose, tl:__tl, earlyLeft, work, closed}=attDayInfo(e, day);
       const cls=st==="연차"||st==="휴가"?"leave":st==="반차"?"half":st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
-if(st==="출근"){ worked++; if(isHol) holCnt++; } else if(st==="반차"){ worked+=0.5; if(isHol) holCnt+=0.5; }
-/* 오후 반차는 일찍 퇴근하므로 마감으로 세지 않는다 */
-const __tl=timeLeavesOn(e.id, day); const earlyLeft=__tl.some(l=>l.leaveType==="조퇴");
-if(effClose && (st==="출근"||st==="반차"||closeOnlyDay) && !halfNoClose && !earlyLeft){ closeCnt++; (closers[d]=closers[d]||[]).push({name:e.name, g:attGrpKey(e), only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); ((closeByEmp[e.id]=closeByEmp[e.id]||{e,days:{}}).days[d]={only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); }
+worked+=work; if(isHol) holCnt+=work;
+if(closed){ closeCnt++; (closers[d]=closers[d]||[]).push({name:e.name, g:attGrpKey(e), only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); ((closeByEmp[e.id]=closeByEmp[e.id]||{e,days:{}}).days[d]={only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); }
 const mark=closeOnlyDay?"마":st==="연차"?"연":st==="휴가"?"휴":st==="반차"?"반":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
 const swp=swapCellInfo(rec)||partCellInfo(__parts, st); if(swp){ if(swp.cls==="swap-in") subCnt++; else if(swp.cls==="swap-out") outCnt++; }
 const closeCls = closeOnlyDay ? (earlyLeft?"":" close") : (halfNoClose || earlyLeft || !(st==="출근"||st==="반차")) ? "" : __pOutClose ? (scClose||closeOv===true?" close-off":"") : __pInClose ? " close close-forced" : (closeOv===true?" close close-forced":(closeOv===false?(scClose?" close-off":""):(scClose?" close":"")));
@@ -2468,9 +2473,11 @@ function wireWeek(){
 /* =========================== 급여관리 (약국장 전용) =========================== */
 function renderPayroll(){
 if(!isOwner()){ return `<div class="panel" style="padding:40px;text-align:center;color:var(--muted)">권한이 없습니다.</div>`; }
+if(payTab==="monthly") return headHTML("급여관리","약국장 전용 · 월별 급여 데이터(근무시간기록표·급여변경사항) 만들기")+renderPayrollTabs()+renderSettlement();
 const list=[...DB.employees].sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));
 return `
 ${headHTML("급여관리","약국장 전용 · 급여·계좌·이메일 관리")}
+${renderPayrollTabs()}
 <div class="panel"><div class="att-wrap">
 ${list.length? `<table>
 <thead><tr><th class="num" style="width:56px">사번</th><th>이름</th><th>직무</th><th>급여형태</th><th class="num">급여액</th><th>계좌</th><th>이메일</th><th>상태</th><th></th></tr></thead>
