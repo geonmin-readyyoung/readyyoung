@@ -355,3 +355,12 @@ aside nav .nav-sub button .ico{ width:8px }
 .att tfoot tr.close-total td{border-top:2px solid #C4B5FD; background:#FAF7FF; font-weight:800; color:#5B21B6; padding:6px 2px; vertical-align:middle}
 .att tfoot tr.close-total td.emp{background:#F3EEFF}
 .att tfoot tr.close-total td.close-none{background:#FEF2F2; color:#DC2626}
+
+/* 출근부 직무 카테고리 묶음 행 */
+.att tr.grp-row td{background:#F1F4FA; padding:5px 12px; font-size:12px; font-weight:800; color:#1E2761; text-align:left; border-top:2px solid #CBD5E1}
+.att tr.grp-row td.emp{background:#F1F4FA}
+.att tr.grp-row .grp-dot{display:inline-block; width:9px; height:9px; border-radius:2px; border:1px solid; margin-right:6px; vertical-align:middle}
+.att tfoot tr.grp-row.close-grp td{background:#F8F5FF; border-top:1px solid #DDD6FE; color:#5B21B6; padding:3px 12px; font-size:11.5px}
+.att tfoot tr.close-total td.emp .grp-dot{display:inline-block; width:9px; height:9px; border-radius:2px; border:1px solid; margin-right:6px; vertical-align:middle}
+.att tfoot tr.close-total td.close-zero{color:#CBD5E1; font-weight:600}
+.att tfoot tr.grp-row.close-grp td{border-top:3px solid #E9E3FB}

@@ -1479,17 +1479,25 @@ function syncLeaveAttendance(){
     }
   });
 }
+/* 출근부 직무 카테고리 — 약무→약사, 중국어→중국, 일본어→일본, 물류→창고 */
+const ATT_GRP_LABEL={"약무":"약사","중국어":"중국","일본어":"일본","물류":"창고","기타":"기타"};
+function attGrpKey(e){ return empGroup(e).key; }
+function attGrpOrder(e){ const i=WK_GROUPS.findIndex(g=>g.key===attGrpKey(e)); return i<0?99:i; }
+function attGrpHead(e, n, dim, cls){ const g=empGroup(e); return `<tr class="grp-row ${cls||""}"><td class="emp"><i class="grp-dot" style="background:${g.bg};border-color:${g.fg}"></i>${ATT_GRP_LABEL[g.key]||g.label} <span class="hint">${n}명</span></td><td colspan="${dim}"></td></tr>`; }
 /* 출근부 하단 마감표 — 마감한 직원별 행(월 마감횟수) × 날짜 체크, 맨 아래 날짜별 인원 */
 function closeTableHTML(dayHdr, closers, closeByEmp, emps){
   const rows=emps.filter(e=>closeByEmp[e.id]).map(e=>closeByEmp[e.id]);
   const head=`<tr class="close-head"><td class="emp">마감표 <span class="hint">(${rows.length}명)</span></td>${dayHdr.map(({d})=>`<td>${d}</td>`).join("")}</tr>`;
-  const body=rows.map(({e,days})=>{
-    const n=Object.keys(days).length;
-    return `<tr class="close-emp"><td class="emp">${esc(e.name)} <span class="hint">(마감 ${n}회)</span></td>${dayHdr.map(({d})=>{const c=days[d]; if(!c) return `<td></td>`;
+  const empRow=({e,days})=>`<tr class="close-emp"><td class="emp">${esc(e.name)} <span class="hint">(마감 ${Object.keys(days).length}회)</span></td>${dayHdr.map(({d})=>{const c=days[d]; if(!c) return `<td></td>`;
       return `<td class="ck${c.only?" only":""}${c.forced?" forced":""}" title="${esc(`${d}일 ${e.name} 마감${c.only?" (마감만 23:00~익일 00:30)":c.forced?" (근무변경 지정)":""}`)}">${c.only?"마":"✓"}</td>`;}).join("")}</tr>`;
+  /* 직무별 블록 — [직무 머리줄] + 직원 행 + [직무 마감 인원] 을 약사 → 중국 → 일본 → 창고 순으로 이어붙임 */
+  const blocks=WK_GROUPS.map(g=>g.key).map(k=>{
+    const gr=rows.filter(r=>attGrpKey(r.e)===k); if(!gr.length) return "";
+    const g=WK_GROUPS.find(x=>x.key===k), lb=ATT_GRP_LABEL[k]||g.label;
+    const total=`<tr class="close-total"><td class="emp"><i class="grp-dot" style="background:${g.bg};border-color:${g.fg}"></i>${lb} 마감 인원</td>${dayHdr.map(({d})=>{const list=(closers[d]||[]).filter(c=>c.g===k); return list.length?`<td title="${esc(`${d}일 ${lb} 마감: `+list.map(c=>c.name).join(", "))}">${list.length}</td>`:`<td class="close-zero">0</td>`;}).join("")}</tr>`;
+    return attGrpHead(gr[0].e, gr.length, dayHdr.length, "close-grp") + gr.map(empRow).join("") + total;
   }).join("");
-  const total=`<tr class="close-total"><td class="emp">마감 인원</td>${dayHdr.map(({d})=>{const n=(closers[d]||[]).length; return n?`<td title="${esc(d+"일 마감: "+closers[d].map(c=>c.name).join(", "))}">${n}</td>`:`<td class="close-none" title="${d}일 마감자 없음">0</td>`;}).join("")}</tr>`;
-  return head+body+total;
+  return head+blocks;
 }
 function daysInMonth(ym){ const [y,m]=ym.split("-").map(Number); return new Date(y,m,0).getDate(); }
 function renderAttendance(){
@@ -1503,17 +1511,18 @@ function renderAttendance(){
     if(e.leaveDate && e.leaveDate.slice(0,10) < first) return false;
     return true;
   });
-  allEmps.sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));
+  allEmps.sort((a,b)=>attGrpOrder(a)-attGrpOrder(b) || (a.employeeNo||0)-(b.employeeNo||0));
   /* 직무별 보기 — 약사 / 중국어 / 일본어 / 물류 */
   const grpCnt={}; allEmps.forEach(e=>{ const k=empGroup(e).key; grpCnt[k]=(grpCnt[k]||0)+1; });
   if(attGroup && !grpCnt[attGroup]) attGroup="";
   const emps = attGroup ? allEmps.filter(e=>empGroup(e).key===attGroup) : allEmps;
-  const grpSeg = `<div class="seg">${[{key:"",label:"전체"},...WK_GROUPS.filter(g=>grpCnt[g.key])].map(g=>`<button class="btn sm${attGroup===g.key?" active":""}" onclick="setAttGroup('${g.key}')">${g.key?`<i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${g.bg};border:1px solid ${g.fg};margin-right:5px"></i>`:""}${g.label} ${g.key?grpCnt[g.key]:allEmps.length}</button>`).join("")}</div>`;
+  const grpSeg = `<div class="seg">${[{key:"",label:"전체"},...WK_GROUPS.filter(g=>grpCnt[g.key])].map(g=>`<button class="btn sm${attGroup===g.key?" active":""}" onclick="setAttGroup('${g.key}')">${g.key?`<i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${g.bg};border:1px solid ${g.fg};margin-right:5px"></i>`:""}${g.key?(ATT_GRP_LABEL[g.key]||g.label):g.label} ${g.key?grpCnt[g.key]:allEmps.length}</button>`).join("")}</div>`;
   const dayHdr=[];
   for(let d=1; d<=dim; d++){ const dow=new Date(y,m-1,d).getDay(); dayHdr.push({d,we:(dow===0||dow===6)}); }
 
   const closers={}, closeByEmp={};   // 날짜별·직원별 마감 — 아래 '마감표'
-  const body = emps.map(e=>{
+  const body = emps.map((e,ei)=>{
+    const gHead = (ei===0 || attGrpKey(emps[ei-1])!==attGrpKey(e)) ? attGrpHead(e, emps.filter(x=>attGrpKey(x)===attGrpKey(e)).length, dim) : "";
     let worked=0,closeCnt=0,holCnt=0,subCnt=0,outCnt=0;
     const cells=dayHdr.map(({d})=>{
       const day=attMonth+"-"+String(d).padStart(2,"0");
@@ -1539,7 +1548,7 @@ const halfNoClose = (st==="반차" && hs && hs.start && hs.end && halfSideFor(hs
 if(st==="출근"){ worked++; if(isHol) holCnt++; } else if(st==="반차"){ worked+=0.5; if(isHol) holCnt+=0.5; }
 /* 오후 반차는 일찍 퇴근하므로 마감으로 세지 않는다 */
 const __tl=timeLeavesOn(e.id, day); const earlyLeft=__tl.some(l=>l.leaveType==="조퇴");
-if(effClose && (st==="출근"||st==="반차"||closeOnlyDay) && !halfNoClose && !earlyLeft){ closeCnt++; (closers[d]=closers[d]||[]).push({name:e.name, only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); ((closeByEmp[e.id]=closeByEmp[e.id]||{e,days:{}}).days[d]={only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); }
+if(effClose && (st==="출근"||st==="반차"||closeOnlyDay) && !halfNoClose && !earlyLeft){ closeCnt++; (closers[d]=closers[d]||[]).push({name:e.name, g:attGrpKey(e), only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); ((closeByEmp[e.id]=closeByEmp[e.id]||{e,days:{}}).days[d]={only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); }
 const mark=closeOnlyDay?"마":st==="연차"?"연":st==="휴가"?"휴":st==="반차"?"반":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
 const swp=swapCellInfo(rec); if(swp){ if(swp.cls==="swap-in") subCnt++; else if(swp.cls==="swap-out") outCnt++; }
 const closeCls = closeOnlyDay ? (earlyLeft?"":" close") : (halfNoClose || earlyLeft || !(st==="출근"||st==="반차")) ? "" : (closeOv===true?" close close-forced":(closeOv===false?(scClose?" close-off":""):(scClose?" close":"")));
@@ -1552,7 +1561,7 @@ const cellTitle = [swp?swp.title:"", leaveTitle, halfTitle, timeTitle, earlyLeft
 const timeBadge = __tl.length ? `<i class="tb tb-cell ${TIME_TYPE_STYLE[__tl[0].leaveType]?.cls||""}">${__tl.map(l=>TIME_TYPE_STYLE[l.leaveType]?.mark||"").join("")}</i>` : "";
 const swapBadge = swp ? `<i class="swap-badge">${swp.badge}</i>` : "";
 return `<td class="${cls}${closeCls}${swp?" "+swp.cls:""}${isHol?" holiday":""}"${swp?` data-swapid="${swp.id}"`:""}${cellTitle?` title="${esc(cellTitle)}"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}${swapBadge}${timeBadge}</button></td>`;    }).join("");
-return `<tr><td class="emp">${esc(e.name)} <span class="hint">(${fmtDays(worked)}, 마감 ${fmtDays(closeCnt)}, 휴일 ${fmtDays(holCnt)}${subCnt?`, 대체 ${subCnt}`:""}${outCnt?`, 대체빠짐 ${outCnt}`:""})</span></td>${cells}</tr>`;  }).join("");
+return gHead+`<tr><td class="emp">${esc(e.name)} <span class="hint">(${fmtDays(worked)}, 마감 ${fmtDays(closeCnt)}, 휴일 ${fmtDays(holCnt)}${subCnt?`, 대체 ${subCnt}`:""}${outCnt?`, 대체빠짐 ${outCnt}`:""})</span></td>${cells}</tr>`;  }).join("");
 
   return `
   ${headHTML("출근부","직원 월별 근무 기록 · 조회 전용 — 변경은 근무변경 메뉴에서 등록·승인하면 자동 반영돼요")}
