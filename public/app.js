@@ -2130,7 +2130,9 @@ function dayShifts(day){
     if(e.status==="퇴사" && !e.leaveDate) return;
     const rec=DB.attendance[attKey(e.id,day)];
     const st=rec?rec.status:null;
-    if(st==="연차"||st==="휴가"||st==="결근"||st==="휴무") return;
+    if(st==="연차"||st==="휴가"||st==="결근") return;
+    /* "마감만" 근무는 출근부상 휴무(+closeOverride)로 저장되지만 마감은 서므로 표시한다 */
+    if(st==="휴무" && !rec.closeOverride) return;
     const sc=getSchedule(e.id,dow,day);
     const sw=rec&&rec.swap;
     let start=null,end=null,unknown=false;
