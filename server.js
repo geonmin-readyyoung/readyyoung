@@ -51,6 +51,18 @@ app.post("/api/login", (req, res) => {
   res.status(401).json({ error: "bad_password" });
 });
 
+// 데이터 백업(내보내기) — 관리자 로그인만
+app.get("/api/backup", requireAdmin, async (req, res) => {
+  try {
+    const r = await pool.query("SELECT data FROM hr_store WHERE id = $1", ["v1"]);
+    res.set("Cache-Control", "no-store");
+    res.json({ data: r.rows[0] ? r.rows[0].data : null });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "backup_failed" });
+  }
+});
+
 // 급여 파일(근무시간기록표·급여변경사항) 엑셀 양식 — 관리자 로그인만
 const TEMPLATE_DIR = path.join(__dirname, "templates");
 const TEMPLATES = new Set(["worktime-template.xlsx", "payroll-changes-template.xlsx"]);

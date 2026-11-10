@@ -343,7 +343,7 @@ function openForm(id){
 function val(id){ const el=document.getElementById(id); return el?el.value.trim():""; } function onEmpAutoNo(id){ const role=val("f_role"); const twrap=document.getElementById("f_team_wrap"); if(twrap) twrap.style.display = role==="통역" ? "" : "none"; const empType0=val("f_type"); const cwrap=document.getElementById("f_closing_wrap"); if(cwrap) cwrap.style.display = empType0==="파트타임" ? "" : "none"; if(id) return; const team = role==="통역" ? val("f_team") : ""; const closingEl=document.getElementById("f_closing"); const closing = empType0==="파트타임" && closingEl ? closingEl.checked : false; const noEl=document.getElementById("f_no"); if(noEl) noEl.value = suggestEmployeeNo(role, team, empType0, closing, id||undefined); }
 function isOwner(){ return sessionStorage.getItem("hr_role")==="owner" && !!adminToken(); }
 function adminToken(){ return sessionStorage.getItem("hr_admin_token")||""; }
-function updateNavVisibility(){ const p=document.getElementById("navPayroll"); if(p) p.style.display = isOwner()? "" : "none"; }
+function updateNavVisibility(){ ["navPayroll","exportBtn","importBtn"].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display = isOwner()? "" : "none"; }); }
 function saveEmployee(id){
   const name=val("f_name"), join=val("f_join");
   if(!name){ toast("이름을 입력하세요"); return; }
@@ -2537,13 +2537,23 @@ function modal(title, bodyHTML, footBtns=[], wide=false){
 function closeModal(){ document.getElementById("modalRoot").innerHTML=""; }
 
 /* =========================== 백업/복원/샘플 =========================== */
-function exportData(){
-  const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
+/* 데이터 백업(내보내기)·백업 불러오기는 관리자(약국장) 로그인만 — 내보내기는 서버가 토큰을 확인한 뒤 내려준다 */
+async function exportData(){
+  if(!isOwner()){ toast("데이터 백업은 관리자 로그인만 가능해요"); return; }
+  let d;
+  try{
+    const res=await fetch("/api/backup",{cache:"no-store", headers:{Authorization:"Bearer "+adminToken()}});
+    if(res.status===403){ toast("데이터 백업은 관리자 로그인만 가능해요 — 다시 로그인해 주세요"); return; }
+    if(!res.ok) throw new Error("backup "+res.status);
+    d=(await res.json()).data;
+  }catch(e){ console.error(e); toast("백업 파일을 만들지 못했어요"); return; }
+  const blob=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
   a.download=`인사관리_백업_${todayStr()}.json`; a.click(); URL.revokeObjectURL(a.href);
   toast("백업 파일을 저장했습니다");
 }
 function importData(file){
+  if(!isOwner()){ toast("백업 불러오기는 관리자 로그인만 가능해요"); return; }
   const r=new FileReader();
   r.onload=()=>{ try{
     const d=JSON.parse(r.result);
