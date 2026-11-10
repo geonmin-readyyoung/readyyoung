@@ -1677,18 +1677,28 @@ function syncLeaveAttendance(){
 const ATT_GRP_LABEL={"약무":"약사","중국어":"중국","일본어":"일본","물류":"창고","기타":"기타"};
 function attGrpKey(e){ return empGroup(e).key; }
 function attGrpOrder(e){ const i=WK_GROUPS.findIndex(g=>g.key===attGrpKey(e)); return i<0?99:i; }
-function attGrpHead(e, n, dim, cls){ const g=empGroup(e); return `<tr class="grp-row ${cls||""}"><td class="emp"><i class="grp-dot" style="background:${g.bg};border-color:${g.fg}"></i>${ATT_GRP_LABEL[g.key]||g.label} <span class="hint">${n}명</span></td><td colspan="${dim}"></td></tr>`; }
+function attGrpHead(e, n, dim, cls){ const g=empGroup(e); return `<tr class="grp-row ${cls||""}"><td class="emp"><i class="grp-dot" style="background:${g.bg};border-color:${g.fg}"></i>${ATT_GRP_LABEL[g.key]||g.label} <span class="hint">${n}명</span></td><td colspan="${dim+ATT_SUM_COLS.length}"></td></tr>`; }
+/* 출근부 오른쪽 합계 칸 — 근무일 · 마감 · 휴일(근로) · 근무증감(대체 + / 대체빠짐 −) */
+const ATT_SUM_COLS=[{k:"work",label:"근무일",title:"출근 1일, 반차 0.5일"},{k:"close",label:"마감",title:"마감 횟수"},{k:"hol",label:"휴일",title:"휴일(출근부 빨간 날) 근무일"},{k:"delta",label:"근무증감",title:"대체로 더 들어간 날(+)과 대체로 빠진 날(−)을 합친 값"}];
+function attSumHead(){ return ATT_SUM_COLS.map((c,i)=>`<th class="sum${i===0?" sum-first":""}" title="${c.title}">${c.label}</th>`).join(""); }
+function attSumBlank(){ return ATT_SUM_COLS.map((c,i)=>`<td class="sum${i===0?" sum-first":""}"></td>`).join(""); }
+function attSumCells(worked, closeCnt, holCnt, subCnt, outCnt){
+  const d=subCnt-outCnt;
+  const dTitle=`대체 ${subCnt}일 · 대체빠짐 ${outCnt}일`;
+  const dTxt = d>0 ? `+${d}` : d<0 ? `−${-d}` : (subCnt||outCnt) ? "0" : "";
+  return `<td class="sum sum-first">${fmtDays(worked)}</td><td class="sum">${closeCnt?fmtDays(closeCnt):""}</td><td class="sum">${holCnt?fmtDays(holCnt):""}</td><td class="sum${d>0?" sum-plus":d<0?" sum-minus":""}" title="${dTitle}">${dTxt}</td>`;
+}
 /* 출근부 하단 마감표 — 마감한 직원별 행(월 마감횟수) × 날짜 체크, 맨 아래 날짜별 인원 */
 function closeTableHTML(dayHdr, closers, closeByEmp, emps){
   const rows=emps.filter(e=>closeByEmp[e.id]).map(e=>closeByEmp[e.id]);
-  const head=`<tr class="close-head"><td class="emp">마감표 <span class="hint">(${rows.length}명)</span></td>${dayHdr.map(({d})=>`<td>${d}</td>`).join("")}</tr>`;
+  const head=`<tr class="close-head"><td class="emp">마감표 <span class="hint">(${rows.length}명)</span></td>${dayHdr.map(({d})=>`<td>${d}</td>`).join("")}${attSumBlank()}</tr>`;
   const empRow=({e,days})=>`<tr class="close-emp"><td class="emp">${esc(e.name)} <span class="hint">(마감 ${Object.keys(days).length}회)</span></td>${dayHdr.map(({d})=>{const c=days[d]; if(!c) return `<td></td>`;
-      return `<td class="ck${c.only?" only":""}${c.forced?" forced":""}" title="${esc(`${d}일 ${e.name} 마감${c.only?" (마감만 23:00~익일 00:30)":c.forced?" (근무변경 지정)":""}`)}">${c.only?"마":"✓"}</td>`;}).join("")}</tr>`;
+      return `<td class="ck${c.only?" only":""}${c.forced?" forced":""}" title="${esc(`${d}일 ${e.name} 마감${c.only?" (마감만 23:00~익일 00:30)":c.forced?" (근무변경 지정)":""}`)}">${c.only?"마":"✓"}</td>`;}).join("")}${attSumBlank()}</tr>`;
   /* 직무별 블록 — [직무 머리줄] + 직원 행 + [직무 마감 인원] 을 약사 → 중국 → 일본 → 창고 순으로 이어붙임 */
   const blocks=WK_GROUPS.map(g=>g.key).map(k=>{
     const gr=rows.filter(r=>attGrpKey(r.e)===k); if(!gr.length) return "";
     const g=WK_GROUPS.find(x=>x.key===k), lb=ATT_GRP_LABEL[k]||g.label;
-    const total=`<tr class="close-total"><td class="emp"><i class="grp-dot" style="background:${g.bg};border-color:${g.fg}"></i>${lb} 마감 인원</td>${dayHdr.map(({d})=>{const list=(closers[d]||[]).filter(c=>c.g===k); return list.length?`<td title="${esc(`${d}일 ${lb} 마감: `+list.map(c=>c.name).join(", "))}">${list.length}</td>`:`<td class="close-zero">0</td>`;}).join("")}</tr>`;
+    const total=`<tr class="close-total"><td class="emp"><i class="grp-dot" style="background:${g.bg};border-color:${g.fg}"></i>${lb} 마감 인원</td>${dayHdr.map(({d})=>{const list=(closers[d]||[]).filter(c=>c.g===k); return list.length?`<td title="${esc(`${d}일 ${lb} 마감: `+list.map(c=>c.name).join(", "))}">${list.length}</td>`:`<td class="close-zero">0</td>`;}).join("")}${attSumBlank()}</tr>`;
     return attGrpHead(gr[0].e, gr.length, dayHdr.length, "close-grp") + gr.map(empRow).join("") + total;
   }).join("");
   return head+blocks;
@@ -1763,7 +1773,7 @@ const cellTitle = [swp?swp.title:"", leaveTitle, halfTitle, timeTitle, earlyLeft
 const timeBadge = __tl.length ? `<i class="tb tb-cell ${TIME_TYPE_STYLE[__tl[0].leaveType]?.cls||""}">${__tl.map(l=>TIME_TYPE_STYLE[l.leaveType]?.mark||"").join("")}</i>` : "";
 const swapBadge = swp ? `<i class="swap-badge">${swp.badge}</i>` : "";
 return `<td class="${cls}${closeCls}${swp?" "+swp.cls:""}${isHol?" holiday":""}"${swp?` data-swapid="${swp.id}"`:""}${cellTitle?` title="${esc(cellTitle)}"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}${swapBadge}${timeBadge}</button></td>`;    }).join("");
-return gHead+`<tr><td class="emp">${esc(e.name)} <span class="hint">(${fmtDays(worked)}, 마감 ${fmtDays(closeCnt)}, 휴일 ${fmtDays(holCnt)}${subCnt?`, 대체 ${subCnt}`:""}${outCnt?`, 대체빠짐 ${outCnt}`:""})</span></td>${cells}</tr>`;  }).join("");
+return gHead+`<tr><td class="emp">${esc(e.name)}</td>${cells}${attSumCells(worked, closeCnt, holCnt, subCnt, outCnt)}</tr>`;  }).join("");
 
   return `
   ${headHTML("출근부","직원 월별 근무 기록 · 조회 전용 — 변경은 근무변경 메뉴에서 등록·승인하면 자동 반영돼요")}
@@ -1776,10 +1786,10 @@ return gHead+`<tr><td class="emp">${esc(e.name)} <span class="hint">(${fmtDays(w
     <button class="btn sm" onclick="goShiftChange({})">＋ 근무변경</button>
     ${grpSeg}
     <div class="grow"></div>
-<span class="hint">${emps.length}명 · 괄호(출근,마감,휴일근로) · 날짜 클릭 시 휴일 지정</span>  </div>
+<span class="hint">${emps.length}명 · 오른쪽 칸: 근무일·마감·휴일·근무증감 · 날짜 클릭 시 휴일 지정</span>  </div>
   <div class="panel"><div class="att-wrap">
     ${emps.length? `<table class="att">
-<thead><tr><th class="emp">직원</th>${dayHdr.map(h=>{const hday=attMonth+"-"+String(h.d).padStart(2,"0");const hhol=(DB.holidays||[]).includes(hday);return `<th class="${h.we?'we':''}${hhol?' holiday':''}" style="cursor:pointer" title="클릭하여 휴일 지정/해제" onclick="toggleHoliday('${hday}')">${h.d}</th>`;}).join("")}</tr></thead>      <tbody>${body}</tbody>
+<thead><tr><th class="emp">직원</th>${dayHdr.map(h=>{const hday=attMonth+"-"+String(h.d).padStart(2,"0");const hhol=(DB.holidays||[]).includes(hday);return `<th class="${h.we?'we':''}${hhol?' holiday':''}" style="cursor:pointer" title="클릭하여 휴일 지정/해제" onclick="toggleHoliday('${hday}')">${h.d}</th>`;}).join("")}${attSumHead()}</tr></thead>      <tbody>${body}</tbody>
 <tfoot>${closeTableHTML(dayHdr, closers, closeByEmp, emps)}</tfoot>
     </table>`:`<div class="empty"><div class="big">이 달에 표시할 파트타임 직원이 없어요</div><div>직원을 파트타임으로 등록하면 여기에 나타납니다.</div></div>`}
   </div></div>
