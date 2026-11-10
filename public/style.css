@@ -369,4 +369,4 @@ aside nav .nav-sub button .ico{ width:8px }
 .att th.sum{min-width:46px; padding:7px 6px; background:#F1F4FB; white-space:nowrap}
 .att td.sum{padding:0 6px; font-weight:700; color:var(--navy); background:#FAFBFE; white-space:nowrap}
 .att th.sum-first,.att td.sum-first{border-left:2px solid var(--border-strong)}
-.att td.sum-plus{color:#0369A1} .att td.sum-minus{color:#B91C1C}
+.att td.sum-plus{color:#16A34A} .att td.sum-minus{color:#B91C1C}
