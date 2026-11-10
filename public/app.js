@@ -4,8 +4,7 @@
    구조/규칙은 레디영 부산지점 앱(Prisma schema, lib/leave.ts)을 기준으로 이식.
    ========================================================================= */
 
-const ADMIN_PW = "admin1234";
-const STAFF_PW = "staff2024"; // 일반 직원용 비밀번호(급여 정보 비공개)        // 필요시 이 값만 바꾸면 됨
+/* 비밀번호(관리자·직원용)는 서버(server.js, /api/login)에서만 확인한다 */
 const BRANCH   = "레디영약국";        // 지점명 표시용
 const STORE_KEY = "hr_db_v1";
 
@@ -342,8 +341,9 @@ function openForm(id){
   ]);
 }
 function val(id){ const el=document.getElementById(id); return el?el.value.trim():""; } function onEmpAutoNo(id){ const role=val("f_role"); const twrap=document.getElementById("f_team_wrap"); if(twrap) twrap.style.display = role==="통역" ? "" : "none"; const empType0=val("f_type"); const cwrap=document.getElementById("f_closing_wrap"); if(cwrap) cwrap.style.display = empType0==="파트타임" ? "" : "none"; if(id) return; const team = role==="통역" ? val("f_team") : ""; const closingEl=document.getElementById("f_closing"); const closing = empType0==="파트타임" && closingEl ? closingEl.checked : false; const noEl=document.getElementById("f_no"); if(noEl) noEl.value = suggestEmployeeNo(role, team, empType0, closing, id||undefined); }
-function isOwner(){ return sessionStorage.getItem("hr_role")==="owner"; }
-function updateNavVisibility(){ const p=document.getElementById("navPayroll"); if(p) p.style.display = isOwner()? "" : "none"; }
+function isOwner(){ return sessionStorage.getItem("hr_role")==="owner" && !!adminToken(); }
+function adminToken(){ return sessionStorage.getItem("hr_admin_token")||""; }
+function updateNavVisibility(){ ["navPayroll","exportBtn","importBtn"].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display = isOwner()? "" : "none"; }); }
 function saveEmployee(id){
   const name=val("f_name"), join=val("f_join");
   if(!name){ toast("이름을 입력하세요"); return; }
@@ -1694,6 +1694,33 @@ function closeTableHTML(dayHdr, closers, closeByEmp, emps){
   return head+blocks;
 }
 function daysInMonth(ym){ const [y,m]=ym.split("-").map(Number); return new Date(y,m,0).getDate(); }
+/* 출근부 한 칸(직원 e · 날짜 day)의 판정 — 출근부 화면과 급여정산이 같은 기준을 쓰도록 한 곳에 둔다 */
+function attDayInfo(e, day){
+  const rec=DB.attendance[attKey(e.id,day)];
+  let st=rec?.status || "";
+  const sc=scheduleEntry(e.id, dateOf(day).getDay(), day); const isHol=(DB.holidays||[]).includes(day);
+  /* 근무표 자동 반영: 출근부 기록(근무변경·연차·기존 기록)이 없는 날은 근무표 기준으로 계산 */
+  const inEmp=(e.joinDate||"").slice(0,10)<=day && (!e.leaveDate || e.leaveDate.slice(0,10)>=day);
+  const autoCo=!st && inEmp && !!(sc&&sc.on&&sc.start&&sc.start>="23:00");
+  if(!st && inEmp && sc) st = (sc.on && !autoCo) ? "출근" : "휴무";
+  const scClose=!!(sc&&sc.on&&sc.close);
+  const closeOv=(rec&&Object.prototype.hasOwnProperty.call(rec,"closeOverride"))?rec.closeOverride:(autoCo?true:null);
+  /* 근무시간 일부 이동 — 마감까지 옮겼으면 원래 날 마감 해제, 옮긴 날 마감 */
+  const parts=(st==="연차"||st==="휴가"||st==="결근")?[]:partsOf(rec);
+  const pOutClose=parts.some(p=>p.dir==="out"&&p.close), pInClose=parts.some(p=>p.dir==="in"&&p.close);
+  const effClose= pOutClose?false:pInClose?true:(closeOv===true?true:(closeOv===false?false:scClose));
+  /* 마감만(23:00~익일 00:30) 근무 — 근무일로는 안 세지만(휴무) 마감은 표시·집계 */
+  const closeOnlyDay = st==="휴무" && ((closeOv===true && !(rec&&rec.swap) && !pOutClose) || pInClose);
+  /* 오후 반차는 일찍 퇴근 — 마감 표시/집계 모두 제외 */
+  /* 대체로 들어간 날은 그 근무 시간 기준으로 반차 구간을 잡는다 */
+  const hs = (rec && rec.swap && (rec.swap.role==="대체"||rec.swap.role==="이동후") && rec.swap.start && rec.swap.end) ? {start:rec.swap.start, end:rec.swap.end} : sc;
+  const halfNoClose = (st==="반차" && hs && hs.start && hs.end && halfSideFor(hs.start, hs.end)==="전반");
+  const work = st==="출근" ? 1 : st==="반차" ? 0.5 : 0;
+  /* 조퇴한 날은 마감으로 세지 않는다 */
+  const tl=timeLeavesOn(e.id, day); const earlyLeft=tl.some(l=>l.leaveType==="조퇴");
+  const closed = effClose && (st==="출근"||st==="반차"||closeOnlyDay) && !halfNoClose && !earlyLeft;
+  return {rec, st, sc, isHol, scClose, closeOv, parts, pOutClose, pInClose, effClose, closeOnlyDay, hs, halfNoClose, tl, earlyLeft, work, closed};
+}
 function renderAttendance(){
   const [y,m]=attMonth.split("-").map(Number);
   const dim=daysInMonth(attMonth);
@@ -1720,32 +1747,10 @@ function renderAttendance(){
     let worked=0,closeCnt=0,holCnt=0,subCnt=0,outCnt=0;
     const cells=dayHdr.map(({d})=>{
       const day=attMonth+"-"+String(d).padStart(2,"0");
-      const rec=DB.attendance[attKey(e.id,day)];
-let st=rec?.status || "";
-const half=rec?.half || null;
-      const dow=new Date(y,m-1,d).getDay();
-      const sc=scheduleEntry(e.id, dow, day); const isHol=(DB.holidays||[]).includes(day);
-/* 근무표 자동 반영: 출근부 기록(근무변경·연차·기존 기록)이 없는 날은 근무표 기준으로 계산 */
-const inEmp=(e.joinDate||"").slice(0,10)<=day && (!e.leaveDate || e.leaveDate.slice(0,10)>=day);
-const autoCo=!st && inEmp && !!(sc&&sc.on&&sc.start&&sc.start>="23:00");
-if(!st && inEmp && sc) st = (sc.on && !autoCo) ? "출근" : "휴무";
-const scClose=!!(sc&&sc.on&&sc.close);
-const closeOv=(rec&&Object.prototype.hasOwnProperty.call(rec,"closeOverride"))?rec.closeOverride:(autoCo?true:null);
-/* 근무시간 일부 이동 — 마감까지 옮겼으면 원래 날 마감 해제, 옮긴 날 마감 */
-const __parts=(st==="연차"||st==="휴가"||st==="결근")?[]:partsOf(rec);
-const __pOutClose=__parts.some(p=>p.dir==="out"&&p.close), __pInClose=__parts.some(p=>p.dir==="in"&&p.close);
-const effClose= __pOutClose?false:__pInClose?true:(closeOv===true?true:(closeOv===false?false:scClose));
-/* 마감만(23:00~익일 00:30) 근무 — 근무일로는 안 세지만(휴무) 마감은 표시·집계 */
-const closeOnlyDay = st==="휴무" && ((closeOv===true && !(rec&&rec.swap) && !__pOutClose) || __pInClose);
-/* 오후 반차는 일찍 퇴근 — 마감 표시/집계 모두 제외 */
-/* 대체로 들어간 날은 그 근무 시간 기준으로 반차 구간을 잡는다 */
-const hs = (rec && rec.swap && (rec.swap.role==="대체"||rec.swap.role==="이동후") && rec.swap.start && rec.swap.end) ? {start:rec.swap.start, end:rec.swap.end} : sc;
-const halfNoClose = (st==="반차" && hs && hs.start && hs.end && halfSideFor(hs.start, hs.end)==="전반");
+      const {rec, st, sc, isHol, scClose, closeOv, parts:__parts, pOutClose:__pOutClose, pInClose:__pInClose, effClose, closeOnlyDay, hs, halfNoClose, tl:__tl, earlyLeft, work, closed}=attDayInfo(e, day);
       const cls=st==="연차"||st==="휴가"?"leave":st==="반차"?"half":st==="출근"?"on":st==="결근"?"absent":st==="휴무"?"off":(sc?(sc.on?"sched-on":"sched-off"):"");
-if(st==="출근"){ worked++; if(isHol) holCnt++; } else if(st==="반차"){ worked+=0.5; if(isHol) holCnt+=0.5; }
-/* 오후 반차는 일찍 퇴근하므로 마감으로 세지 않는다 */
-const __tl=timeLeavesOn(e.id, day); const earlyLeft=__tl.some(l=>l.leaveType==="조퇴");
-if(effClose && (st==="출근"||st==="반차"||closeOnlyDay) && !halfNoClose && !earlyLeft){ closeCnt++; (closers[d]=closers[d]||[]).push({name:e.name, g:attGrpKey(e), only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); ((closeByEmp[e.id]=closeByEmp[e.id]||{e,days:{}}).days[d]={only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); }
+worked+=work; if(isHol) holCnt+=work;
+if(closed){ closeCnt++; (closers[d]=closers[d]||[]).push({name:e.name, g:attGrpKey(e), only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); ((closeByEmp[e.id]=closeByEmp[e.id]||{e,days:{}}).days[d]={only:closeOnlyDay, forced:!closeOnlyDay&&closeOv===true}); }
 const mark=closeOnlyDay?"마":st==="연차"?"연":st==="휴가"?"휴":st==="반차"?"반":st==="출근"?"○":st==="결근"?"×":st==="휴무"?"–":(sc?(sc.on?"○":"–"):"");
 const swp=swapCellInfo(rec)||partCellInfo(__parts, st); if(swp){ if(swp.cls==="swap-in") subCnt++; else if(swp.cls==="swap-out") outCnt++; }
 const closeCls = closeOnlyDay ? (earlyLeft?"":" close") : (halfNoClose || earlyLeft || !(st==="출근"||st==="반차")) ? "" : __pOutClose ? (scClose||closeOv===true?" close-off":"") : __pInClose ? " close close-forced" : (closeOv===true?" close close-forced":(closeOv===false?(scClose?" close-off":""):(scClose?" close":"")));
@@ -2468,9 +2473,11 @@ function wireWeek(){
 /* =========================== 급여관리 (약국장 전용) =========================== */
 function renderPayroll(){
 if(!isOwner()){ return `<div class="panel" style="padding:40px;text-align:center;color:var(--muted)">권한이 없습니다.</div>`; }
+if(payTab==="monthly") return headHTML("급여관리","약국장 전용 · 월별 급여 데이터(근무시간기록표·급여변경사항) 만들기")+renderPayrollTabs()+renderSettlement();
 const list=[...DB.employees].sort((a,b)=>(a.employeeNo||0)-(b.employeeNo||0));
 return `
 ${headHTML("급여관리","약국장 전용 · 급여·계좌·이메일 관리")}
+${renderPayrollTabs()}
 <div class="panel"><div class="att-wrap">
 ${list.length? `<table>
 <thead><tr><th class="num" style="width:56px">사번</th><th>이름</th><th>직무</th><th>급여형태</th><th class="num">급여액</th><th>계좌</th><th>이메일</th><th>상태</th><th></th></tr></thead>
@@ -2530,13 +2537,23 @@ function modal(title, bodyHTML, footBtns=[], wide=false){
 function closeModal(){ document.getElementById("modalRoot").innerHTML=""; }
 
 /* =========================== 백업/복원/샘플 =========================== */
-function exportData(){
-  const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
+/* 데이터 백업(내보내기)·백업 불러오기는 관리자(약국장) 로그인만 — 내보내기는 서버가 토큰을 확인한 뒤 내려준다 */
+async function exportData(){
+  if(!isOwner()){ toast("데이터 백업은 관리자 로그인만 가능해요"); return; }
+  let d;
+  try{
+    const res=await fetch("/api/backup",{cache:"no-store", headers:{Authorization:"Bearer "+adminToken()}});
+    if(res.status===403){ toast("데이터 백업은 관리자 로그인만 가능해요 — 다시 로그인해 주세요"); return; }
+    if(!res.ok) throw new Error("backup "+res.status);
+    d=(await res.json()).data;
+  }catch(e){ console.error(e); toast("백업 파일을 만들지 못했어요"); return; }
+  const blob=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
   a.download=`인사관리_백업_${todayStr()}.json`; a.click(); URL.revokeObjectURL(a.href);
   toast("백업 파일을 저장했습니다");
 }
 function importData(file){
+  if(!isOwner()){ toast("백업 불러오기는 관리자 로그인만 가능해요"); return; }
   const r=new FileReader();
   r.onload=()=>{ try{
     const d=JSON.parse(r.result);
@@ -2567,18 +2584,23 @@ function seedSample(){
 }
 
 /* =========================== 로그인/부팅 =========================== */
-function doLogin(){
+async function doLogin(){
   const pw=document.getElementById("pw").value;
-  if(pw===ADMIN_PW || pw===STAFF_PW){
-    sessionStorage.setItem("hr_auth","1");
-    sessionStorage.setItem("hr_role", pw===ADMIN_PW?"owner":"staff");
-updateNavVisibility();
-    document.getElementById("login").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-    render();
-  } else {
-    document.getElementById("loginErr").textContent="비밀번호가 올바르지 않습니다.";
-  }
+  const err=document.getElementById("loginErr");
+  let r=null;
+  try{
+    const res=await fetch("/api/login",{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pw})});
+    if(res.status===401){ err.textContent="비밀번호가 올바르지 않습니다."; return; }
+    if(!res.ok) throw new Error("login "+res.status);
+    r=await res.json();
+  }catch(e){ console.error(e); err.textContent="서버에 연결할 수 없습니다. 잠시 후 다시 시도하세요."; return; }
+  sessionStorage.setItem("hr_auth","1");
+  sessionStorage.setItem("hr_role", r.role==="owner"?"owner":"staff");
+  if(r.role==="owner" && r.token) sessionStorage.setItem("hr_admin_token", r.token); else sessionStorage.removeItem("hr_admin_token");
+  updateNavVisibility();
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  render();
 }
 async function boot(){
   await loadDB();
@@ -2588,7 +2610,7 @@ updateNavVisibility();
   document.getElementById("loginBtn").onclick=doLogin;
   document.getElementById("pw").addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
   document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>setView(b.dataset.view));
-  document.getElementById("logoutBtn").onclick=()=>{ sessionStorage.removeItem("hr_auth"); location.reload(); };
+  document.getElementById("logoutBtn").onclick=()=>{ ["hr_auth","hr_role","hr_admin_token"].forEach(k=>sessionStorage.removeItem(k)); location.reload(); };
   document.getElementById("exportBtn").onclick=exportData;
   document.getElementById("importBtn").onclick=()=>document.getElementById("importFile").click();
   document.getElementById("importFile").onchange=e=>{ if(e.target.files[0]) importData(e.target.files[0]); e.target.value=""; };
