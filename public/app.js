@@ -1679,13 +1679,14 @@ function attGrpKey(e){ return empGroup(e).key; }
 function attGrpOrder(e){ const i=WK_GROUPS.findIndex(g=>g.key===attGrpKey(e)); return i<0?99:i; }
 function attGrpHead(e, n, dim, cls){ const g=empGroup(e); return `<tr class="grp-row ${cls||""}"><td class="emp"><i class="grp-dot" style="background:${g.bg};border-color:${g.fg}"></i>${ATT_GRP_LABEL[g.key]||g.label} <span class="hint">${n}명</span></td><td colspan="${dim+ATT_SUM_COLS.length}"></td></tr>`; }
 /* 출근부 오른쪽 합계 칸 — 근무일 · 마감 · 휴일(근로) · 근무증감(대체 + / 대체빠짐 −) */
-const ATT_SUM_COLS=[{k:"work",label:"근무일",title:"출근 1일, 반차 0.5일"},{k:"close",label:"마감",title:"마감 횟수"},{k:"hol",label:"휴일",title:"휴일(출근부 빨간 날) 근무일"},{k:"delta",label:"근무증감",title:"대체로 더 들어간 날(+)과 대체로 빠진 날(−)을 합친 값"}];
+const ATT_SUM_COLS=[{k:"work",label:"근무일",title:"출근 1일, 반차 0.5일"},{k:"close",label:"마감",title:"마감 횟수"},{k:"hol",label:"휴일",title:"휴일(출근부 빨간 날) 근무일"},{k:"delta",label:"근무증감",title:"근무변경 › 급여 정산 요약의 근무일 증감과 같은 값 (대체 근무 − 무급)"}];
 function attSumHead(){ return ATT_SUM_COLS.map((c,i)=>`<th class="sum${i===0?" sum-first":""}" title="${c.title}">${c.label}</th>`).join(""); }
 function attSumBlank(){ return ATT_SUM_COLS.map((c,i)=>`<td class="sum${i===0?" sum-first":""}"></td>`).join(""); }
-function attSumCells(worked, closeCnt, holCnt, subCnt, outCnt){
-  const d=subCnt-outCnt;
-  const dTitle=`대체 ${subCnt}일 · 대체빠짐 ${outCnt}일`;
-  const dTxt = d>0 ? `+${d}` : d<0 ? `−${-d}` : (subCnt||outCnt) ? "0" : "";
+/* 근무증감은 근무변경 › 급여 정산 요약(shiftChangeSummary)의 "근무일 증감"과 같은 값: 대체 근무 − 무급 */
+function attSumCells(worked, closeCnt, holCnt, sc){
+  const sub=sc?sc.sub:0, unpaid=sc?sc.무급:0, d=sub-unpaid;
+  const dTitle=`대체 근무 ${sub}일 · 무급 ${unpaid}일`;
+  const dTxt = d>0 ? `+${d}` : d<0 ? `−${-d}` : sc ? "0" : "";
   return `<td class="sum sum-first">${fmtDays(worked)}</td><td class="sum">${closeCnt?fmtDays(closeCnt):""}</td><td class="sum">${holCnt?fmtDays(holCnt):""}</td><td class="sum${d>0?" sum-plus":d<0?" sum-minus":""}" title="${dTitle}">${dTxt}</td>`;
 }
 /* 출근부 하단 마감표 — 마감한 직원별 행(월 마감횟수) × 날짜 체크, 맨 아래 날짜별 인원 */
@@ -1752,6 +1753,7 @@ function renderAttendance(){
   for(let d=1; d<=dim; d++){ const dow=new Date(y,m-1,d).getDay(); dayHdr.push({d,we:(dow===0||dow===6)}); }
 
   const closers={}, closeByEmp={};   // 날짜별·직원별 마감 — 아래 '마감표'
+  const scBy=Object.fromEntries(shiftChangeSummary(attMonth).map(r=>[r.e.id,r]));   // 근무증감 — 근무변경 요약과 같은 값
   const body = emps.map((e,ei)=>{
     const gHead = (ei===0 || attGrpKey(emps[ei-1])!==attGrpKey(e)) ? attGrpHead(e, emps.filter(x=>attGrpKey(x)===attGrpKey(e)).length, dim) : "";
     let worked=0,closeCnt=0,holCnt=0,subCnt=0,outCnt=0;
@@ -1773,7 +1775,7 @@ const cellTitle = [swp?swp.title:"", leaveTitle, halfTitle, timeTitle, earlyLeft
 const timeBadge = __tl.length ? `<i class="tb tb-cell ${TIME_TYPE_STYLE[__tl[0].leaveType]?.cls||""}">${__tl.map(l=>TIME_TYPE_STYLE[l.leaveType]?.mark||"").join("")}</i>` : "";
 const swapBadge = swp ? `<i class="swap-badge">${swp.badge}</i>` : "";
 return `<td class="${cls}${closeCls}${swp?" "+swp.cls:""}${isHol?" holiday":""}"${swp?` data-swapid="${swp.id}"`:""}${cellTitle?` title="${esc(cellTitle)}"`:""}><button class="cell" data-emp="${e.id}" data-day="${day}">${mark}${swapBadge}${timeBadge}</button></td>`;    }).join("");
-return gHead+`<tr><td class="emp">${esc(e.name)}</td>${cells}${attSumCells(worked, closeCnt, holCnt, subCnt, outCnt)}</tr>`;  }).join("");
+return gHead+`<tr><td class="emp">${esc(e.name)}</td>${cells}${attSumCells(worked, closeCnt, holCnt, scBy[e.id])}</tr>`;  }).join("");
 
   return `
   ${headHTML("출근부","직원 월별 근무 기록 · 조회 전용 — 변경은 근무변경 메뉴에서 등록·승인하면 자동 반영돼요")}
