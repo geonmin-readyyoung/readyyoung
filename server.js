@@ -1,4 +1,5 @@
 const path = require("path");
+const crypto = require("crypto");
 const express = require("express");
 const { Pool } = require("pg");
 
@@ -6,6 +7,58 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: "5mb" }));
+
+/* ---- 로그인 / 관리자 권한 ----
+   비밀번호는 서버에서만 확인한다 (화면 JS에 비밀번호를 두지 않음).
+   관리자(약국장) 로그인에만 서명된 토큰을 주고, 급여 파일 추출(엑셀 양식 내려받기)은 이 토큰이 있어야 된다.
+   비밀번호는 Railway 환경변수 HR_ADMIN_PW / HR_STAFF_PW 로 바꿀 수 있다 (없으면 기존 값). */
+const ADMIN_PW = process.env.HR_ADMIN_PW || "admin1234";
+const STAFF_PW = process.env.HR_STAFF_PW || "staff2024";
+const TOKEN_SECRET = process.env.HR_TOKEN_SECRET || crypto.createHash("sha256").update("hr-token:" + ADMIN_PW).digest("hex");
+const TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+
+function safeEqual(a, b) {
+  const x = Buffer.from(String(a)), y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+function signToken(role) {
+  const body = Buffer.from(JSON.stringify({ role, exp: Date.now() + TOKEN_TTL_MS })).toString("base64url");
+  const sig = crypto.createHmac("sha256", TOKEN_SECRET).update(body).digest("base64url");
+  return body + "." + sig;
+}
+function readToken(req) {
+  const m = /^Bearer (.+)$/.exec(req.get("authorization") || "");
+  if (!m) return null;
+  const [body, sig] = m[1].split(".");
+  if (!body || !sig) return null;
+  const want = crypto.createHmac("sha256", TOKEN_SECRET).update(body).digest("base64url");
+  if (!safeEqual(sig, want)) return null;
+  try {
+    const t = JSON.parse(Buffer.from(body, "base64url").toString());
+    return t && t.exp > Date.now() ? t : null;
+  } catch (_) { return null; }
+}
+function requireAdmin(req, res, next) {
+  const t = readToken(req);
+  if (!t || t.role !== "owner") return res.status(403).json({ error: "admin_only" });
+  next();
+}
+
+app.post("/api/login", (req, res) => {
+  const pw = String((req.body && req.body.pw) || "");
+  if (safeEqual(pw, ADMIN_PW)) return res.json({ role: "owner", token: signToken("owner") });
+  if (safeEqual(pw, STAFF_PW)) return res.json({ role: "staff" });
+  res.status(401).json({ error: "bad_password" });
+});
+
+// 급여 파일(근무시간기록표·급여변경사항) 엑셀 양식 — 관리자 로그인만
+const TEMPLATE_DIR = path.join(__dirname, "templates");
+const TEMPLATES = new Set(["worktime-template.xlsx", "payroll-changes-template.xlsx"]);
+app.get("/api/payroll-template/:name", requireAdmin, (req, res) => {
+  if (!TEMPLATES.has(req.params.name)) return res.status(404).json({ error: "not_found" });
+  res.set("Cache-Control", "no-store");
+  res.sendFile(path.join(TEMPLATE_DIR, req.params.name));
+});
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

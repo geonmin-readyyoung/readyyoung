@@ -2,7 +2,7 @@
    급여관리 › 월별 급여 데이터 — 세무사 제출용 엑셀 2종을 HR 데이터로 만든다.
      · N월_근무시간기록표_단시간사업소득_명동타운레디영.xlsx (미신고 단시간 인원별 시트)
      · N월_급여변경사항_명동타운레디영_YYMM.xlsx (입사/퇴사/수당/수당_미신고인원/급여현황표 3종/이메일)
-   양식은 public/templates/*.xlsx (기존 제출본에서 개인정보·값만 지운 것)을 그대로 쓰고,
+   양식은 templates/*.xlsx (기존 제출본에서 개인정보·값만 지운 것, 관리자 로그인에만 서버가 내려줌)을 그대로 쓰고,
    엑셀은 브라우저에서 만들어 바로 내려받는다 (서버로 보내는 것 없음).
    산출 기준
      · 근무일·마감·휴일: 출근부와 같은 판정(attDayInfo) — 출근 1일, 반차 0.5일
@@ -285,7 +285,11 @@ function loadExcelJS(){
 }
 async function loadTemplate(name){
   await loadExcelJS();
-  const buf=await fetch("templates/"+name, {cache:"no-cache"}).then(r=>{ if(!r.ok) throw new Error("template "+r.status); return r.arrayBuffer(); });
+  /* 양식은 서버가 관리자 로그인 토큰을 확인한 뒤에만 내려준다 */
+  const res=await fetch("/api/payroll-template/"+encodeURIComponent(name), {cache:"no-store", headers:{Authorization:"Bearer "+adminToken()}});
+  if(res.status===403){ const e=new Error("admin_only"); e.adminOnly=true; throw e; }
+  if(!res.ok) throw new Error("template "+res.status);
+  const buf=await res.arrayBuffer();
   const wb=new ExcelJS.Workbook(); await wb.xlsx.load(buf); return wb;
 }
 async function saveWorkbook(wb, filename){
@@ -310,6 +314,7 @@ function cloneSheet(wb, src, name){
 }
 
 async function downloadWorktime(){
+  if(!isOwner()){ toast("급여 파일 추출은 관리자 로그인만 가능해요"); return; }
   try{
     const S=computeSettlement(stlMonth), M=S.M;
     const list=S.rows.filter(r=>r.cat==="미신고단시간" && r.workDays);
@@ -337,10 +342,11 @@ async function downloadWorktime(){
     });
     wb.removeWorksheet(tpl.id);
     await saveWorkbook(wb, `${M}월_근무시간기록표_단시간사업소득_${STORE_FILE_NAME}.xlsx`);
-  }catch(err){ console.error(err); toast("근무시간기록표를 만들지 못했어요"); }
+  }catch(err){ console.error(err); toast(err.adminOnly ? "급여 파일 추출은 관리자 로그인만 가능해요 — 다시 로그인해 주세요" : "근무시간기록표를 만들지 못했어요"); }
 }
 
 async function downloadPayrollChanges(){
+  if(!isOwner()){ toast("급여 파일 추출은 관리자 로그인만 가능해요"); return; }
   try{
     const S=computeSettlement(stlMonth), M=S.M, YM=yymm(stlMonth);
     const wb=await loadTemplate("payroll-changes-template.xlsx");
@@ -438,5 +444,5 @@ async function downloadPayrollChanges(){
       numberRows(ws, 4, 25+extra);
     }
     await saveWorkbook(wb, `${M}월_급여변경사항_${STORE_FILE_NAME}_${YM}.xlsx`);
-  }catch(err){ console.error(err); toast("급여변경사항을 만들지 못했어요"); }
+  }catch(err){ console.error(err); toast(err.adminOnly ? "급여 파일 추출은 관리자 로그인만 가능해요 — 다시 로그인해 주세요" : "급여변경사항을 만들지 못했어요"); }
 }

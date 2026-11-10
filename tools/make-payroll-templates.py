@@ -1,9 +1,9 @@
-"""급여정산 엑셀 양식 만들기 — 기존 제출본(7월)에서 개인정보·월별 값만 지워 public/templates/ 에 저장한다.
+"""급여정산 엑셀 양식 만들기 — 기존 제출본(7월)에서 개인정보·월별 값만 지워 templates/ 에 저장한다 (서버가 관리자 로그인에만 내려줌).
 사용: python3 tools/make-payroll-templates.py <제출본 폴더>
   폴더에 7월_근무시간기록표_단시간사업소득_명동타운레디영.xlsx, 7월_급여변경사항_명동타운레디영_2607.xlsx 필요 (openpyxl)"""
 import openpyxl, sys, re, os
 src=sys.argv[1].rstrip('/')+'/'
-out=os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','public','templates')+'/'
+out=os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','templates')+'/'
 # 근무시간기록표: 유소 시트를 빈 양식(TEMPLATE)으로
 wb=openpyxl.load_workbook(src+'7월_근무시간기록표_단시간사업소득_명동타운레디영.xlsx')
 del wb['육호청']

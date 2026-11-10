@@ -4,8 +4,7 @@
    구조/규칙은 레디영 부산지점 앱(Prisma schema, lib/leave.ts)을 기준으로 이식.
    ========================================================================= */
 
-const ADMIN_PW = "admin1234";
-const STAFF_PW = "staff2024"; // 일반 직원용 비밀번호(급여 정보 비공개)        // 필요시 이 값만 바꾸면 됨
+/* 비밀번호(관리자·직원용)는 서버(server.js, /api/login)에서만 확인한다 */
 const BRANCH   = "레디영약국";        // 지점명 표시용
 const STORE_KEY = "hr_db_v1";
 
@@ -342,7 +341,8 @@ function openForm(id){
   ]);
 }
 function val(id){ const el=document.getElementById(id); return el?el.value.trim():""; } function onEmpAutoNo(id){ const role=val("f_role"); const twrap=document.getElementById("f_team_wrap"); if(twrap) twrap.style.display = role==="통역" ? "" : "none"; const empType0=val("f_type"); const cwrap=document.getElementById("f_closing_wrap"); if(cwrap) cwrap.style.display = empType0==="파트타임" ? "" : "none"; if(id) return; const team = role==="통역" ? val("f_team") : ""; const closingEl=document.getElementById("f_closing"); const closing = empType0==="파트타임" && closingEl ? closingEl.checked : false; const noEl=document.getElementById("f_no"); if(noEl) noEl.value = suggestEmployeeNo(role, team, empType0, closing, id||undefined); }
-function isOwner(){ return sessionStorage.getItem("hr_role")==="owner"; }
+function isOwner(){ return sessionStorage.getItem("hr_role")==="owner" && !!adminToken(); }
+function adminToken(){ return sessionStorage.getItem("hr_admin_token")||""; }
 function updateNavVisibility(){ const p=document.getElementById("navPayroll"); if(p) p.style.display = isOwner()? "" : "none"; }
 function saveEmployee(id){
   const name=val("f_name"), join=val("f_join");
@@ -2574,18 +2574,23 @@ function seedSample(){
 }
 
 /* =========================== 로그인/부팅 =========================== */
-function doLogin(){
+async function doLogin(){
   const pw=document.getElementById("pw").value;
-  if(pw===ADMIN_PW || pw===STAFF_PW){
-    sessionStorage.setItem("hr_auth","1");
-    sessionStorage.setItem("hr_role", pw===ADMIN_PW?"owner":"staff");
-updateNavVisibility();
-    document.getElementById("login").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-    render();
-  } else {
-    document.getElementById("loginErr").textContent="비밀번호가 올바르지 않습니다.";
-  }
+  const err=document.getElementById("loginErr");
+  let r=null;
+  try{
+    const res=await fetch("/api/login",{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pw})});
+    if(res.status===401){ err.textContent="비밀번호가 올바르지 않습니다."; return; }
+    if(!res.ok) throw new Error("login "+res.status);
+    r=await res.json();
+  }catch(e){ console.error(e); err.textContent="서버에 연결할 수 없습니다. 잠시 후 다시 시도하세요."; return; }
+  sessionStorage.setItem("hr_auth","1");
+  sessionStorage.setItem("hr_role", r.role==="owner"?"owner":"staff");
+  if(r.role==="owner" && r.token) sessionStorage.setItem("hr_admin_token", r.token); else sessionStorage.removeItem("hr_admin_token");
+  updateNavVisibility();
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  render();
 }
 async function boot(){
   await loadDB();
@@ -2595,7 +2600,7 @@ updateNavVisibility();
   document.getElementById("loginBtn").onclick=doLogin;
   document.getElementById("pw").addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
   document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>setView(b.dataset.view));
-  document.getElementById("logoutBtn").onclick=()=>{ sessionStorage.removeItem("hr_auth"); location.reload(); };
+  document.getElementById("logoutBtn").onclick=()=>{ ["hr_auth","hr_role","hr_admin_token"].forEach(k=>sessionStorage.removeItem(k)); location.reload(); };
   document.getElementById("exportBtn").onclick=exportData;
   document.getElementById("importBtn").onclick=()=>document.getElementById("importFile").click();
   document.getElementById("importFile").onchange=e=>{ if(e.target.files[0]) importData(e.target.files[0]); e.target.value=""; };
