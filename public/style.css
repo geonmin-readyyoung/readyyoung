@@ -364,3 +364,9 @@ aside nav .nav-sub button .ico{ width:8px }
 .att tfoot tr.close-total td.emp .grp-dot{display:inline-block; width:9px; height:9px; border-radius:2px; border:1px solid; margin-right:6px; vertical-align:middle}
 .att tfoot tr.close-total td.close-zero{color:#CBD5E1; font-weight:600}
 .att tfoot tr.grp-row.close-grp td{border-top:3px solid #E9E3FB}
+
+/* 출근부 오른쪽 합계 칸 (근무일·마감·휴일·근무증감) */
+.att th.sum{min-width:46px; padding:7px 6px; background:#F1F4FB; white-space:nowrap}
+.att td.sum{padding:0 6px; font-weight:700; color:var(--navy); background:#FAFBFE; white-space:nowrap}
+.att th.sum-first,.att td.sum-first{border-left:2px solid var(--border-strong)}
+.att td.sum-plus{color:#0369A1} .att td.sum-minus{color:#B91C1C}
