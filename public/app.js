@@ -645,7 +645,7 @@ function openLeaveForm(empId, mode, editId){
       ${empSel}
       <div class="field"><label>종류</label><select id="l_type" onchange="onLeaveType()">${LEAVE_TYPES.map(t=>`<option ${t===t0?"selected":""}>${t}</option>`).join("")}</select></div>
       ${statusSel}
-      <div class="field"><label>시작일 <span class="req">*</span></label><input id="l_start" type="date" value="${d}" onchange="autoDays()"></div>
+      <div class="field"><label>시작일 <span class="req">*</span></label><input id="l_start" type="date" value="${d}" data-prev="${d}" onchange="onLeaveStart()"></div>
       <div class="field"><label>종료일</label><input id="l_end" type="date" value="${editing?(editing.endDate||d).slice(0,10):d}" onchange="autoDays()"></div>
       <div class="field"><label>일수</label><input id="l_days" type="number" step="0.5" value="${editing?editing.days:1}"></div>
       <div class="field"><label>&nbsp;</label><div class="hint" style="padding-top:9px" id="l_days_hint">연차·반차만 잔여 연차에서 차감 · 병가/경조사/기타는 차감 없음</div></div>
@@ -658,8 +658,8 @@ function openLeaveForm(empId, mode, editId){
       <div class="field"><label>종류</label><div class="seg" id="l_tt">${TIME_TYPES.map(t=>`<button type="button" class="btn sm${t===t0?" active":""}" data-t="${t}" onclick="pickTimeType('${t}')">${t}</button>`).join("")}</div><input type="hidden" id="l_type" value="${t0}"></div>
       <div class="field"><label>날짜 <span class="req">*</span></label><input id="l_start" type="date" value="${d}" onchange="onTimeLeaveChange(true)"></div>
       <div class="field full"><div class="hint" id="l_shift_hint" style="padding:2px 0 0"></div></div>
-      <div class="field"><label id="l_t1_lbl">시작</label><input id="l_t1" type="time" step="600" value="${editing?editing.startTime:""}" onchange="calcTimeHours()"></div>
-      <div class="field"><label id="l_t2_lbl">종료</label><input id="l_t2" type="time" step="600" value="${editing?editing.endTime:""}" onchange="calcTimeHours()"></div>
+      <div class="field"><label id="l_t1_lbl">시작</label>${t24("l_t1", editing?editing.startTime:"", "calcTimeHours()")}</div>
+      <div class="field"><label id="l_t2_lbl">종료</label>${t24("l_t2", editing?editing.endTime:"", "calcTimeHours()")}</div>
       <div class="field"><label>시간 <span class="hint">(자동 계산 · 휴게 제외 시 직접 수정)</span></label><input id="l_hours" type="number" step="0.25" min="0" value="${editing?editing.hours:""}" oninput="timeLeavePreview()"></div>
       <div class="field"><label>처리</label><select id="l_handling" onchange="timeLeavePreview()">${TIME_HANDLING.map(h=>`<option value="${h}" ${(editing?editing.handling:"")===h?"selected":""}>${TIME_HANDLING_LABEL[h]}</option>`).join("")}</select></div>
       ${statusSel}
@@ -734,6 +734,16 @@ function leaveHalfHint(){
   const t=getShiftTypes().find(x=>x.start===sc.start && x.end===sc.end);
   h.innerHTML=`0.5일 · ${t?esc(t.name)+"조 ":""}${sc.start}~${sc.end} → <b>${w.start}~${w.end} 근무</b>${sc.close?(side==="전반"?" (마감 제외)":" (마감 포함)"):""}`;
 }
+/* 시작일을 바꾸면 종료일도 그 날짜로 — 이미 여러 날로 잡아 둔 기간(종료일이 새 시작일 이후)은 그대로 둔다 */
+function onLeaveStart(){
+  const st=document.getElementById("l_start"), en=document.getElementById("l_end");
+  if(st && en){
+    const a=st.value, prev=st.dataset.prev||"";
+    if(a && (!en.value || en.value<a || en.value===prev)) en.value=a;
+    st.dataset.prev=a;
+  }
+  autoDays();
+}
 function autoDays(){
   const t=val("l_type"); if(t.startsWith("반차")){ document.getElementById("l_days").value="0.5"; leaveHalfHint(); return; }
   const a=val("l_start"), b=val("l_end")||a, emp=Number(val("l_emp"));
@@ -747,6 +757,7 @@ function autoDays(){
 }
 function saveLeave(editId){
   const empId=Number(val("l_emp"));
+  if(t24Invalid()) return;
   const start=val("l_start"); if(!start){ toast("날짜를 입력하세요"); return; }
   const isHour = !!document.getElementById("l_hours");
   let data;
@@ -1167,8 +1178,8 @@ function openShiftChangeForm(prefill){
         <div class="field full"><label id="sc_emp_label">원래 근무자 <span class="req">*</span></label>
           <select id="sc_emp" onchange="scFillSubOptions(); onScFillTime(); if(scTwo(val('sc_type'))) onScFillSwapTime();"></select>
           <div class="hint" id="sc_emp_hint"></div></div>
-        <div class="field"><label>시작 시간</label><input id="sc_start" type="time" onchange="scPartSync(); scPreview()"></div>
-        <div class="field"><label>종료 시간</label><input id="sc_end" type="time" onchange="scPartSync(); scPreview()"></div>
+        <div class="field"><label>시작 시간</label>${t24("sc_start","","scPartSync(); scPreview()")}</div>
+        <div class="field"><label>종료 시간</label>${t24("sc_end","","scPartSync(); scPreview()")}</div>
         <div class="field full" id="sc_close_wrap"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input id="sc_close" type="checkbox" style="width:16px;height:16px" onchange="scPartSync(); scPreview()"> <span id="sc_close_label">마감 근무 — 출근부에 (마감)으로 집계</span></label>
           <button type="button" class="btn sm" style="margin-top:6px;width:auto;display:inline-flex" onclick="scSetCloseOnly('sc_start','sc_end','sc_close')">마감만 (23:00~익일 00:30)</button></div>
@@ -1182,8 +1193,8 @@ function openShiftChangeForm(prefill){
         <div class="field full" id="sc_subsel_wrap"><label>대체 근무자 <span class="req">*</span></label>
           <select id="sc_sub" onchange="onScFillSwapTime()"></select>
           <div class="hint" id="sc_sub_hint"></div></div>
-        <div class="field sc-swap-only"><label>시작 시간</label><input id="sc_swapstart" type="time" onchange="scPartManual=true; scSwapHint(); scPreview()"></div>
-        <div class="field sc-swap-only"><label>종료 시간</label><input id="sc_swapend" type="time" onchange="scPartManual=true; scSwapHint(); scPreview()"></div>
+        <div class="field sc-swap-only"><label>시작 시간</label>${t24("sc_swapstart","","scPartManual=true; scSwapHint(); scPreview()")}</div>
+        <div class="field sc-swap-only"><label>종료 시간</label>${t24("sc_swapend","","scPartManual=true; scSwapHint(); scPreview()")}</div>
         <div class="field full sc-swap-only" id="sc_swapclose_wrap"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input id="sc_swapclose" type="checkbox" style="width:16px;height:16px" onchange="scPreview()"> 마감 근무 — 출근부에 (마감)으로 집계</label>
           <button type="button" class="btn sm" style="margin-top:6px;width:auto;display:inline-flex" onclick="scSetCloseOnly('sc_swapstart','sc_swapend','sc_swapclose')">마감만 (23:00~익일 00:30)</button></div>
@@ -1555,6 +1566,7 @@ function scPartCheck(empId, date, swapDate, st, en, close, ss, se, editId, tre){
   return "";
 }
 function saveShiftChange(editId){
+  if(t24Invalid()) return;
   const type=val("sc_type"), date=val("sc_date");
   const employeeId=Number(val("sc_emp"));
   const substituteId = (type==="변경"||type==="결근"||type==="이동"||type==="부분") ? null : Number(val("sc_sub"));
@@ -1863,6 +1875,35 @@ return m ? m.id : "custom";
    근무 타입마다 "반차 경계"를 직접 지정할 수 있다 (예: 오후조 13:00~23:00 → 18:30).
    지정이 없으면 근무시간의 정확한 절반(30분 단위)으로 계산한다. */
 const TIME_RE=/^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+
+/* 24시간 시간 입력 — 브라우저 기본 time 입력은 오전/오후를 고르게 해서 불편하다는 의견으로 숫자 입력칸을 쓴다.
+   "9"→09:00, "930"→09:30, "1430"→14:30, "14:3"→14:30. 잘못된 값은 빨간 테두리로 표시하고 저장 때 막는다. */
+function t24Norm(v){
+  v=String(v||"").trim(); if(!v) return "";
+  let h, m;
+  const c=v.match(/^(\d{1,2})\s*[:.시]\s*(\d{0,2})\s*분?$/);
+  if(c){ h=c[1]; m=c[2]===""?"00":(c[2].length===1?c[2]+"0":c[2]); }
+  else if(/^\d{1,4}$/.test(v)){ if(v.length<=2){ h=v; m="00"; } else { h=v.slice(0,v.length-2); m=v.slice(-2); } }
+  else return null;
+  const t=String(h).padStart(2,"0")+":"+m;
+  return TIME_RE.test(t) ? t : null;
+}
+function t24(id, value, handler, extra){
+  return `<input id="${id}" class="t24" type="text" inputmode="numeric" maxlength="5" placeholder="예: 14:30" autocomplete="off" value="${value||""}"${handler?` onchange="${handler}"`:""}${extra?" "+extra:""}>`;
+}
+/* 인라인 onchange보다 먼저 값을 HH:MM으로 맞춘다 (캡처 단계) */
+document.addEventListener("change", e=>{
+  const el=e.target; if(!el || !el.classList || !el.classList.contains("t24")) return;
+  const n=t24Norm(el.value);
+  if(n!=null) el.value=n;
+  el.classList.toggle("bad", n==null);
+}, true);
+/* 보이는 24시간 입력칸 중 잘못된 값이 있으면 그 칸에 포커스하고 true */
+function t24Invalid(){
+  const bad=[...document.querySelectorAll("#modalRoot input.t24")].find(el=>el.offsetParent!==null && el.value.trim() && t24Norm(el.value)==null);
+  if(bad){ bad.classList.add("bad"); bad.focus(); toast("시간은 24시간 형식으로 입력하세요 (예: 09:30, 14:30)"); return true; }
+  return false;
+}
 function midBoundary(start, end){
   const a=toMin(start); let b=toMin(end);
   if(a==null||b==null) return null;
