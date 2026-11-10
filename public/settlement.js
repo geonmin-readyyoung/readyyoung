@@ -292,7 +292,18 @@ async function loadTemplate(name){
   const buf=await res.arrayBuffer();
   const wb=new ExcelJS.Workbook(); await wb.xlsx.load(buf); return wb;
 }
+/* ExcelJS 가 모르는 조건부 서식(양식의 "중복 값" 규칙)은 규칙 없이 빈 <conditionalFormatting/> 로 써서
+   엑셀이 복구 창을 띄운다 — 저장 전에 지원하는 규칙만 남긴다 */
+const XL_CF_TYPES = new Set(["expression","cellIs","top10","aboveAverage","colorScale","iconSet","dataBar","containsText","timePeriod"]);
+function dropUnsupportedCF(wb){
+  wb.eachSheet(ws=>{
+    const cfs=ws.conditionalFormattings||[];
+    cfs.forEach(cf=>{ cf.rules=(cf.rules||[]).filter(r=>XL_CF_TYPES.has(r.type)); });
+    ws.conditionalFormattings=cfs.filter(cf=>cf.rules.length);
+  });
+}
 async function saveWorkbook(wb, filename){
+  dropUnsupportedCF(wb);
   const buf=await wb.xlsx.writeBuffer();
   const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); a.remove();
