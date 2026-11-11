@@ -370,6 +370,8 @@ aside nav .nav-sub button .ico{ width:8px }
 .att td.sum{padding:0 6px; font-weight:700; color:var(--navy); background:#FAFBFE; white-space:nowrap}
 .att th.sum-first,.att td.sum-first{border-left:2px solid var(--border-strong)}
 .att td.sum-plus{color:#16A34A} .att td.sum-minus{color:#B91C1C}
-/* 24시간 시간 입력칸 */
-.field input.t24{font-variant-numeric:tabular-nums; letter-spacing:.02em}
-.field input.t24.bad{border-color:#d33; box-shadow:0 0 0 3px rgba(221,51,51,.15)}
+/* 24시간 시간 입력칸 — 시 : 분 */
+.t24w{display:flex; align-items:center; gap:6px}
+.field .t24w input.t24h,.field .t24w input.t24m{width:3.6em; text-align:center; font-variant-numeric:tabular-nums; padding-left:6px; padding-right:6px}
+.t24c{font-weight:600; color:var(--muted, #667)}
+.field .t24w input.bad{border-color:#d33; box-shadow:0 0 0 3px rgba(221,51,51,.15)}

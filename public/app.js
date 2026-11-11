@@ -693,7 +693,7 @@ function onTimeLeaveChange(refill){
   const hint=document.getElementById("l_shift_hint");
   if(hint) hint.innerHTML = sh.on ? `이 날 근무 <b>${sh.start}~${sh.end}</b>` : `<span style="color:var(--warn)">이 날 근무표에 근무가 없어요 — 시간을 직접 입력하세요</span>`;
   const L={지각:["출근 예정","실제 출근"], 조퇴:["조퇴(퇴근) 시각","퇴근 예정"], 외출:["외출 시작","복귀"]}[t]||["시작","종료"];
-  document.getElementById("l_t1_lbl").textContent=L[0]; document.getElementById("l_t2_lbl").textContent=L[1];
+  document.getElementById("l_t1_lbl").innerHTML=L[0]+' <span class="hint">(24hr 형식)</span>'; document.getElementById("l_t2_lbl").innerHTML=L[1]+' <span class="hint">(24hr 형식)</span>';
   const hs=document.getElementById("l_handling");
   if(refill){
     hs.value="무급";
@@ -1178,8 +1178,8 @@ function openShiftChangeForm(prefill){
         <div class="field full"><label id="sc_emp_label">원래 근무자 <span class="req">*</span></label>
           <select id="sc_emp" onchange="scFillSubOptions(); onScFillTime(); if(scTwo(val('sc_type'))) onScFillSwapTime();"></select>
           <div class="hint" id="sc_emp_hint"></div></div>
-        <div class="field"><label>시작 시간</label>${t24("sc_start","","scPartSync(); scPreview()")}</div>
-        <div class="field"><label>종료 시간</label>${t24("sc_end","","scPartSync(); scPreview()")}</div>
+        <div class="field"><label>시작 시간 <span class="hint">(24hr 형식)</span></label>${t24("sc_start","","scPartSync(); scPreview()")}</div>
+        <div class="field"><label>종료 시간 <span class="hint">(24hr 형식)</span></label>${t24("sc_end","","scPartSync(); scPreview()")}</div>
         <div class="field full" id="sc_close_wrap"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input id="sc_close" type="checkbox" style="width:16px;height:16px" onchange="scPartSync(); scPreview()"> <span id="sc_close_label">마감 근무 — 출근부에 (마감)으로 집계</span></label>
           <button type="button" class="btn sm" style="margin-top:6px;width:auto;display:inline-flex" onclick="scSetCloseOnly('sc_start','sc_end','sc_close')">마감만 (23:00~익일 00:30)</button></div>
@@ -1193,8 +1193,8 @@ function openShiftChangeForm(prefill){
         <div class="field full" id="sc_subsel_wrap"><label>대체 근무자 <span class="req">*</span></label>
           <select id="sc_sub" onchange="onScFillSwapTime()"></select>
           <div class="hint" id="sc_sub_hint"></div></div>
-        <div class="field sc-swap-only"><label>시작 시간</label>${t24("sc_swapstart","","scPartManual=true; scSwapHint(); scPreview()")}</div>
-        <div class="field sc-swap-only"><label>종료 시간</label>${t24("sc_swapend","","scPartManual=true; scSwapHint(); scPreview()")}</div>
+        <div class="field sc-swap-only"><label>시작 시간 <span class="hint">(24hr 형식)</span></label>${t24("sc_swapstart","","scPartManual=true; scSwapHint(); scPreview()")}</div>
+        <div class="field sc-swap-only"><label>종료 시간 <span class="hint">(24hr 형식)</span></label>${t24("sc_swapend","","scPartManual=true; scSwapHint(); scPreview()")}</div>
         <div class="field full sc-swap-only" id="sc_swapclose_wrap"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input id="sc_swapclose" type="checkbox" style="width:16px;height:16px" onchange="scPreview()"> 마감 근무 — 출근부에 (마감)으로 집계</label>
           <button type="button" class="btn sm" style="margin-top:6px;width:auto;display:inline-flex" onclick="scSetCloseOnly('sc_swapstart','sc_swapend','sc_swapclose')">마감만 (23:00~익일 00:30)</button></div>
@@ -1876,32 +1876,55 @@ return m ? m.id : "custom";
    지정이 없으면 근무시간의 정확한 절반(30분 단위)으로 계산한다. */
 const TIME_RE=/^([01][0-9]|2[0-3]):[0-5][0-9]$/;
 
-/* 24시간 시간 입력 — 브라우저 기본 time 입력은 오전/오후를 고르게 해서 불편하다는 의견으로 숫자 입력칸을 쓴다.
-   "9"→09:00, "930"→09:30, "1430"→14:30, "14:3"→14:30. 잘못된 값은 빨간 테두리로 표시하고 저장 때 막는다. */
+/* 24시간 시간 입력 — 시 칸과 분 칸을 따로 둔다 (브라우저 기본 time 입력의 오전/오후 선택이 불편하다는 의견).
+   원래 id(sc_start 등)는 숨은 input으로 남기고 value를 "HH:MM"으로 읽고 쓰게 해서 나머지 코드는 그대로 쓴다.
+   시 칸에 두 자리(또는 3~9)를 치면 분 칸으로 넘어가고, 분을 비우면 00. 잘못된 값은 빨간 테두리, 저장 때 막는다. */
+const T24_SUFFIX = " (24hr 형식)";
 function t24Norm(v){
   v=String(v||"").trim(); if(!v) return "";
-  let h, m;
-  const c=v.match(/^(\d{1,2})\s*[:.시]\s*(\d{0,2})\s*분?$/);
-  if(c){ h=c[1]; m=c[2]===""?"00":(c[2].length===1?c[2]+"0":c[2]); }
-  else if(/^\d{1,4}$/.test(v)){ if(v.length<=2){ h=v; m="00"; } else { h=v.slice(0,v.length-2); m=v.slice(-2); } }
-  else return null;
-  const t=String(h).padStart(2,"0")+":"+m;
+  const m=v.match(/^(\d{1,2}):(\d{1,2})$/); if(!m) return null;
+  const t=m[1].padStart(2,"0")+":"+m[2].padStart(2,"0");
   return TIME_RE.test(t) ? t : null;
 }
-function t24(id, value, handler, extra){
-  return `<input id="${id}" class="t24" type="text" inputmode="numeric" maxlength="5" placeholder="예: 14:30" autocomplete="off" value="${value||""}"${handler?` onchange="${handler}"`:""}${extra?" "+extra:""}>`;
+function t24(id, value, handler){
+  return `<div class="t24w" data-for="${id}"><input type="hidden" id="${id}" class="t24" value="${value||""}"${handler?` onchange="${handler}"`:""}>`+
+    `<input class="t24h" type="text" inputmode="numeric" maxlength="2" placeholder="시" autocomplete="off" aria-label="시 (0~23)">`+
+    `<span class="t24c">:</span>`+
+    `<input class="t24m" type="text" inputmode="numeric" maxlength="2" placeholder="분" autocomplete="off" aria-label="분 (0~59)"></div>`;
 }
-/* 인라인 onchange보다 먼저 값을 HH:MM으로 맞춘다 (캡처 단계) */
-document.addEventListener("change", e=>{
-  const el=e.target; if(!el || !el.classList || !el.classList.contains("t24")) return;
-  const n=t24Norm(el.value);
-  if(n!=null) el.value=n;
-  el.classList.toggle("bad", n==null);
-}, true);
+const T24_NATIVE = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+function t24Parts(el){ const w=el.parentElement; return [w.querySelector(".t24h"), w.querySelector(".t24m")]; }
+function t24Wire(el){
+  if(el._t24) return; el._t24=true;
+  const [h,m]=t24Parts(el);
+  Object.defineProperty(el, "value", {
+    configurable:true,
+    get(){ const a=h.value.trim(), b=m.value.trim(); if(!a && !b) return ""; return (a?a.padStart(2,"0"):"")+":"+(b?b.padStart(2,"0"):"00"); },
+    set(v){ const x=String(v||"").match(/^(\d{1,2}):(\d{2})/); h.value=x?x[1].padStart(2,"0"):""; m.value=x?x[2]:""; h.classList.remove("bad"); m.classList.remove("bad"); }
+  });
+  el.value=T24_NATIVE.get.call(el);
+  h.addEventListener("input", ()=>{ h.value=h.value.replace(/\D/g,""); if(h.value.length===2 || /^[3-9]$/.test(h.value)){ m.focus(); m.select(); } });
+  m.addEventListener("input", ()=>{ m.value=m.value.replace(/\D/g,""); });
+  [h,m].forEach(x=>x.addEventListener("focus", ()=>x.select()));  // 칸을 누르면 기존 값을 통째로 덮어쓰기
+  m.addEventListener("keydown", e=>{ if(e.key==="Backspace" && !m.value){ h.focus(); } });
+  const commit=()=>{
+    const a=h.value.trim(), b=m.value.trim();
+    if(a) h.value=a.padStart(2,"0");
+    if(a && !b) m.value="00"; else if(b) m.value=b.padStart(2,"0");
+    h.classList.toggle("bad", !!a && !(Number(a)<=23));
+    m.classList.toggle("bad", (!!b && !(Number(b)<=59)) || (!a && !!b));
+    el.dispatchEvent(new Event("change", {bubbles:true}));
+  };
+  h.addEventListener("change", commit); m.addEventListener("change", commit);
+}
+/* 모달이 그려지면 시·분 칸을 연결한다 (그리자마자 값을 넣는 코드가 있어도 연결할 때 옮겨 담는다) */
+function t24WireAll(root){ (root||document).querySelectorAll("input.t24").forEach(t24Wire); }
+new MutationObserver(()=>t24WireAll()).observe(document.documentElement, {childList:true, subtree:true});
 /* 보이는 24시간 입력칸 중 잘못된 값이 있으면 그 칸에 포커스하고 true */
 function t24Invalid(){
-  const bad=[...document.querySelectorAll("#modalRoot input.t24")].find(el=>el.offsetParent!==null && el.value.trim() && t24Norm(el.value)==null);
-  if(bad){ bad.classList.add("bad"); bad.focus(); toast("시간은 24시간 형식으로 입력하세요 (예: 09:30, 14:30)"); return true; }
+  t24WireAll();
+  const bad=[...document.querySelectorAll("#modalRoot input.t24")].find(el=>el.parentElement.offsetParent!==null && el.value && t24Norm(el.value)==null);
+  if(bad){ const [h,m]=t24Parts(bad); const target=(h.value&&Number(h.value)<=23)?m:h; target.classList.add("bad"); target.focus(); toast("시간은 24시간 형식으로 입력하세요 (시 0~23, 분 0~59)"); return true; }
   return false;
 }
 function midBoundary(start, end){
