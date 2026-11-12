@@ -375,3 +375,10 @@ aside nav .nav-sub button .ico{ width:8px }
 .field .t24w input.t24h,.field .t24w input.t24m{width:3.6em; text-align:center; font-variant-numeric:tabular-nums; padding-left:6px; padding-right:6px}
 .t24c{font-weight:600; color:var(--muted, #667)}
 .field .t24w input.bad{border-color:#d33; box-shadow:0 0 0 3px rgba(221,51,51,.15)}
+/* 승인 대기 근무변경·연차 — 근무표에 미리 표시 */
+.wk-b.pend-in{ background-image:repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 5px, rgba(255,255,255,.25) 5px 10px) !important; outline:2px dashed rgba(15,23,42,.55); outline-offset:-2px; opacity:.9 }
+.wk-b.pend-out{ opacity:.38; outline:2px dashed rgba(15,23,42,.45); outline-offset:-2px }
+.wk-b.pend-out span{ text-decoration:line-through }
+.wk-b.pend-in .wk-tag,.wk-b.pend-out .wk-tag{ color:#B45309 }
+.abs-pend{ opacity:.65 } .abs-pend em{ font-style:normal; color:#B45309; font-weight:700 }
+.pend-key i{ display:inline-block; width:14px; height:10px; border:2px dashed rgba(15,23,42,.55); border-radius:3px; vertical-align:-1px; margin-right:5px }

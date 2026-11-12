@@ -133,6 +133,7 @@ function setView(v){
   render();
 }
 function render(){
+  pendingPreview=null;   // 대기 항목 미리보기는 그릴 때마다 새로 계산
   const m=document.getElementById("main");
   if(view==="dashboard"){ m.innerHTML=renderDashboard(); wireDayGraph(); }
   else if(view==="employees") m.innerHTML=renderEmployees();
@@ -190,13 +191,60 @@ function renderDashboard(){
   </div>`;
 }
 
+/* ---- 승인 대기 항목 미리보기 ----
+   근무표(일별·주간)는 승인된 휴가·근무변경만 반영된 출근부로 그린다. 대기 중인 것도 보이도록,
+   DB 사본에서 대기 항목을 승인된 것처럼 계산해 실제 근무표와 비교한다.
+   - 승인되면 새로 생기는 근무 → pendingIn (점선·옅은 색, "대기")
+   - 승인되면 없어지는 근무   → pendingOut (흐리게·취소선, "대기")
+   - 승인되면 생기는 빠짐(연차 등) → 빠짐 줄에 "(대기)" */
+let pendingPreview=null;
+function hasPendingItems(){ return (DB.leaves||[]).some(l=>l.status==="대기" && !isTimeLeave(l)) || (DB.shiftChanges||[]).some(c=>c.status==="대기"); }
+function pendingPreviewDB(){
+  if(pendingPreview) return pendingPreview;
+  const real=DB, keepReq=schedResyncReq, keepDirty=scheduleResyncDirty;
+  try{
+    DB=structuredClone(real);
+    DB.leaves.forEach(l=>{ if(l.status==="대기") l.status="승인"; });
+    (DB.shiftChanges||[]).forEach(c=>{ if(c.status==="대기") c.status="승인"; });
+    schedResyncReq=null;
+    syncAll();
+    pendingPreview=DB;
+  }catch(err){ console.error("대기 미리보기 실패", err); pendingPreview=false; }
+  finally{ DB=real; schedResyncReq=keepReq; scheduleResyncDirty=keepDirty; }
+  return pendingPreview;
+}
+function withPendingDB(fn){ const p=pendingPreviewDB(); if(!p) return null; const real=DB; DB=p; try{ return fn(); } finally{ DB=real; } }
+function shiftSig(s){ return [s.e.id, s.start, s.end, !!s.close, s.half||"", !!s.partOnly].join("|"); }
+/* 그 날 근무표 + 승인 대기 항목 표시 */
+function dayWithPending(day){
+  const list=dayShifts(day), abs=dayAbsences(day);
+  if(!hasPendingItems()) return {list, abs};
+  const pv=withPendingDB(()=>({list:dayShifts(day), abs:dayAbsences(day)}));
+  if(!pv) return {list, abs};
+  const pSig=new Set(pv.list.map(shiftSig)), rSig=new Set(list.map(shiftSig));
+  const out=list.map(s=>pSig.has(shiftSig(s)) ? s : {...s, pendingOut:true});
+  pv.list.forEach(s=>{ if(rSig.has(shiftSig(s))) return;
+    const e=DB.employees.find(x=>x.id===s.e.id)||s.e;
+    out.push({...s, e, pendingIn:true}); });
+  const absKey=x=>x.name+"|"+x.status+"|"+(x.who||"");
+  const rAbs=new Set(abs.map(absKey));
+  const absOut=abs.concat(pv.abs.filter(x=>!rAbs.has(absKey(x))).map(x=>({...x, pending:true})));
+  out.sort((a,b)=>(a.start||"").localeCompare(b.start||"")||(a.e.employeeNo||0)-(b.e.employeeNo||0)||(a.pendingIn?1:0)-(b.pendingIn?1:0));
+  return {list:out, abs:absOut};
+}
+function pendCls(s){ return s.pendingIn?" pend-in":s.pendingOut?" pend-out":""; }
+function pendTitle(s){ return s.pendingIn?" · 승인 대기 — 승인되면 이렇게 근무":s.pendingOut?" · 승인 대기 — 승인되면 이 근무는 빠짐":""; }
+function absItemHTML(x){
+  const body = x.status==="넘김" ? `${esc(x.name)} <span class="wk-gave">→ ${esc(x.who)}</span>` : `${esc(x.name)} <span>${x.status}</span>`;
+  return x.pending ? `<span class="abs-pend" title="승인 대기">${body} <em>(대기)</em></span>` : body;
+}
 /* ---- 대시보드: 일별 근무표 (출근부 주간 그래프와 같은 형태) ---- */
 let dashDate = todayStr();
 function dashMove(n){ dashDate = n===0 ? todayStr() : addDays(dashDate,n); render(); }
 function dashPick(v){ if(v){ dashDate=v; render(); } }
 function renderDailySchedulePanel(){
   const day=dashDate, dt=dateOf(day), dow=dt.getDay();
-  const list=dayShifts(day), absents=dayAbsences(day);
+  const pvd=dayWithPending(day), list=pvd.list, absents=pvd.abs;
   const isToday=day===todayStr(), hol=(DB.holidays||[]).includes(day);
 
   // 시간 범위 (기본 10:00~23:00, 실제 근무에 맞춰 확장)
@@ -211,9 +259,9 @@ function renderDailySchedulePanel(){
     const sp=shiftSpan(s)||{a:lo,b:lo+30}; const a=sp.a, b=sp.b;
     const r1=Math.round((a-lo)/SLOT)+1, r2=Math.round((b-lo)/SLOT)+1;
     const [bg,fg]=empColor(s.e);
-    const tag = s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":s.swap.role==="이동후"?"이":"") : s.part ? "부" : (s.half?"반":"");
-    const title=`${s.e.name} ${shiftTimeText(s)}${s.close&&!(shiftSpan(s)||{}).closeOnly?` + 마감 ~익일 ${CLOSE_TO}`:""}${s.swap?" · "+(s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:s.swap.role==="이동후"?`근무일자 변경 (${s.swap.moveDate?fmtDate(s.swap.moveDate)+" 근무를 옮김":"옮겨온 근무"})`:"근무시간 변경"):""}${s.half?" · 반차":""}${s.planned?" · 근무표 기준 예정":""}${s.unknown?" · 그 날 근무표에 시간이 없어 자리만 표시":""}${partTitle(s)}`;
-    return `<div class="wk-b${s.planned?" planned":""}" style="grid-row:${r1}/${r2};grid-column:${li+1};background:${bg};color:${fg}" title="${esc(title)}" data-emp="${s.e.id}"${s.swap?` data-swapid="${s.swap.id}"`:""}>
+    const tag = (s.pendingIn||s.pendingOut) ? "대기" : s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":s.swap.role==="이동후"?"이":"") : s.part ? "부" : (s.half?"반":"");
+    const title=`${s.e.name} ${shiftTimeText(s)}${s.close&&!(shiftSpan(s)||{}).closeOnly?` + 마감 ~익일 ${CLOSE_TO}`:""}${s.swap?" · "+(s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:s.swap.role==="이동후"?`근무일자 변경 (${s.swap.moveDate?fmtDate(s.swap.moveDate)+" 근무를 옮김":"옮겨온 근무"})`:"근무시간 변경"):""}${s.half?" · 반차":""}${s.planned?" · 근무표 기준 예정":""}${s.unknown?" · 그 날 근무표에 시간이 없어 자리만 표시":""}${partTitle(s)}${pendTitle(s)}`;
+    return `<div class="wk-b${s.planned?" planned":""}${pendCls(s)}" style="grid-row:${r1}/${r2};grid-column:${li+1};background:${bg};color:${fg}" title="${esc(title)}" data-emp="${s.e.id}"${s.swap?` data-swapid="${s.swap.id}"`:""}>
       <b>${esc(s.e.name)}</b>${tag?`<i class="wk-tag">${tag}</i>`:""}
       <span>${shiftTimeText(s)}</span>${shiftCloseHTML(s)}${shiftCloseZone(s)}
     </div>`;
@@ -229,12 +277,12 @@ function renderDailySchedulePanel(){
         </div></div>
       </div></div></div>` : `<div class="empty" style="padding:28px">이 날 근무 예정인 직원이 없어요.</div>`;
 
-  const closing=new Set(list.filter(s=>s.close).map(s=>s.e.id)).size;
+  const closing=new Set(list.filter(s=>s.close && !s.pendingIn).map(s=>s.e.id)).size;
   const usedKeys=[...new Set(list.map(s=>empGroup(s.e).key))];
   const gLegend=WK_GROUPS.filter(g=>usedKeys.includes(g.key)).map(g=>{
     const n=new Set(list.filter(s=>empGroup(s.e).key===g.key).map(s=>s.e.id)).size;
     return `<span><i class="dwk-sw" style="background:${g.bg}"></i>${g.label} <b>${n}</b></span>`;}).join("");
-  const off = absents.length ? `<div class="wk-off dwk-off">빠짐 · ${absents.map(x=>x.status==="넘김"?`${esc(x.name)} <span class="wk-gave">→ ${esc(x.who)}</span>`:`${esc(x.name)} <span>${x.status}</span>`).join(" · ")}</div>` : "";
+  const off = absents.length ? `<div class="wk-off dwk-off">빠짐 · ${absents.map(absItemHTML).join(" · ")}</div>` : "";
   const title=`${dt.getMonth()+1}월 ${dt.getDate()}일 (${DOW_LABELS[dow]})`;
   return `<div class="panel">
     <div class="p-head"><h2>일별 근무표</h2><button class="btn sm ghost" onclick="attMode='week'; weekStart=mondayStr(dashDate); setView('attendance')">주간 보기</button></div>
@@ -246,7 +294,7 @@ function renderDailySchedulePanel(){
         ${isToday?'<span class="tag t-ok">오늘</span>':'<button class="btn sm ghost" onclick="dashMove(0)">오늘</button>'}
         ${hol?'<span class="tag t-bad">공휴일</span>':""}
       </div>
-      <div class="day-sum"><span>근무 <b>${new Set(list.map(s=>s.e.id)).size}</b>명</span>${closing?`<span>마감 <b class="close-tag">${closing}</b>명</span>`:""}${gLegend}</div>
+      <div class="day-sum"><span>근무 <b>${new Set(list.filter(s=>!s.pendingIn).map(s=>s.e.id)).size}</b>명</span>${list.some(s=>s.pendingIn||s.pendingOut)?'<span class="pend-key"><i></i>점선 = 승인 대기</span>':""}${closing?`<span>마감 <b class="close-tag">${closing}</b>명</span>`:""}${gLegend}</div>
     </div>
     <div class="dwk-body">${grid}${off}</div>
   </div>`;
@@ -2460,8 +2508,9 @@ function dayAbsences(day){
 
 function renderAttendanceWeek(){
   const days=[0,1,2,3,4,5,6].map(i=>addDays(weekStart,i));
-  const shifts=days.map(dayShifts);
-  const absents=days.map(dayAbsences);
+  const pvw=days.map(dayWithPending);
+  const shifts=pvw.map(x=>x.list);
+  const absents=pvw.map(x=>x.abs);
 
   // 표시할 시간 범위를 실제 근무에서 계산 (기본 10:00~23:00)
   let lo=10*60, hi=23*60;
@@ -2490,20 +2539,20 @@ function renderAttendanceWeek(){
       const sp=shiftSpan(s)||{a:lo,b:lo+30}; const a=sp.a, b=sp.b;
       const r1=Math.round((a-lo)/SLOT)+1, r2=Math.round((b-lo)/SLOT)+1;
       const [bg,fg]=empColor(s.e);
-      const tag = s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":s.swap.role==="이동후"?"이":"") : s.part ? "부" : (s.half?"반":"");
-      const title=`${s.e.name} ${shiftTimeText(s)}${s.close&&!(shiftSpan(s)||{}).closeOnly?` + 마감 ~익일 ${CLOSE_TO}`:""}${s.swap?" · "+ (s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:s.swap.role==="이동후"?`근무일자 변경 (${s.swap.moveDate?fmtDate(s.swap.moveDate)+" 근무를 옮김":"옮겨온 근무"})`:"근무시간 변경"):""}${s.half?" · 반차":""}${s.planned?" · 근무표 기준 예정":""}${s.unknown?" · 그 날 근무표에 시간이 없어 자리만 표시 (근무표 기간 적용으로 시간을 넣어 주세요)":""}${partTitle(s)}`;
-      return `<div class="wk-b${s.planned?" planned":""}" style="grid-row:${r1}/${r2};grid-column:${li+1};background:${bg};color:${fg}" title="${esc(title)}"${s.swap?` data-swapid="${s.swap.id}"`:""}>
+      const tag = (s.pendingIn||s.pendingOut) ? "대기" : s.swap ? (s.swap.role==="대체"?"대":s.swap.role==="변경"?"변":s.swap.role==="이동후"?"이":"") : s.part ? "부" : (s.half?"반":"");
+      const title=`${s.e.name} ${shiftTimeText(s)}${s.close&&!(shiftSpan(s)||{}).closeOnly?` + 마감 ~익일 ${CLOSE_TO}`:""}${s.swap?" · "+ (s.swap.role==="대체"?`${empName(s.swap.partnerId)} 대신 근무`:s.swap.role==="이동후"?`근무일자 변경 (${s.swap.moveDate?fmtDate(s.swap.moveDate)+" 근무를 옮김":"옮겨온 근무"})`:"근무시간 변경"):""}${s.half?" · 반차":""}${s.planned?" · 근무표 기준 예정":""}${s.unknown?" · 그 날 근무표에 시간이 없어 자리만 표시 (근무표 기간 적용으로 시간을 넣어 주세요)":""}${partTitle(s)}${pendTitle(s)}`;
+      return `<div class="wk-b${s.planned?" planned":""}${pendCls(s)}" style="grid-row:${r1}/${r2};grid-column:${li+1};background:${bg};color:${fg}" title="${esc(title)}"${s.swap?` data-swapid="${s.swap.id}"`:""}>
         <b>${esc(s.e.name)}</b>${tag?`<i class="wk-tag">${tag}</i>`:""}
         <span>${shiftTimeText(s)}</span>${shiftCloseHTML(s)}${shiftCloseZone(s)}
       </div>`;
     }).join("");
-    const off=absents[i].length?`<div class="wk-off">${absents[i].map(x=>x.status==="넘김"?`${esc(x.name)} <span class="wk-gave">→ ${esc(x.who)}</span>`:`${esc(x.name)} <span>${x.status}</span>`).join(" · ")}</div>`:"";
+    const off=absents[i].length?`<div class="wk-off">${absents[i].map(absItemHTML).join(" · ")}</div>`:"";
     return `<div class="wk-col"><div class="wk-grid" style="grid-template-rows:repeat(${rows},var(--wk-rh));grid-template-columns:repeat(${lanes},minmax(62px,1fr))">
       ${Array.from({length:rows},(_,r)=>`<div class="wk-line" style="grid-row:${r+1};grid-column:1/-1${(lo+r*SLOT)%60===0?"":";border-top-style:dotted"}"></div>`).join("")}
       ${blocks}</div>${off}</div>`;
   }).join("");
 
-  const total=shifts.reduce((n,l)=>n+l.length,0);
+  const total=shifts.reduce((n,l)=>n+l.filter(s=>!s.pendingIn).length,0);
   const usedKeys=[...new Set(shifts.flat().map(s=>empGroup(s.e).key))];
   const gLegend=WK_GROUPS.filter(g=>usedKeys.includes(g.key)).map(g=>
     `<span><i style="display:inline-block;width:11px;height:11px;border-radius:3px;background:${g.bg};border:1px solid rgba(0,0,0,.14);vertical-align:-1px;margin-right:5px"></i>${g.label}</span>`).join("");
@@ -2530,7 +2579,7 @@ function renderAttendanceWeek(){
       </div>
     </div>
   </div>
-  <div class="legend">${gLegend}<span style="opacity:.45">|</span><span>블록 = 실제 근무 시간 (근무변경 반영)</span><span><b>대</b> 대체 근무 · <b>변</b> 시간 변경 · <b>부</b> 시간 일부 이동 · <b>반</b> 반차</span><span>블록에 마우스를 올리면 바뀐 상대 블록이 함께 반짝여요</span><span>블록 클릭 → 상세 보기</span></div>
+  <div class="legend">${gLegend}<span style="opacity:.45">|</span><span>블록 = 실제 근무 시간 (근무변경 반영)</span><span><b>대</b> 대체 근무 · <b>변</b> 시간 변경 · <b>부</b> 시간 일부 이동 · <b>반</b> 반차</span><span class="pend-key"><i></i><b>대기</b> 승인 전 (점선 = 승인되면 근무, 흐린 취소선 = 승인되면 빠짐)</span><span>블록에 마우스를 올리면 바뀐 상대 블록이 함께 반짝여요</span><span>블록 클릭 → 상세 보기</span></div>
   </div>`;
 }
 function wireWeek(){
