@@ -60,7 +60,13 @@ async function flushSave(){
   if(saving){ saveAgain=true; return; }
   saving=true;
   try{
-    const r = await fetch("/api/db", { method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(DB) });
+    const headers={"Content-Type":"application/json"}; if(adminToken()) headers.Authorization="Bearer "+adminToken();
+    const r = await fetch("/api/db", { method:"PUT", headers, body: JSON.stringify(DB) });
+    if(r.status===403){
+      saveBlocked=true;
+      alert("승인·반려나 승인된 기록 수정은 관리자 계정만 할 수 있어요 (관리자 로그인이 12시간 지나 만료됐다면 다시 로그인해 주세요).\n방금 바꾼 내용은 저장되지 않았습니다. 확인을 누르면 새로고침합니다.");
+      location.reload(); return;
+    }
     if(r.status===409){
       saveBlocked=true;
       alert("다른 창(또는 다른 사람)이 먼저 저장한 내용이 있어요.\n방금 바꾼 내용은 저장되지 않았습니다.\n확인을 누르면 최신 데이터로 새로고침합니다 — 새로고침 후 다시 입력해 주세요.");
@@ -390,6 +396,11 @@ function openForm(id){
 }
 function val(id){ const el=document.getElementById(id); return el?el.value.trim():""; } function onEmpAutoNo(id){ const role=val("f_role"); const twrap=document.getElementById("f_team_wrap"); if(twrap) twrap.style.display = role==="통역" ? "" : "none"; const empType0=val("f_type"); const cwrap=document.getElementById("f_closing_wrap"); if(cwrap) cwrap.style.display = empType0==="파트타임" ? "" : "none"; if(id) return; const team = role==="통역" ? val("f_team") : ""; const closingEl=document.getElementById("f_closing"); const closing = empType0==="파트타임" && closingEl ? closingEl.checked : false; const noEl=document.getElementById("f_no"); if(noEl) noEl.value = suggestEmployeeNo(role, team, empType0, closing, id||undefined); }
 function isOwner(){ return sessionStorage.getItem("hr_role")==="owner" && !!adminToken(); }
+/* 승인·반려는 관리자(약국장)만 — 직원 계정은 휴가·근태·근무변경을 '대기'로 요청만 하고, 대기 중인 요청만 고치거나 지울 수 있다 */
+function canApprove(){ return isOwner(); }
+function staffLocked(item){ return !canApprove() && item && item.status!=="대기"; }
+function denyApprove(){ toast("승인·반려는 관리자 계정만 할 수 있어요"); }
+function denyLocked(){ toast("승인·반려된 기록은 관리자 계정만 고치거나 지울 수 있어요"); }
 function adminToken(){ return sessionStorage.getItem("hr_admin_token")||""; }
 function updateNavVisibility(){ ["navPayroll","exportBtn","importBtn"].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display = isOwner()? "" : "none"; }); }
 function saveEmployee(id){
@@ -488,7 +499,7 @@ function openCard(id){
           <td class="num">${leaveAmountHTML(l)}</td>
           <td>${leaveHandlingHTML(l)}</td>
           <td>${leaveStatusTag(l.status)}</td>
-          <td class="num"><button class="btn sm ghost" onclick="deleteLeave(${l.id}, ${id})">삭제</button></td>
+          <td class="num">${staffLocked(l)||l.fromShiftChange?"":`<button class="btn sm ghost" onclick="deleteLeave(${l.id}, ${id})">삭제</button>`}</td>
         </tr>`).join("")}</tbody>
       </table></div>`:`<div class="hint">등록된 휴가가 없어요.</div>`}
     </div>
@@ -550,9 +561,9 @@ function leaveRow(l, opts={}){
     <td>${leaveHandlingHTML(l)}</td>
     <td class="hint" style="max-width:220px">${esc(l.memo||"")}</td>
     ${opts.pending
-      ? `<td class="num" style="white-space:nowrap"><button class="btn sm primary" onclick="setLeaveStatus(${l.id},'승인')">승인</button> <button class="btn sm" onclick="setLeaveStatus(${l.id},'반려')">반려</button> ${linked?"":`<button class="btn sm ghost" onclick="openLeaveForm(null,null,${l.id})">수정</button>`}</td>`
-      : `<td style="white-space:nowrap">${leaveStatusTag(l.status)} ${linked?"":`<select onchange="setLeaveStatus(${l.id}, this.value)">${LEAVE_STATUSES.map(s=>`<option ${l.status===s?"selected":""}>${s}</option>`).join("")}</select>`}</td>
-         <td class="num" style="white-space:nowrap">${linked?`<button class="btn sm ghost" onclick="setView('shiftchanges')">근무변경에서 관리</button>`:`<button class="btn sm" onclick="openLeaveForm(null,null,${l.id})">수정</button> <button class="btn sm ghost" onclick="deleteLeave(${l.id},0)">삭제</button>`}</td>`}
+      ? `<td class="num" style="white-space:nowrap">${canApprove()?`<button class="btn sm primary" onclick="setLeaveStatus(${l.id},'승인')">승인</button> <button class="btn sm" onclick="setLeaveStatus(${l.id},'반려')">반려</button> `:`<span class="hint">관리자 승인 대기</span> `}${linked?"":`<button class="btn sm ghost" onclick="openLeaveForm(null,null,${l.id})">수정</button>`}${!linked&&!canApprove()?` <button class="btn sm ghost" onclick="deleteLeave(${l.id},0)">삭제</button>`:""}</td>`
+      : `<td style="white-space:nowrap">${leaveStatusTag(l.status)} ${linked||!canApprove()?"":`<select onchange="setLeaveStatus(${l.id}, this.value)">${LEAVE_STATUSES.map(s=>`<option ${l.status===s?"selected":""}>${s}</option>`).join("")}</select>`}</td>
+         <td class="num" style="white-space:nowrap">${linked?`<button class="btn sm ghost" onclick="setView('shiftchanges')">근무변경에서 관리</button>`:staffLocked(l)?"":`<button class="btn sm" onclick="openLeaveForm(null,null,${l.id})">수정</button> <button class="btn sm ghost" onclick="deleteLeave(${l.id},0)">삭제</button>`}</td>`}
   </tr>`;
 }
 
@@ -674,6 +685,7 @@ function renderLeaves(){
 function openLeaveForm(empId, mode, editId){
   const editing = editId ? DB.leaves.find(x=>x.id===editId) : null;
   if(editing && editing.fromShiftChange){ toast("근무변경에서 수정하세요"); return; }
+  if(staffLocked(editing)){ denyLocked(); return; }
   const emps=DB.employees.filter(e=>e.status==="재직" || (editing && e.id===editing.employeeId));
   if(emps.length===0){ toast("먼저 직원을 등록하세요"); return; }
   mode = editing ? (isTimeLeave(editing)?"hour":"day") : (mode||"day");
@@ -684,7 +696,9 @@ function openLeaveForm(empId, mode, editId){
       <button class="btn sm${mode==="hour"?" active":""}" onclick="openLeaveForm(${empId||"null"},'hour')">시간 단위 · 지각/조퇴/외출</button></div>`;
   const empSel = `<div class="field full"><label>직원 <span class="req">*</span></label>
         <select id="l_emp" onchange="${mode==="hour"?"onTimeLeaveChange(true)":"autoDays()"}">${emps.map(e=>`<option value="${e.id}" ${selEmp===e.id?"selected":""}>${esc(e.name)} (${esc(e.role)} · ${esc(e.empType||"")})</option>`).join("")}</select></div>`;
-  const statusSel = `<div class="field"><label>상태</label><select id="l_status">${LEAVE_STATUSES.map(t=>`<option ${(editing?editing.status:"승인")===t?"selected":""}>${t}</option>`).join("")}</select></div>`;
+  const statusSel = canApprove()
+    ? `<div class="field"><label>상태</label><select id="l_status">${LEAVE_STATUSES.map(t=>`<option ${(editing?editing.status:"승인")===t?"selected":""}>${t}</option>`).join("")}</select></div>`
+    : `<div class="field"><label>상태</label><input type="hidden" id="l_status" value="대기"><div class="hint" style="padding-top:9px">대기 — 관리자가 승인하면 반영돼요</div></div>`;
   const memo = `<div class="field full"><label>메모</label><input id="l_memo" placeholder="사유 등" value="${esc(editing&&editing.memo||"")}"></div>`;
   let body;
   if(mode==="day"){
@@ -804,6 +818,7 @@ function autoDays(){
   if(h) h.textContent = a===b ? "" : `기간 ${cal}일 중 근무일 ${work}일 — 근무일만 차감돼요`;
 }
 function saveLeave(editId){
+  if(editId && staffLocked(DB.leaves.find(x=>x.id===editId))){ denyLocked(); return; }
   const empId=Number(val("l_emp"));
   if(t24Invalid()) return;
   const start=val("l_start"); if(!start){ toast("날짜를 입력하세요"); return; }
@@ -815,11 +830,11 @@ function saveLeave(editId){
     if(!(hours>0)){ toast("사용 시간을 확인하세요"); return; }
     data={ employeeId:empId, unit:"hour", leaveType:val("l_type"), startDate:start, endDate:start,
       startTime:val("l_t1"), endTime:val("l_t2"), hours, handling:val("l_handling")||"기록만",
-      days:0, status:val("l_status"), memo:val("l_memo")||null };
+      days:0, status:canApprove()?val("l_status"):"대기", memo:val("l_memo")||null };
   } else {
     const end=val("l_end")||start; if(end<start){ toast("종료일이 시작일보다 빨라요"); return; }
     data={ employeeId:empId, leaveType:val("l_type"), days:Number(val("l_days")||0), startDate:start, endDate:end,
-      status:val("l_status"), memo:val("l_memo")||null };
+      status:canApprove()?val("l_status"):"대기", memo:val("l_memo")||null };
   }
   if(editId){
     const l=DB.leaves.find(x=>x.id===editId); if(!l) return;
@@ -828,8 +843,8 @@ function saveLeave(editId){
   } else { DB.leaves.push({ id:nextId(), ...data }); toast(isHour?"시간 단위 기록을 등록했습니다":"휴가를 등록했습니다"); }
   syncAll(); saveDB(); closeModal(); render();
 }
-function setLeaveStatus(id, st){ const l=DB.leaves.find(x=>x.id===id); if(l){ l.status=st; syncAll(); saveDB(); render(); toast(st+" 처리했습니다"); } }
-function deleteLeave(id, empId){ DB.leaves=DB.leaves.filter(x=>x.id!==id); syncAll(); saveDB(); if(document.getElementById("modalRoot").innerHTML && empId){ openCard(empId); } render(); toast("삭제했습니다"); } function renderLeaveAdjPanel(e){ if(!e) return ""; const list=(DB.leaveAdjustments||[]).filter(a=>a.employeeId===e.id).sort((a,b)=>(b.date||"").localeCompare(a.date||"")); return `<div class="panel adj-panel" style="margin-top:16px"><div class="p-head"><h2>${esc(e.name)} - 연차 조정</h2><button class="btn sm ghost" onclick="toggleLeaveAdjRow(${e.id})">닫기</button></div><div class="card-grid adj-grid"><div><div class="p-head"><h2 style="font-size:14px">연차 조정 추가</h2></div><div class="grid2"><div class="field"><label>방향</label><select id="adj_dir"><option value="차감">차감 (-)</option><option value="추가">추가 (+)</option></select></div><div class="field"><label>일수 (0.5 단위)</label><input id="adj_days" type="number" step="0.5" min="0.5" value="1"></div><div class="field"><label>사유 분류</label><select id="adj_reason">${LEAVE_ADJ_REASONS.map(r=>`<option>${r}</option>`).join("")}</select></div><div class="field"><label>적용일</label><input id="adj_date" type="date" value="${todayStr()}"></div><div class="field full"><label>메모</label><input id="adj_memo" placeholder="구체적 사유 (선택)"></div></div><button class="btn primary" style="margin-top:8px" onclick="addLeaveAdjustment(${e.id})">차감/조정 추가</button></div><div><div class="p-head"><h2 style="font-size:14px">차감/조정 내역</h2></div>${list.length?`<div class="att-wrap"><table><tbody>${list.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${a.direction==="추가"?'<span class="tag t-ok">+'+a.days+'일</span>':'<span class="tag t-bad">-'+a.days+'일</span>'}</td><td>${esc(a.reasonType||"")}</td><td class="hint">${esc(a.memo||"")}</td><td class="num"><button class="btn sm ghost" onclick="deleteLeaveAdjustment(${a.id})">삭제</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="hint" style="padding:10px 4px">내역이 없습니다.</div>`}</div></div></div>`; } function addLeaveAdjustment(empId){ const dir=document.getElementById("adj_dir").value; const days=Number(document.getElementById("adj_days").value||0); if(!days){ toast("일수를 입력하세요"); return; } const reason=document.getElementById("adj_reason").value; const date=document.getElementById("adj_date").value||todayStr(); const memo=document.getElementById("adj_memo").value||null; DB.leaveAdjustments=DB.leaveAdjustments||[]; DB.leaveAdjustments.push({id:nextId(), employeeId:empId, direction:dir, days, reasonType:reason, date, memo}); saveDB(); render(); toast("연차를 조정했습니다"); } function deleteLeaveAdjustment(id){ DB.leaveAdjustments=(DB.leaveAdjustments||[]).filter(x=>x.id!==id); saveDB(); render(); toast("삭제했습니다"); }
+function setLeaveStatus(id, st){ if(!canApprove()){ denyApprove(); render(); return; } const l=DB.leaves.find(x=>x.id===id); if(l){ l.status=st; syncAll(); saveDB(); render(); toast(st+" 처리했습니다"); } }
+function deleteLeave(id, empId){ if(staffLocked(DB.leaves.find(x=>x.id===id))){ denyLocked(); return; } DB.leaves=DB.leaves.filter(x=>x.id!==id); syncAll(); saveDB(); if(document.getElementById("modalRoot").innerHTML && empId){ openCard(empId); } render(); toast("삭제했습니다"); } function renderLeaveAdjPanel(e){ if(!e) return ""; const list=(DB.leaveAdjustments||[]).filter(a=>a.employeeId===e.id).sort((a,b)=>(b.date||"").localeCompare(a.date||"")); return `<div class="panel adj-panel" style="margin-top:16px"><div class="p-head"><h2>${esc(e.name)} - 연차 조정</h2><button class="btn sm ghost" onclick="toggleLeaveAdjRow(${e.id})">닫기</button></div><div class="card-grid adj-grid"><div><div class="p-head"><h2 style="font-size:14px">연차 조정 추가</h2></div><div class="grid2"><div class="field"><label>방향</label><select id="adj_dir"><option value="차감">차감 (-)</option><option value="추가">추가 (+)</option></select></div><div class="field"><label>일수 (0.5 단위)</label><input id="adj_days" type="number" step="0.5" min="0.5" value="1"></div><div class="field"><label>사유 분류</label><select id="adj_reason">${LEAVE_ADJ_REASONS.map(r=>`<option>${r}</option>`).join("")}</select></div><div class="field"><label>적용일</label><input id="adj_date" type="date" value="${todayStr()}"></div><div class="field full"><label>메모</label><input id="adj_memo" placeholder="구체적 사유 (선택)"></div></div><button class="btn primary" style="margin-top:8px" onclick="addLeaveAdjustment(${e.id})">차감/조정 추가</button></div><div><div class="p-head"><h2 style="font-size:14px">차감/조정 내역</h2></div>${list.length?`<div class="att-wrap"><table><tbody>${list.map(a=>`<tr><td>${fmtDate(a.date)}</td><td>${a.direction==="추가"?'<span class="tag t-ok">+'+a.days+'일</span>':'<span class="tag t-bad">-'+a.days+'일</span>'}</td><td>${esc(a.reasonType||"")}</td><td class="hint">${esc(a.memo||"")}</td><td class="num"><button class="btn sm ghost" onclick="deleteLeaveAdjustment(${a.id})">삭제</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="hint" style="padding:10px 4px">내역이 없습니다.</div>`}</div></div></div>`; } function addLeaveAdjustment(empId){ const dir=document.getElementById("adj_dir").value; const days=Number(document.getElementById("adj_days").value||0); if(!days){ toast("일수를 입력하세요"); return; } const reason=document.getElementById("adj_reason").value; const date=document.getElementById("adj_date").value||todayStr(); const memo=document.getElementById("adj_memo").value||null; DB.leaveAdjustments=DB.leaveAdjustments||[]; DB.leaveAdjustments.push({id:nextId(), employeeId:empId, direction:dir, days, reasonType:reason, date, memo}); saveDB(); render(); toast("연차를 조정했습니다"); } function deleteLeaveAdjustment(id){ DB.leaveAdjustments=(DB.leaveAdjustments||[]).filter(x=>x.id!==id); saveDB(); render(); toast("삭제했습니다"); }
 
 
 /* =========================== 근무변경 (대체/시간변경/맞교대) =========================== */
@@ -1166,9 +1181,9 @@ if(c.type==="결근") return [{date:c.date, html:`<b>${esc(empName(c.employeeId)
       <td>${L.map(x=>`<div style="padding:1px 0">${x.html}</div>`).join("")}</td>
       <td>${L.map(x=>`<div style="padding:1px 0">${x.time}</div>`).join("")}</td>
       <td class="hint">${esc(c.reason||"")}</td>
-      <td>${leaveStatusTag(c.status)} ${withActions?`<select onchange="setShiftChangeStatus(${c.id}, this.value)">${LEAVE_STATUSES.map(s=>`<option ${c.status===s?"selected":""}>${s}</option>`).join("")}</select>`:""}</td>
-      <td class="num"><button class="btn sm" onclick="openShiftChangeForm({id:${c.id}})">수정</button>
-        <button class="btn sm ghost" onclick="deleteShiftChange(${c.id})">삭제</button></td>
+      <td>${leaveStatusTag(c.status)} ${withActions&&canApprove()?`<select onchange="setShiftChangeStatus(${c.id}, this.value)">${LEAVE_STATUSES.map(s=>`<option ${c.status===s?"selected":""}>${s}</option>`).join("")}</select>`:""}</td>
+      <td class="num">${staffLocked(c)?"":`<button class="btn sm" onclick="openShiftChangeForm({id:${c.id}})">수정</button>
+        <button class="btn sm ghost" onclick="deleteShiftChange(${c.id})">삭제</button>`}</td>
     </tr>`;
   };
   return `
@@ -1184,9 +1199,11 @@ if(c.type==="결근") return [{date:c.date, html:`<b>${esc(empName(c.employeeId)
       <td>${(c.type==="변경"||c.type==="결근"||c.type==="이동"||c.type==="부분")?esc(empName(c.employeeId)):`${esc(empName(c.employeeId))} <span class="hint">→</span> <b>${esc(empName(c.substituteId))}</b>`}</td>
       <td>${c.type==="부분"?`${scPartSegText(c.start,c.end,c.close)} → ${scPartSegText(c.swapStart||c.start,c.swapEnd||c.end,c.close)}`:c.type==="이동"?`→ ${timeText(c.swapStart,c.swapEnd,c.swapClose,"근무표 기준")}${closeSuffix(c.swapStart,c.swapEnd,c.swapClose,' <b class="close-tag">(마감)</b>')}`:`${timeText(c.start,c.end,c.close,"근무표 기준")}${closeSuffix(c.start,c.end,c.close,' <b class="close-tag">(마감)</b>')}`}${c.type==="교대"?`<div class="hint">↔ ${timeText(c.swapStart,c.swapEnd,c.swapClose,"근무표 기준")}${closeSuffix(c.swapStart,c.swapEnd,c.swapClose," (마감)")}</div>`:""}</td>
       <td class="hint">${esc(c.reason||"")}</td>
-      <td class="num"><button class="btn sm primary" onclick="setShiftChangeStatus(${c.id},'승인')">승인</button>
+      <td class="num" style="white-space:nowrap">${canApprove()?`<button class="btn sm primary" onclick="setShiftChangeStatus(${c.id},'승인')">승인</button>
         <button class="btn sm" onclick="openShiftChangeForm({id:${c.id}})">수정</button>
-        <button class="btn sm" onclick="setShiftChangeStatus(${c.id},'반려')">반려</button></td>
+        <button class="btn sm" onclick="setShiftChangeStatus(${c.id},'반려')">반려</button>`:`<span class="hint">관리자 승인 대기</span>
+        <button class="btn sm" onclick="openShiftChangeForm({id:${c.id}})">수정</button>
+        <button class="btn sm ghost" onclick="deleteShiftChange(${c.id})">삭제</button>`}</td>
     </tr>`).join("")}</tbody></table></div>
   </div>`:""}
   <div class="panel">
@@ -1204,6 +1221,7 @@ function openShiftChangeForm(prefill){
   if(p.id!=null){
     editing=(DB.shiftChanges||[]).find(x=>x.id===p.id);
     if(!editing){ toast("해당 근무변경을 찾을 수 없습니다"); return; }
+    if(staffLocked(editing)){ denyLocked(); return; }
     p={...editing};
   }
   const day=p.date||todayStr();
@@ -1219,7 +1237,7 @@ function openShiftChangeForm(prefill){
         <option value="">전체</option>${WK_GROUPS.map(g=>`<option value="${g.key}" ${grp===g.key?"selected":""}>${g.key}</option>`).join("")}</select></div>
       <div class="field"><label>유형 <span class="req">*</span></label>
         <select id="sc_type" onchange="onScTypeChange()">${SHIFT_CHANGE_TYPES.map(t=>`<option value="${t}" ${p.type===t?"selected":""}>${SC_LABEL[t]}</option>`).join("")}</select></div>
-      <div class="field"><label>상태</label><select id="sc_status">${LEAVE_STATUSES.map(x=>`<option ${(p.status||"대기")===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      ${canApprove()?`<div class="field"><label>상태</label><select id="sc_status">${LEAVE_STATUSES.map(x=>`<option ${(p.status||"대기")===x?"selected":""}>${x}</option>`).join("")}</select></div>`:`<div class="field"><label>상태</label><input type="hidden" id="sc_status" value="대기"><div class="hint" style="padding-top:9px">대기 — 관리자가 승인하면 출근부에 반영돼요</div></div>`}
 
       <div ${box} id="sc_orig_box">
         <div id="sc_orig_cap" style="grid-column:1/-1"></div>
@@ -1615,6 +1633,7 @@ function scPartCheck(empId, date, swapDate, st, en, close, ss, se, editId, tre){
 }
 function saveShiftChange(editId){
   if(t24Invalid()) return;
+  if(editId!=null && staffLocked((DB.shiftChanges||[]).find(x=>x.id===editId))){ denyLocked(); return; }
   const type=val("sc_type"), date=val("sc_date");
   const employeeId=Number(val("sc_emp"));
   const substituteId = (type==="변경"||type==="결근"||type==="이동"||type==="부분") ? null : Number(val("sc_sub"));
@@ -1646,7 +1665,7 @@ function saveShiftChange(editId){
     swapClose: type==="부분" ? !!(document.getElementById("sc_close")||{}).checked : two ? !!(document.getElementById("sc_swapclose")||{}).checked : null,
     absence: type==="교대" ? "교대" : type==="이동" ? "이동" : type==="부분" ? "부분" : type==="결근" ? "무급" : (val("sc_absence")||"무급"),
     leaveDays: Number(val("sc_leavedays")||1),
-    status: val("sc_status")||"대기",
+    status: canApprove() ? (val("sc_status")||"대기") : "대기",
     reason: val("sc_reason")||null, memo: val("sc_memo")||null,
   };
   DB.shiftChanges=DB.shiftChanges||[];
@@ -1662,12 +1681,14 @@ function saveShiftChange(editId){
   toast(editId!=null?"근무변경을 수정했습니다":"근무변경을 등록했습니다");
 }
 function setShiftChangeStatus(id, st){
+  if(!canApprove()){ denyApprove(); render(); return; }
   const c=(DB.shiftChanges||[]).find(x=>x.id===id); if(!c) return;
   c.status=st; syncAll(); saveDB(); render();
   if(view==="attendance") wireAttendance();
   toast(st+" 처리했습니다");
 }
 function deleteShiftChange(id){
+  if(staffLocked((DB.shiftChanges||[]).find(x=>x.id===id))){ denyLocked(); return; }
   DB.shiftChanges=(DB.shiftChanges||[]).filter(x=>x.id!==id);
   syncAll(); saveDB(); render();
   if(view==="attendance") wireAttendance();

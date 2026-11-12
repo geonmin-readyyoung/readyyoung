@@ -88,6 +88,38 @@ async function ensureTable() {
 }
 ensureTable().catch((e) => console.error("DB init error:", e));
 
+/* 승인·반려는 관리자만 — 직원 계정(토큰 없음)의 저장에서 휴가·근무변경 상태를 바꾸려 하면 막는다.
+   직원은 새 요청을 '대기'로만 올리고, 대기 중인 요청만 고치거나 지울 수 있다.
+   근무변경 연동 연차(fromShiftChange)는 승인된 근무변경에서 자동으로 생기는 것이라 그 근무변경 기준으로 본다. */
+function approvalViolation(prev, next) {
+  if (!prev) return null;
+  const prevSc = new Map((prev.shiftChanges || []).map((c) => [c.id, c]));
+  const nextSc = new Map((next.shiftChanges || []).map((c) => [c.id, c]));
+  const check = (label, prevList, nextList) => {
+    const pm = new Map(prevList.map((x) => [x.id, x]));
+    const nm = new Map(nextList.map((x) => [x.id, x]));
+    for (const x of nextList) {
+      const p = pm.get(x.id);
+      if (!p) { if (x.status !== "대기") return `${label} ${x.id}: 새 요청은 대기로만`; continue; }
+      if (p.status === "대기" ? x.status !== "대기" : x.status !== p.status) return `${label} ${x.id}: 상태 변경`;
+    }
+    for (const p of prevList) if (p.status !== "대기" && !nm.has(p.id)) return `${label} ${p.id}: 승인·반려된 기록 삭제`;
+    return null;
+  };
+  const own = (l) => !l.fromShiftChange;
+  const v = check("근무변경", prev.shiftChanges || [], next.shiftChanges || [])
+    || check("휴가", (prev.leaves || []).filter(own), (next.leaves || []).filter(own));
+  if (v) return v;
+  // 연동 연차는 승인된 근무변경(이전 판 기준, 그대로 승인 상태)에 붙은 것만
+  for (const l of next.leaves || []) {
+    if (!l.fromShiftChange) continue;
+    const c = prevSc.get(l.fromShiftChange), n = nextSc.get(l.fromShiftChange);
+    const wasLinked = (prev.leaves || []).some((x) => x.id === l.id && x.fromShiftChange === l.fromShiftChange);
+    if (!wasLinked && !(c && c.status === "승인" && n && n.status === "승인")) return `연동 연차 ${l.id}`;
+  }
+  return null;
+}
+
 app.get("/api/db", async (req, res) => {
   try {
     const r = await pool.query("SELECT data FROM hr_store WHERE id = $1", ["v1"]);
@@ -111,6 +143,14 @@ app.put("/api/db", async (req, res) => {
     if (cur.rows[0] && baseRev !== curRev) {
       await client.query("ROLLBACK");
       return res.status(409).json({ error: "conflict", rev: curRev });
+    }
+    const tok = readToken(req);
+    if (!(tok && tok.role === "owner")) {
+      const v = approvalViolation(cur.rows[0] && cur.rows[0].data, data);
+      if (v) {
+        await client.query("ROLLBACK");
+        return res.status(403).json({ error: "approve_admin_only", detail: v });
+      }
     }
     const next = curRev + 1;
     data._rev = next;
