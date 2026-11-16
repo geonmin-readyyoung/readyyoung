@@ -267,11 +267,11 @@ function leaveCalcText(g){
     if(g.allOff) return `휴직 → 발생 없음`;
     if(!g.full) return `결근 ${g.absent}일 → 발생 없음`;
     if(!g.hours) return `주 ${fmtLeaveH(w)} (15시간 미만) → 발생 없음`;
-    if(g.off) return `1일 × ${g.sched}/${g.sched+g.off}(휴직 비례) × 8시간 × ${ratio}`;
+    if(g.off) return `1일 × 8시간 × ${ratio} × ${g.sched}/${g.sched+g.off} <span class="hint">(휴직 비례)</span>`;
     return `1일 × 8시간 × ${ratio}`;
   }
   if(!g.hours) return g.weekH<LEAVE_MIN_WEEK_H ? `주 ${fmtLeaveH(w)} (15시간 미만) → 발생 없음` : `개근한 달 없음 → 발생 없음`;
-  if(g.off && g.rate>=0.8) return `${g.baseDays}일 × ${g.sched}/${g.sched+g.off}(휴직 비례) × 8시간 × ${ratio}`;
+  if(g.off && g.rate>=0.8) return `${g.baseDays}일 × 8시간 × ${ratio} × ${g.sched}/${g.sched+g.off} <span class="hint">(휴직 비례)</span>`;
   return `${g.days}일 × 8시간 × ${ratio}`;
 }
 function openLeaveBasis(empId){
@@ -296,10 +296,10 @@ function openLeaveBasis(empId){
       <tbody>${list.map(g=>`<tr>
         <td>${fmtDate(g.date)}</td>
         <td style="white-space:nowrap">${g.kind==="월차"?`${g.n}개월째`:`${g.n}년차`}</td>
-        <td style="white-space:nowrap">${fmtDate(g.from)} ~ ${fmtDate(addDays(g.date,-1))}</td>
-        <td class="hint">${attTxt(g)}</td>
+        <td style="white-space:nowrap">${fmtDate(g.from)} ~<br>${fmtDate(addDays(g.date,-1))}</td>
+        <td class="hint" style="min-width:150px; white-space:normal">${attTxt(g)}</td>
         <td class="num" style="white-space:nowrap">${fmtLeaveH(g.weekH)}</td>
-        <td style="white-space:nowrap">${leaveCalcText(g)}</td>
+        <td style="min-width:170px">${leaveCalcText(g)}</td>
         <td class="num" style="white-space:nowrap"><b>${g.hours?fmtLeaveH(g.hours):"0시간"}</b></td>
         <td>${g.expire<"9999"?fmtDate(g.expire):"이월"}</td>
       </tr>`).join("")}
