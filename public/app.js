@@ -18,9 +18,8 @@ const PAY_TYPES = [
 ];
 const PAY_LABEL = Object.fromEntries(PAY_TYPES.map(p=>[p.value,p.label]));
 /* 반차는 하나 — 몇 시에 근무하는지는 근무표의 근무 타입(반차 경계·반차 근무)이 정한다. 예전 기록의 반차(오전)/반차(오후)도 그대로 인식 */
-const LEAVE_TYPES = ["연차","반차","병가","경조사","출산휴가","육아휴직","휴직","기타"];
-/* 연차 계산에서 — 출산휴가·육아휴직은 출근한 것으로 본다(근로기준법 60조 6항).
-   휴직(개인 사유)은 그 기간을 소정근로일에서 빼고, 1년 이상 연차는 휴직한 만큼 비례해서 줄인다 */   // 일 단위
+const LEAVE_TYPES = ["연차","반차","병가","경조사","휴직","기타"];
+/* 연차 계산에서 — 휴직(개인 사유)은 그 기간을 소정근로일에서 빼고, 1년 이상 연차는 휴직한 만큼 비례해서 줄인다 */   // 일 단위
 /* 시간 단위 근태 — 지각·조퇴·외출. 연차와는 무관하고, 급여 정산 때 시간으로 차감하기 위한 기록 */
 const TIME_TYPES = ["지각","조퇴","외출"];
 const TIME_HANDLING = ["무급","기록만"];
@@ -39,7 +38,7 @@ const LEAVE_STATUSES = ["승인","대기","반려"];
 /* 병가·경조사·기타 휴가의 급여 처리 — 연차·반차는 항상 유급. 따로 정하지 않은 기록은 경조사만 유급, 병가·기타는 무급
    무급인 날은 급여변경사항에 결근(무급)으로 넘기고, 그날 연장근로분(근무표 근로시간 − 8시간)도 공제 시간으로 같이 적는다 */
 const LEAVE_PAYS = ["유급","무급"];
-function leavePayOf(l){ if(!l || isTimeLeave(l) || DEDUCT_TYPES.includes(l.leaveType)) return "유급"; return l.pay || (l.leaveType==="경조사" || l.leaveType==="출산휴가" ? "유급" : "무급"); }
+function leavePayOf(l){ if(!l || isTimeLeave(l) || DEDUCT_TYPES.includes(l.leaveType)) return "유급"; return l.pay || (l.leaveType==="경조사" ? "유급" : "무급"); }
 const DEDUCT_TYPES = ["연차","반차","반차(오전)","반차(오후)"]; function leaveTypeLabel(t){ return String(t||"").startsWith("반차") ? "반차" : (t||""); } const LEAVE_ADJ_REASONS = ["근태불량","경조사","포상","오류정정","기타"];
 
 /* ---- 상태 ---- */
@@ -694,7 +693,7 @@ function openLeaveForm(empId, mode, editId){
       <div class="field"><label>종료일</label><input id="l_end" type="date" value="${editing?(editing.endDate||d).slice(0,10):d}" onchange="autoDays()"></div>
       <div class="field"><label>일수</label><input id="l_days" type="number" step="0.5" value="${editing?editing.days:1}"></div>
       <div class="field"><label>&nbsp;</label><div class="hint" style="padding-top:9px" id="l_days_hint">연차·반차만 잔여 연차에서 차감 · 병가/경조사/기타는 차감 없음</div></div>
-      <div class="field" id="l_pay_wrap" style="${DEDUCT_TYPES.includes(t0)?"display:none":""}"><label>급여 처리</label><select id="l_pay">${LEAVE_PAYS.map(p=>`<option ${(editing&&!DEDUCT_TYPES.includes(editing.leaveType)?leavePayOf(editing):((t0==="경조사"||t0==="출산휴가")?"유급":"무급"))===p?"selected":""}>${p}</option>`).join("")}</select><div class="hint" style="margin-top:4px">무급이면 기본급과 그날 연장근로분(고정연장수당)도 공제 대상</div></div>
+      <div class="field" id="l_pay_wrap" style="${DEDUCT_TYPES.includes(t0)?"display:none":""}"><label>급여 처리</label><select id="l_pay">${LEAVE_PAYS.map(p=>`<option ${(editing&&!DEDUCT_TYPES.includes(editing.leaveType)?leavePayOf(editing):(t0==="경조사"?"유급":"무급"))===p?"selected":""}>${p}</option>`).join("")}</select><div class="hint" style="margin-top:4px">무급이면 기본급과 그날 연장근로분(고정연장수당)도 공제 대상</div></div>
       ${memo}
     </div>`;
   } else {
@@ -769,7 +768,7 @@ function onLeaveType(){
   const t=val("l_type"); const d=document.getElementById("l_days");
   if(t.startsWith("반차")) d.value="0.5"; else autoDays();
   const pw=document.getElementById("l_pay_wrap"), ps=document.getElementById("l_pay");
-  if(pw){ const paidType=DEDUCT_TYPES.includes(t); pw.style.display=paidType?"none":""; if(ps && !paidType) ps.value = (t==="경조사"||t==="출산휴가") ? "유급" : "무급"; }
+  if(pw){ const paidType=DEDUCT_TYPES.includes(t); pw.style.display=paidType?"none":""; if(ps && !paidType) ps.value = t==="경조사" ? "유급" : "무급"; }
   leaveHalfHint();
 }
 /* 반차 선택 시 — 그 날 근무표 기준으로 실제 근무 구간 안내 */
