@@ -9,6 +9,11 @@
                80% 미만 → 그 1년 중 결근 없는 달 수 × 8h × (주 소정시간 ÷ 40)
                발생일로부터 1년 지나면 남은 시간 소멸 (설정에서 "이월"로 바꿀 수 있음)
    - 주 소정근로시간 15시간 미만은 연차 없음 (18조 3항)
+   - 휴직(휴가 종류 '휴직'): 그 날은 소정근로일에서 뺀다. 한 달 내내 휴직이면 그 달 월차 없음,
+             1년 이상은 출근율을 휴직 뺀 날로 보고 15일을 근로일÷(근로일+휴직일)로 비례
+   - 근무변경: 결근 → 결근 / 대체로 빠진 날·근무일자 변경으로 비운 날 → 쉬는 날(소정근로일 아님) /
+             옮겨 간 날·맞교대로 받은 날 → 근무일 / 원래 쉬는 날 대신 나온 날(추가 근무) → 소정근로일에 안 넣음 /
+             근무시간 변경·일부 이동·지각·조퇴·외출 → 그날 출근 그대로 / 연차·출산휴가·육아휴직·병가·경조사 → 출근으로 봄
    - 출근율: 출근부 기준. 근무표상 근무일(출근·반차·연차·휴가·결근) 중 "결근"만 빠진 날로 센다
              (연차·병가·경조사 등 승인된 휴가는 결근이 아님)
    - 사용: 연차 1일 = 그 날 근무표상 소정근로시간(휴게 제외, 8h 상한 — 20~23시면 3h), 반차 = 그 절반.
@@ -108,13 +113,16 @@ function leaveEligibility(e){
 const SCHED_DAY_ST = new Set(["출근","반차","연차","휴가","결근"]);
 function leaveAttStats(e, from, toExcl){
   const stop=minYmd(toExcl, e.leaveDate ? addDays(e.leaveDate.slice(0,10),1) : null);
-  let sched=0, absent=0, d=from, guard=0;
+  let sched=0, absent=0, off=0, d=from, guard=0;
   while(d<stop && guard++<400){
-    const st=attDayInfo(e, d).st;
-    if(SCHED_DAY_ST.has(st)){ sched++; if(st==="결근") absent++; }
+    const info=attDayInfo(e, d), st=info.st;
+    const sw=info.rec && info.rec.swap;
+    if(st==="휴가" && info.rec && info.rec.leaveKind==="휴직") off++;   // 휴직한 날은 소정근로일에서 뺀다
+    else if(sw && sw.role==="대체" && !scheduleOn(e.id, d).on){}      // 원래 쉬는 날 남의 근무를 대신 나온 날 — 소정근로일 아님
+    else if(SCHED_DAY_ST.has(st)){ sched++; if(st==="결근") absent++; }
     d=addDays(d,1);
   }
-  return {sched, absent};
+  return {sched, absent, off};
 }
 
 /* ---- 발생 내역 (asOf 날짜까지) ---- */
@@ -130,22 +138,26 @@ function leaveGrants(e, asOf=todayStr()){
   for(let k=1;k<=11;k++){
     const gd=addMonthsYmd(j,k); if(gd>last) break;
     const a=leaveAttStats(e, addMonthsYmd(j,k-1), gd);
-    const full=a.absent===0, pd=perDay(addMonthsYmd(j,k-1), gd);
-    out.push({kind:"월차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(j,12), hours: full?pd.h:0, days: full&&pd.h?1:0, weekH:pd.w, from:addMonthsYmd(j,k-1), sched:a.sched, absent:a.absent, full, n:k,
-      basis: !full ? `${k}개월째 결근 ${a.absent}일 — 발생 없음` : !pd.h ? `${k}개월째 · 주 ${fmtLeaveH(pd.w)} (15시간 미만) — 발생 없음` : `${k}개월째 개근${a.sched?"":" (근무표 없음)"} · 주 ${fmtLeaveH(pd.w)}`});
+    const allOff = a.off>0 && a.sched===0;   // 한 달 내내 휴직 — 근로가 없어 발생 없음
+    const full=a.absent===0 && !allOff, pd=perDay(addMonthsYmd(j,k-1), gd);
+    out.push({kind:"월차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(j,12), hours: full?pd.h:0, days: full&&pd.h?1:0, weekH:pd.w, from:addMonthsYmd(j,k-1), sched:a.sched, absent:a.absent, off:a.off, allOff, full, n:k,
+      basis: allOff ? `${k}개월째 휴직 ${a.off}일 — 근로 없어 발생 없음` : !full ? `${k}개월째 결근 ${a.absent}일 — 발생 없음` : !pd.h ? `${k}개월째 · 주 ${fmtLeaveH(pd.w)} (15시간 미만) — 발생 없음` : `${k}개월째 개근${a.sched?"":" (근무표 없음)"} · 주 ${fmtLeaveH(pd.w)}`});
   }
   // 1년 이상 — 매 입사기념일
   for(let n=1;n<=60;n++){
     const gd=addMonthsYmd(j,12*n); if(gd>last) break;
-    let sched=0, absent=0, fullMonths=0;
+    let sched=0, absent=0, off=0, fullMonths=0;
     for(let k=0;k<12;k++){
       const a=leaveAttStats(e, addMonthsYmd(j,12*(n-1)+k), addMonthsYmd(j,12*(n-1)+k+1));
-      sched+=a.sched; absent+=a.absent; if(a.absent===0) fullMonths++;
+      sched+=a.sched; absent+=a.absent; off+=a.off; if(a.absent===0 && !(a.off>0 && a.sched===0)) fullMonths++;
     }
-    const rate = sched ? (sched-absent)/sched : 1;
-    const days = rate>=0.8 ? Math.min(25, 15+Math.floor((n-1)/2)) : fullMonths;
+    const rate = sched ? (sched-absent)/sched : (off ? 0 : 1);
+    // 출근율은 휴직일을 뺀 소정근로일로 보고, 80% 이상이면 휴직한 만큼 비례해서 줄인다 (근로일 ÷ (근로일+휴직일))
+    const share = off ? sched/(sched+off) : 1;
+    const baseDays = Math.min(25, 15+Math.floor((n-1)/2));
+    const days = rate>=0.8 ? Math.round(baseDays*share*100)/100 : fullMonths;
     const pd=perDay(addMonthsYmd(j,12*(n-1)), gd);
-    out.push({kind:"연차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(gd,12), hours: days*pd.h, days, rate, weekH:pd.w, from:addMonthsYmd(j,12*(n-1)), sched, absent, fullMonths, n,
+    out.push({kind:"연차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(gd,12), hours: days*pd.h, days, baseDays, share, rate, weekH:pd.w, from:addMonthsYmd(j,12*(n-1)), sched, absent, off, fullMonths, n,
       basis: (rate>=0.8 ? `${n}년 근속 · 출근율 ${Math.round(rate*1000)/10}%` : `출근율 ${Math.round(rate*1000)/10}% (80% 미만) — 개근한 ${fullMonths}개월분`) + ` · 평균 주 ${fmtLeaveH(pd.w)}`});
   }
   return out;
@@ -249,11 +261,13 @@ function setLeaveCarryOver(on){
 function leaveCalcText(g){
   const w=Math.round(g.weekH*100)/100, ratio=`${w}/${LEAVE_FULL_WEEK_H}`;
   if(g.kind==="월차"){
+    if(g.allOff) return `휴직 → 발생 없음`;
     if(!g.full) return `결근 ${g.absent}일 → 발생 없음`;
     if(!g.hours) return `주 ${fmtLeaveH(w)} (15시간 미만) → 발생 없음`;
     return `1일 × 8시간 × ${ratio}`;
   }
   if(!g.hours) return g.weekH<LEAVE_MIN_WEEK_H ? `주 ${fmtLeaveH(w)} (15시간 미만) → 발생 없음` : `개근한 달 없음 → 발생 없음`;
+  if(g.off && g.rate>=0.8) return `${g.baseDays}일 × ${g.sched}/${g.sched+g.off}(휴직 비례) × 8시간 × ${ratio}`;
   return `${g.days}일 × 8시간 × ${ratio}`;
 }
 function openLeaveBasis(empId){
@@ -262,8 +276,8 @@ function openLeaveBasis(empId){
   const inP=d=>d>=s.period.from && d<s.period.to;
   const list=s.grants.filter(g=>inP(g.date));
   const attTxt=g=> g.kind==="월차"
-    ? (g.sched ? `근무일 ${g.sched}일 · 결근 ${g.absent}일${g.full?" (개근)":""}` : "근무표 없음 → 개근으로 봄")
-    : `근무일 ${g.sched}일 · 결근 ${g.absent}일 · 출근율 ${Math.round(g.rate*1000)/10}%${g.rate>=0.8?"":` (80% 미만 → 개근한 ${g.fullMonths}개월분)`}`;
+    ? (g.allOff ? `휴직 ${g.off}일 (근로 없음)` : g.sched ? `근무일 ${g.sched}일 · 결근 ${g.absent}일${g.off?` · 휴직 ${g.off}일`:""}${g.full?" (개근)":""}` : "근무표 없음 → 개근으로 봄")
+    : `근무일 ${g.sched}일 · 결근 ${g.absent}일${g.off?` · 휴직 ${g.off}일`:""} · 출근율 ${Math.round(g.rate*1000)/10}%${g.rate>=0.8?"":` (80% 미만 → 개근한 ${g.fullMonths}개월분)`}`;
   const rule = list.some(g=>g.kind==="연차")
     ? "1년 이상: 매 입사기념일에 지난 1년 출근율 80% 이상이면 15일 + 2년마다 1일(최대 25일), 80% 미만이면 개근한 달 수만큼. 1일 = 8시간 × 주 소정시간/40"
     : "1년 미만: 입사 후 한 달을 결근 없이 채울 때마다 1일(최대 11번). 1일 = 8시간 × 그 달 평균 주 소정시간/40";
