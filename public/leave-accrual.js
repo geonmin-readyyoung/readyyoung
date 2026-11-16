@@ -14,6 +14,7 @@
    - 사용: 연차 1일 = 그 날 근무표상 소정근로시간(휴게 제외, 8h 상한 — 20~23시면 3h), 반차 = 그 절반.
            근무표가 없는 날은 1일 소정시간. 소멸일이 빠른 발생분부터 차감
    - 주 소정근로시간: 직원 정보 입력값 > 근무표로 계산(요일별 근로시간 8h 상한의 합) > 주 근무일 × 8
+     발생량은 그 달(1년 이상은 그 1년)의 근무표 이력으로 평균을 내서 비례 — 근무시간이 바뀐 직원도 기간별로 맞게 쌓인다
    ========================================================================= */
 const LEAVE_FULL_WEEK_H = 40;   // 통상근로자 주 소정근로시간
 const LEAVE_DAY_H = 8;          // 통상근로자 1일 소정근로시간
@@ -44,8 +45,8 @@ function schedWorkH(empId, day){
   return Math.min(LEAVE_DAY_H, h-brk);
 }
 /* 근무표의 한 주 소정근로시간 (격주 근무는 절반으로) — 근무표가 없으면 null */
-function schedWeekH(empId){
-  const w=weekFor(empId, todayStr()); let sum=0, any=false;
+function schedWeekH(empId, day){
+  const w=weekFor(empId, day||todayStr()); let sum=0, any=false;
   for(let dow=0; dow<7; dow++){
     const s=w && w[dow]; if(!s || !s.on || !s.start || !s.end) continue;
     const h=segHours(s.start, s.end); if(!(h>0)) continue;
@@ -60,6 +61,16 @@ function weeklyHoursOf(e){
   const s=e && e.id!=null ? schedWeekH(e.id) : null;
   if(s) return Math.min(LEAVE_FULL_WEEK_H, s);
   return Math.min(LEAVE_FULL_WEEK_H, (Number(e && e.weeklyWorkDays)||5) * LEAVE_DAY_H);
+}
+/* 한 구간 [from, toExcl)의 평균 주 소정근로시간 — 근무표가 바뀐 이력(근무표 버전·격주)을 날짜별로 따라간다.
+   직원 정보에 주 소정근로시간을 직접 넣었으면 그 값. 그 구간에 근무표가 하나도 없으면 지금 값 */
+function periodWeekH(e, from, toExcl){
+  const v=Number(e && e.weeklyHours); if(v>0) return v;
+  // 날마다 그날 적용되는 주간 근무표의 주 소정시간을 구해 평균 (달력상 요일 수 차이에 흔들리지 않게)
+  let sum=0, n=0;
+  for(let d=from, g=0; d<toExcl && g<400; d=addDays(d,1), g++){ const w=schedWeekH(e.id, d); if(w!=null){ sum+=w; n++; } }
+  if(!n) return weeklyHoursOf(e);
+  return Math.min(LEAVE_FULL_WEEK_H, Math.round(sum/n*100)/100);
 }
 /* 1일 소정근로시간 — 주 소정시간 ÷ 주 근무일 수 (최대 8) · 화면에서 시간을 일수로 바꿀 때 쓰는 단위 */
 function dayHoursOf(e){
@@ -110,7 +121,8 @@ function leaveAttStats(e, from, toExcl){
 function leaveGrants(e, asOf=todayStr()){
   const j=(e.joinDate||"").slice(0,10); if(!j) return [];
   const el=leaveEligibility(e); if(!el.ok) return [];
-  const ratio=weeklyHoursOf(e)/LEAVE_FULL_WEEK_H, perDayH=LEAVE_DAY_H*ratio;
+  // 발생량은 그 발생분을 만든 기간(한 달 / 1년)의 평균 주 소정근로시간으로 비례 — 중간에 근무시간이 바뀌어도 기간별로 반영
+  const perDay=(from,to)=>{ const w=periodWeekH(e, from, to); return {w, h: w<LEAVE_MIN_WEEK_H ? 0 : LEAVE_DAY_H*w/LEAVE_FULL_WEEK_H}; };
   const last=minYmd(asOf, e.leaveDate ? e.leaveDate.slice(0,10) : null);   // 발생일에 재직 중이어야 발생
   const carry=!!(DB.settings && DB.settings.leaveCarryOver);
   const out=[];
@@ -118,9 +130,9 @@ function leaveGrants(e, asOf=todayStr()){
   for(let k=1;k<=11;k++){
     const gd=addMonthsYmd(j,k); if(gd>last) break;
     const a=leaveAttStats(e, addMonthsYmd(j,k-1), gd);
-    const full=a.absent===0;
-    out.push({kind:"월차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(j,12), hours: full?perDayH:0, days: full?1:0,
-      basis: full ? `${k}개월째 개근${a.sched?"":" (근무표 없음)"}` : `${k}개월째 결근 ${a.absent}일 — 발생 없음`});
+    const full=a.absent===0, pd=perDay(addMonthsYmd(j,k-1), gd);
+    out.push({kind:"월차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(j,12), hours: full?pd.h:0, days: full&&pd.h?1:0, weekH:pd.w,
+      basis: !full ? `${k}개월째 결근 ${a.absent}일 — 발생 없음` : !pd.h ? `${k}개월째 · 주 ${fmtLeaveH(pd.w)} (15시간 미만) — 발생 없음` : `${k}개월째 개근${a.sched?"":" (근무표 없음)"} · 주 ${fmtLeaveH(pd.w)}`});
   }
   // 1년 이상 — 매 입사기념일
   for(let n=1;n<=60;n++){
@@ -132,8 +144,9 @@ function leaveGrants(e, asOf=todayStr()){
     }
     const rate = sched ? (sched-absent)/sched : 1;
     const days = rate>=0.8 ? Math.min(25, 15+Math.floor((n-1)/2)) : fullMonths;
-    out.push({kind:"연차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(gd,12), hours: days*perDayH, days, rate,
-      basis: rate>=0.8 ? `${n}년 근속 · 출근율 ${Math.round(rate*1000)/10}%` : `출근율 ${Math.round(rate*1000)/10}% (80% 미만) — 개근한 ${fullMonths}개월분`});
+    const pd=perDay(addMonthsYmd(j,12*(n-1)), gd);
+    out.push({kind:"연차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(gd,12), hours: days*pd.h, days, rate, weekH:pd.w,
+      basis: (rate>=0.8 ? `${n}년 근속 · 출근율 ${Math.round(rate*1000)/10}%` : `출근율 ${Math.round(rate*1000)/10}% (80% 미만) — 개근한 ${fullMonths}개월분`) + ` · 평균 주 ${fmtLeaveH(pd.w)}`});
   }
   return out;
 }
