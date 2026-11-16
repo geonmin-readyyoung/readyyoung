@@ -9,7 +9,7 @@
                80% 미만 → 그 1년 중 결근 없는 달 수 × 8h × (주 소정시간 ÷ 40)
                발생일로부터 1년 지나면 남은 시간 소멸 (설정에서 "이월"로 바꿀 수 있음)
    - 주 소정근로시간 15시간 미만은 연차 없음 (18조 3항)
-   - 휴직(휴가 종류 '휴직'): 그 날은 소정근로일에서 뺀다. 한 달 내내 휴직이면 그 달 월차 없음,
+   - 휴직(휴가 종류 '휴직'): 그 날은 소정근로일에서 뺀다. 한 달 내내 휴직이면 그 달 월차 없음, 일부만 휴직이면 근로일÷(근로일+휴직일)로 비례,
              1년 이상은 출근율을 휴직 뺀 날로 보고 15일을 근로일÷(근로일+휴직일)로 비례
    - 근무변경: 결근 → 결근 / 대체로 빠진 날·근무일자 변경으로 비운 날 → 쉬는 날(소정근로일 아님) /
              옮겨 간 날·맞교대로 받은 날 → 근무일 / 원래 쉬는 날 대신 나온 날(추가 근무) → 소정근로일에 안 넣음 /
@@ -140,7 +140,10 @@ function leaveGrants(e, asOf=todayStr()){
     const a=leaveAttStats(e, addMonthsYmd(j,k-1), gd);
     const allOff = a.off>0 && a.sched===0;   // 한 달 내내 휴직 — 근로가 없어 발생 없음
     const full=a.absent===0 && !allOff, pd=perDay(addMonthsYmd(j,k-1), gd);
-    out.push({kind:"월차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(j,12), hours: full?pd.h:0, days: full&&pd.h?1:0, weekH:pd.w, from:addMonthsYmd(j,k-1), sched:a.sched, absent:a.absent, off:a.off, allOff, full, n:k,
+    // 한 달 중 일부만 휴직 — 그 달 1일분을 근로일 ÷ (근로일 + 휴직일)로 비례 (1년 이상 연차와 같은 방식)
+    const share = a.off && a.sched ? a.sched/(a.sched+a.off) : 1;
+    const mh = full ? Math.round(pd.h*share*100)/100 : 0;
+    out.push({kind:"월차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(j,12), hours: mh, days: full&&pd.h?Math.round(share*100)/100:0, share, weekH:pd.w, from:addMonthsYmd(j,k-1), sched:a.sched, absent:a.absent, off:a.off, allOff, full, n:k,
       basis: allOff ? `${k}개월째 휴직 ${a.off}일 — 근로 없어 발생 없음` : !full ? `${k}개월째 결근 ${a.absent}일 — 발생 없음` : !pd.h ? `${k}개월째 · 주 ${fmtLeaveH(pd.w)} (15시간 미만) — 발생 없음` : `${k}개월째 개근${a.sched?"":" (근무표 없음)"} · 주 ${fmtLeaveH(pd.w)}`});
   }
   // 1년 이상 — 매 입사기념일
@@ -264,6 +267,7 @@ function leaveCalcText(g){
     if(g.allOff) return `휴직 → 발생 없음`;
     if(!g.full) return `결근 ${g.absent}일 → 발생 없음`;
     if(!g.hours) return `주 ${fmtLeaveH(w)} (15시간 미만) → 발생 없음`;
+    if(g.off) return `1일 × ${g.sched}/${g.sched+g.off}(휴직 비례) × 8시간 × ${ratio}`;
     return `1일 × 8시간 × ${ratio}`;
   }
   if(!g.hours) return g.weekH<LEAVE_MIN_WEEK_H ? `주 ${fmtLeaveH(w)} (15시간 미만) → 발생 없음` : `개근한 달 없음 → 발생 없음`;
@@ -280,7 +284,7 @@ function openLeaveBasis(empId){
     : `근무일 ${g.sched}일 · 결근 ${g.absent}일${g.off?` · 휴직 ${g.off}일`:""} · 출근율 ${Math.round(g.rate*1000)/10}%${g.rate>=0.8?"":` (80% 미만 → 개근한 ${g.fullMonths}개월분)`}`;
   const rule = list.some(g=>g.kind==="연차")
     ? "1년 이상: 매 입사기념일에 지난 1년 출근율 80% 이상이면 15일 + 2년마다 1일(최대 25일), 80% 미만이면 개근한 달 수만큼. 1일 = 8시간 × 주 소정시간/40"
-    : "1년 미만: 입사 후 한 달을 결근 없이 채울 때마다 1일(최대 11번). 1일 = 8시간 × 그 달 평균 주 소정시간/40";
+    : "1년 미만: 입사 후 한 달을 결근 없이 채울 때마다 1일(최대 11번, 휴직이 낀 달은 휴직일만큼 비례). 1일 = 8시간 × 그 달 평균 주 소정시간/40";
   modal(`${esc(e.name)} — 연차 산정 근거`, `
     <div class="hint" style="line-height:1.7; margin-bottom:12px">
       입사일 <b>${fmtDate(e.joinDate)}</b> · 이번 연차 기간 <b>${fmtDate(s.period.from)} ~ ${fmtDate(addDays(s.period.to,-1))}</b><br>
