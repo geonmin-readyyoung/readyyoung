@@ -131,7 +131,7 @@ function leaveGrants(e, asOf=todayStr()){
     const gd=addMonthsYmd(j,k); if(gd>last) break;
     const a=leaveAttStats(e, addMonthsYmd(j,k-1), gd);
     const full=a.absent===0, pd=perDay(addMonthsYmd(j,k-1), gd);
-    out.push({kind:"월차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(j,12), hours: full?pd.h:0, days: full&&pd.h?1:0, weekH:pd.w,
+    out.push({kind:"월차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(j,12), hours: full?pd.h:0, days: full&&pd.h?1:0, weekH:pd.w, from:addMonthsYmd(j,k-1), sched:a.sched, absent:a.absent, full, n:k,
       basis: !full ? `${k}개월째 결근 ${a.absent}일 — 발생 없음` : !pd.h ? `${k}개월째 · 주 ${fmtLeaveH(pd.w)} (15시간 미만) — 발생 없음` : `${k}개월째 개근${a.sched?"":" (근무표 없음)"} · 주 ${fmtLeaveH(pd.w)}`});
   }
   // 1년 이상 — 매 입사기념일
@@ -145,7 +145,7 @@ function leaveGrants(e, asOf=todayStr()){
     const rate = sched ? (sched-absent)/sched : 1;
     const days = rate>=0.8 ? Math.min(25, 15+Math.floor((n-1)/2)) : fullMonths;
     const pd=perDay(addMonthsYmd(j,12*(n-1)), gd);
-    out.push({kind:"연차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(gd,12), hours: days*pd.h, days, rate, weekH:pd.w,
+    out.push({kind:"연차", date:gd, expire: carry?"9999-12-31":addMonthsYmd(gd,12), hours: days*pd.h, days, rate, weekH:pd.w, from:addMonthsYmd(j,12*(n-1)), sched, absent, fullMonths, n,
       basis: (rate>=0.8 ? `${n}년 근속 · 출근율 ${Math.round(rate*1000)/10}%` : `출근율 ${Math.round(rate*1000)/10}% (80% 미만) — 개근한 ${fullMonths}개월분`) + ` · 평균 주 ${fmtLeaveH(pd.w)}`});
   }
   return out;
@@ -243,4 +243,50 @@ function setLeaveCarryOver(on){
   if(typeof isOwner==="function" && !isOwner()){ toast("관리자만 바꿀 수 있어요"); render(); return; }
   DB.settings=DB.settings||{}; DB.settings.leaveCarryOver=!!on; saveDB(); render();
   toast(on?"남은 연차를 다음 기간으로 이월해요":"발생 1년 뒤 남은 연차는 소멸해요");
+}
+
+/* 직원별 잔여 연차 › "이번 기간 발생" 클릭 — 발생분마다 산정 근거 */
+function leaveCalcText(g){
+  const w=Math.round(g.weekH*100)/100, ratio=`${w}/${LEAVE_FULL_WEEK_H}`;
+  if(g.kind==="월차"){
+    if(!g.full) return `결근 ${g.absent}일 → 발생 없음`;
+    if(!g.hours) return `주 ${fmtLeaveH(w)} (15시간 미만) → 발생 없음`;
+    return `1일 × 8시간 × ${ratio}`;
+  }
+  if(!g.hours) return g.weekH<LEAVE_MIN_WEEK_H ? `주 ${fmtLeaveH(w)} (15시간 미만) → 발생 없음` : `개근한 달 없음 → 발생 없음`;
+  return `${g.days}일 × 8시간 × ${ratio}`;
+}
+function openLeaveBasis(empId){
+  const e=DB.employees.find(x=>x.id===empId); if(!e) return;
+  const s=summarizeLeave(e);
+  const inP=d=>d>=s.period.from && d<s.period.to;
+  const list=s.grants.filter(g=>inP(g.date));
+  const attTxt=g=> g.kind==="월차"
+    ? (g.sched ? `근무일 ${g.sched}일 · 결근 ${g.absent}일${g.full?" (개근)":""}` : "근무표 없음 → 개근으로 봄")
+    : `근무일 ${g.sched}일 · 결근 ${g.absent}일 · 출근율 ${Math.round(g.rate*1000)/10}%${g.rate>=0.8?"":` (80% 미만 → 개근한 ${g.fullMonths}개월분)`}`;
+  const rule = list.some(g=>g.kind==="연차")
+    ? "1년 이상: 매 입사기념일에 지난 1년 출근율 80% 이상이면 15일 + 2년마다 1일(최대 25일), 80% 미만이면 개근한 달 수만큼. 1일 = 8시간 × 주 소정시간/40"
+    : "1년 미만: 입사 후 한 달을 결근 없이 채울 때마다 1일(최대 11번). 1일 = 8시간 × 그 달 평균 주 소정시간/40";
+  modal(`${esc(e.name)} — 연차 산정 근거`, `
+    <div class="hint" style="line-height:1.7; margin-bottom:12px">
+      입사일 <b>${fmtDate(e.joinDate)}</b> · 이번 연차 기간 <b>${fmtDate(s.period.from)} ~ ${fmtDate(addDays(s.period.to,-1))}</b><br>
+      ${rule}<br>
+      주 소정시간: ${e.weeklyHours?`직원 정보에 입력한 값 <b>${fmtLeaveH(e.weeklyHours)}</b>`:"그 기간에 적용된 근무표의 평균 (요일별 근로시간 중 8시간까지, 휴게 제외)"} · 출근율·개근은 출근부의 결근 기록 기준
+    </div>
+    ${list.length?`<div class="att-wrap"><table>
+      <thead><tr><th>발생일</th><th>구분</th><th>산정 기간</th><th>출근</th><th class="num" style="white-space:nowrap">주 소정</th><th>계산</th><th class="num">발생</th><th style="white-space:nowrap">소멸 예정</th></tr></thead>
+      <tbody>${list.map(g=>`<tr>
+        <td>${fmtDate(g.date)}</td>
+        <td style="white-space:nowrap">${g.kind==="월차"?`${g.n}개월째`:`${g.n}년차`}</td>
+        <td style="white-space:nowrap">${fmtDate(g.from)} ~ ${fmtDate(addDays(g.date,-1))}</td>
+        <td class="hint">${attTxt(g)}</td>
+        <td class="num" style="white-space:nowrap">${fmtLeaveH(g.weekH)}</td>
+        <td style="white-space:nowrap">${leaveCalcText(g)}</td>
+        <td class="num" style="white-space:nowrap"><b>${g.hours?fmtLeaveH(g.hours):"0시간"}</b></td>
+        <td>${g.expire<"9999"?fmtDate(g.expire):"이월"}</td>
+      </tr>`).join("")}
+      <tr><td colspan="6" style="text-align:right"><b>이번 기간 발생 합계</b></td><td class="num" style="white-space:nowrap"><b>${fmtLeaveH(s.accruedH)}</b></td><td></td></tr>
+      </tbody></table></div>`:`<div class="hint">이번 기간에 아직 발생한 연차가 없어요.</div>`}
+    <div class="hint" style="margin-top:10px">사용 ${fmtLeaveH(s.usedH)}${s.adjH?` · 조정 ${s.adjH>0?"+":""}${fmtLeaveH(s.adjH)}`:""}${s.expiredH?` · 지난 기간 소멸 ${fmtLeaveH(s.expiredH)}`:""} → 잔여 <b>${fmtLeaveBal(s.balanceH, s.dayHours, false)}</b></div>
+  `, [`<div style="flex:1"></div>`, `<button class="btn" onclick="closeModal()">닫기</button>`], true);
 }

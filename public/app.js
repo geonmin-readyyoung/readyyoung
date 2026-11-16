@@ -647,7 +647,7 @@ function renderLeaves(){
         <td>${fmtDate(e.joinDate)}</td>
         <td class="num">${s.serviceMonths}</td>
         <td class="num">${fmtLeaveH(s.weeklyHours)}</td>
-        <td class="num">${fmtLeaveH(s.accruedH)}</td>
+        <td class="num"><a href="#" onclick="event.preventDefault(); event.stopPropagation(); openLeaveBasis(${e.id})" title="산정 근거 보기" style="color:var(--navy); text-decoration:underline dotted">${fmtLeaveH(s.accruedH)}</a></td>
         <td class="num">${fmtLeaveH(s.usedH)}</td>
         <td class="num">${s.adjH?(s.adjH>0?'+':'')+fmtLeaveH(s.adjH):'-'}</td>
         <td class="num"><b style="color:${s.remaining<=1?'var(--bad)':s.remaining<=3?'var(--warn)':'var(--navy)'}">${fmtLeaveBal(s.balanceH, s.dayHours)}</b></td>
