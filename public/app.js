@@ -34,6 +34,10 @@ function fmtHM(h){ const m=Math.round(Number(h||0)*60); const hh=Math.floor(m/60
 function fmtD(d){ d=Math.round(Number(d||0)*100)/100; return String(d)+"일"; }
 function timeLeavesOn(empId, day){ return (DB.leaves||[]).filter(l=>isTimeLeave(l) && l.status==="승인" && l.employeeId===empId && (l.startDate||"").slice(0,10)===day); }
 const LEAVE_STATUSES = ["승인","대기","반려"];
+/* 병가·경조사·기타 휴가의 급여 처리 — 연차·반차는 항상 유급. 따로 정하지 않은 기록은 경조사만 유급, 병가·기타는 무급
+   무급인 날은 급여변경사항에 결근(무급)으로 넘기고, 그날 연장근로분(근무표 근로시간 − 8시간)도 공제 시간으로 같이 적는다 */
+const LEAVE_PAYS = ["유급","무급"];
+function leavePayOf(l){ if(!l || isTimeLeave(l) || DEDUCT_TYPES.includes(l.leaveType)) return "유급"; return l.pay || (l.leaveType==="경조사" ? "유급" : "무급"); }
 const DEDUCT_TYPES = ["연차","반차","반차(오전)","반차(오후)"]; function leaveTypeLabel(t){ return String(t||"").startsWith("반차") ? "반차" : (t||""); } const LEAVE_ADJ_REASONS = ["근태불량","경조사","포상","오류정정","기타"];
 
 /* ---- 상태 ---- */
@@ -96,31 +100,12 @@ function monthsSince(joinStr, asOf=new Date()){
   if(asOf.getDate() < j.getDate()) m -= 1;
   return Math.max(0, m);
 }
-// 발생 연차 (근로기준법 60조): 1년 미만 매월 1일(최대 11일) / 1년 이상 15일 + 3년차부터 2년마다 1일 (최대 25일)
-function accruedLeave(joinStr, asOf=new Date()){
-  const m = monthsSince(joinStr, asOf);
-  if(m < 12) return Math.min(m, 11);
-  const years = Math.floor(m/12);
-  return Math.min(25, 15 + Math.floor((years-1)/2));
-}
+// 연차 발생·잔여 계산은 leave-accrual.js (근로기준법 60조, 시간 단위 장부)
 // 지금 적용되는 연차 기간 [시작, 끝) — 입사 1년 전까지는 입사일~1주년, 이후엔 매 입사기념일부터 1년
 function leavePeriod(joinStr, asOf=new Date()){
   const j=(joinStr||"").slice(0,10); if(!j) return {from:"0000-01-01", to:"9999-12-31"};
-  const years=Math.floor(monthsSince(joinStr, asOf)/12);
-  const [y,mo,d]=j.split("-").map(Number);
-  const ann=n=>ymdLocal(new Date(y+n, mo-1, d));
-  return { from: years<1 ? j : ann(years), to: ann(Math.max(1,years+1)) };
-}
-// 잔여 요약 — 이번 연차 기간 안에서 쓴 연차·조정만 계산 (지난 기간 사용분이 누적되지 않도록)
-function summarizeLeave(emp){
-  const accrued = accruedLeave(emp.joinDate);
-  const pr = leavePeriod(emp.joinDate);
-  const inP = d => { const x=String(d||"").slice(0,10); return x>=pr.from && x<pr.to; };
-  const used = DB.leaves
-    .filter(l=>l.employeeId===emp.id && l.status==="승인" && inP(l.startDate))
-    .reduce((s,l)=>s+leaveDeductDays(l),0);
-  const adj = (DB.leaveAdjustments||[]).filter(a=>a.employeeId===emp.id && inP(a.date||pr.from)).reduce((s,a)=>s+(a.direction==="추가"?Number(a.days||0):-Number(a.days||0)),0); const remaining = Math.round((accrued - used + adj)*10)/10;
-  return { serviceMonths:monthsSince(emp.joinDate), accrued, used, adj, remaining, period:pr };
+  const years=Math.floor(monthsSince(joinStr, typeof asOf==="string" ? dateOf(asOf) : asOf)/12);
+  return { from: years<1 ? j : addMonthsYmd(j,12*years), to: addMonthsYmd(j,12*Math.max(1,years+1)) };
 }
 
 /* =========================== 유틸 =========================== */
@@ -348,7 +333,7 @@ function renderEmployees(){
         <th>팀</th><th>입사일</th><th class="num">연차잔여</th><th>상태</th>
       </tr></thead>
       <tbody>${list.map(e=>{
-        const s=e.empType==="정규직"?summarizeLeave(e):null;
+        const s=summarizeLeave(e);
         return `<tr class="row-click" onclick="openCard(${e.id})">
           <td class="num">${e.employeeNo??"—"}</td>
           <td><span class="name">${esc(e.name)}</span></td>
@@ -357,7 +342,7 @@ function renderEmployees(){
           <td>${e.team==="중국어"?'<span class="tag t-cn">중국어</span>':e.team==="일본어"?'<span class="tag t-jp">일본어</span>':"—"}</td>
           <td>${fmtDate(e.joinDate)}</td>
           
-          <td class="num">${s?`<b>${fmtD(s.remaining)}</b> / ${s.accrued}일`:"—"}</td>
+          <td class="num">${s.eligible?`<b>${fmtLeaveBal(s.balanceH, s.dayHours)}</b>`:'<span class="hint">—</span>'}</td>
           <td>${statusTag(e.status)}</td>
         </tr>`;}).join("")}</tbody>
     </table>` : `<div class="empty"><div class="big">조건에 맞는 직원이 없어요</div><div>필터를 바꾸거나 새 직원을 등록해 보세요.</div></div>`}
@@ -381,6 +366,8 @@ function openForm(id){
       <div class="field" id="f_team_wrap" style="${defRole==="통역"?"":"display:none"}"><label>팀(통역) <span class="req">*</span></label><select id="f_team" onchange="onEmpAutoNo(${id||0})">${TEAMS.filter(t=>t).map(t=>`<option value="${t}" ${defTeam===t?"selected":""}>${t}</option>`).join("")}</select></div><div class="field" id="f_closing_wrap" style="${defType==="파트타임"?"":"display:none"}"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input id="f_closing" type="checkbox" style="width:16px;height:16px" ${e.closingDuty?"checked":""} onchange="onEmpAutoNo(${id||0})"> 마감 담당 파트타임 (사번 X2XXX)</label></div>
       <div class="field"><label>입사일 <span class="req">*</span></label><input id="f_join" type="date" min="1950-01-01" max="2099-12-31" value="${(e.joinDate||todayStr()).slice(0,10)}"></div>
       <div class="field"><label>주 근무일 수 <span class="req">*</span></label><select id="f_workdays"><option value="1" ${(e.weeklyWorkDays||5)===1?"selected":""}>1</option><option value="2" ${(e.weeklyWorkDays||5)===2?"selected":""}>2</option><option value="3" ${(e.weeklyWorkDays||5)===3?"selected":""}>3</option><option value="4" ${(e.weeklyWorkDays||5)===4?"selected":""}>4</option><option value="5" ${(e.weeklyWorkDays||5)===5?"selected":""}>5</option><option value="6" ${(e.weeklyWorkDays||5)===6?"selected":""}>6</option><option value="7" ${(e.weeklyWorkDays||5)===7?"selected":""}>7</option></select></div>
+      <div class="field"><label>주 소정근로시간 <span class="hint">(비우면 근무표로 계산)</span></label><input id="f_weekh" type="number" step="0.5" min="0" max="52" value="${e.weeklyHours??""}" placeholder="예: 40, 24"></div>
+      <div class="field"><label>연차 계산</label><select id="f_leavemode">${LEAVE_MODES.map(o=>`<option value="${o.value}" ${(e.annualLeaveMode||"")===o.value?"selected":""}>${o.label}</option>`).join("")}</select><div class="hint" style="margin-top:4px">기본값: 정규직·단시간은 계산, 급여정산 구분이 일용직이면 연차 없음</div></div>
       <div class="field"><label>연락처</label><input id="f_phone" value="${esc(e.phone||"")}"></div>
       <div class="field"><label>비자</label><input id="f_visa" value="${esc(e.visa||"")}" placeholder="F-5, F-6 등"></div>
       
@@ -411,6 +398,7 @@ function saveEmployee(id){
     employeeNo: val("f_no")?Number(val("f_no")):null,
     name, role:roleV, empType:empTypeV, team:teamV, closingDuty:closingV,
     joinDate:join, weeklyWorkDays:val("f_workdays")?Number(val("f_workdays")):null,
+    weeklyHours: val("f_weekh")?Number(val("f_weekh")):null, annualLeaveMode: val("f_leavemode")||null,
     phone:val("f_phone")||null, visa:val("f_visa")||null, memo:val("f_memo")||null,
   };
   if(id){ Object.assign(DB.employees.find(x=>x.id===id), data); toast("수정했습니다"); }
@@ -458,7 +446,6 @@ function openCard(id){
   const e=DB.employees.find(x=>x.id===id);
   const s=summarizeLeave(e);
   const myLeaves=DB.leaves.filter(l=>l.employeeId===id).sort((a,b)=>(b.startDate||"").localeCompare(a.startDate||""));
-  const showLeave = e.empType==="정규직";
   modal(`${esc(e.name)} 인사기록카드`, `
     <div class="card-grid">
       <div>
@@ -475,15 +462,7 @@ function openCard(id){
         </dl>
       </div>
       <div>
-        ${showLeave?`<div class="leave-box">
-          <div class="hint" style="margin-bottom:4px">잔여 연차</div>
-          <div class="rem">${fmtD(s.remaining)}</div>
-          <div style="margin-top:12px; border-top:1px solid #D3E0FB; padding-top:8px">
-            <div class="leave-line">연차 기간 <b>${fmtDate(s.period.from)} ~ ${fmtDate(addDays(s.period.to,-1))}</b></div>
-            <div class="leave-line">발생 <b>${s.accrued}일</b></div>
-            <div class="leave-line">사용 <b>${fmtD(s.used)}</b></div>
-          </div>
-        </div>`:`<div class="leave-box" style="background:var(--gray-bg); border-color:var(--border)"><div class="hint">파트타임은 연차 자동계산 대상이 아니에요. 출근부에서 근무일을 관리하세요.</div></div>`}
+        ${leaveBoxHTML(e)}
       </div>
     </div>
     <div style="margin-top:18px">
@@ -513,7 +492,7 @@ function openCard(id){
 
 /* =========================== 연차·휴가 =========================== */
 /* =========================== 근태관리 › 휴가·근태 ===========================
-   일 단위(연차·반차·병가·경조사·기타 — 잔여 연차는 일 단위로만 계산)와
+   일 단위(연차·반차·병가·경조사·기타 — 잔여 연차는 leave-accrual.js에서 시간 단위로 계산)와
    시간 단위(지각·조퇴·외출 — 급여 정산 때 시간으로 차감)를 한 곳에서 관리.
    시간 단위 처리: 무급 = 급여에서 시간 차감(근무변경 › 급여 정산 요약에 집계) / 기록만.
    출근부 칸은 그대로 출근으로 두고, 칸 모서리에 지/조/외 표시만 붙는다. */
@@ -543,7 +522,8 @@ function leaveHandlingHTML(l){
   if(isTimeLeave(l)){
     return (l.handling||"기록만")==="무급" ? `<span class="tag t-bad">급여 −${fmtHM(l.hours)}</span>` : `<span class="tag t-gray">기록만</span>`;
   }
-  return DEDUCT_TYPES.includes(l.leaveType) ? `<span class="tag t-warn">연차 −${fmtDays(Number(l.days||0))}일</span>` : `<span class="tag t-gray">차감 없음</span>`;
+  if(DEDUCT_TYPES.includes(l.leaveType)) return `<span class="tag t-warn">연차 −${fmtDays(Number(l.days||0))}일</span>`;
+  return leavePayOf(l)==="무급" ? `<span class="tag t-bad">무급 · 급여 차감</span>` : `<span class="tag t-gray">유급 · 차감 없음</span>`;
 }
 function leaveTypeTag(l){
   const t=leaveTypeLabel(l.leaveType);
@@ -587,9 +567,9 @@ function monthLeaveStats(ym){
 function statCell(o){ return o.n?`${o.n}회 <span class="hint">${fmtHM(o.h)}</span>`:'<span class="hint">—</span>'; }
 
 function renderLeaves(){
-  const regs=DB.employees.filter(e=>e.status==="재직" && e.empType==="정규직")
-    .map(e=>({e,s:summarizeLeave(e)}))
-    .sort((a,b)=>a.s.remaining-b.s.remaining);
+  const regs=DB.employees.filter(e=>e.status==="재직")
+    .map(e=>({e,s:summarizeLeave(e)})).filter(x=>x.s.eligible)
+    .sort((a,b)=>a.s.balanceH/a.s.dayHours-b.s.balanceH/b.s.dayHours);
   const pending=DB.leaves.filter(l=>l.status==="대기").sort((a,b)=>(a.startDate||"").localeCompare(b.startDate||""));
   const lowLeave=regs.filter(x=>x.s.remaining<=3);
   const twoMoAgo=new Date(); twoMoAgo.setMonth(twoMoAgo.getMonth()-2); const cut=twoMoAgo.toISOString().slice(0,10);
@@ -659,22 +639,23 @@ function renderLeaves(){
   </div>
 
   <div class="panel">
-    <div class="p-head"><h2>직원별 잔여 연차</h2><span class="hint">1년 미만 매월 1일(최대 11) · 1년 이상 15일</span></div>
+    <div class="p-head"><h2>직원별 잔여 연차</h2><div style="display:flex;gap:8px;align-items:center"><span class="hint">입사일 기준 · 시간 단위로 쌓고 0.5일 단위로 내림 표시</span>${isOwner()?`<select onchange="setLeaveCarryOver(this.value==='1')" title="발생 1년 뒤 남은 연차 처리" style="padding:5px 8px;border:1px solid var(--border-strong);border-radius:8px"><option value="0" ${DB.settings&&DB.settings.leaveCarryOver?"":"selected"}>1년 뒤 소멸</option><option value="1" ${DB.settings&&DB.settings.leaveCarryOver?"selected":""}>다음 기간 이월</option></select>`:""}</div></div>
     <div class="att-wrap">${regs.length?`<table>
-      <thead><tr><th>이름</th><th>입사일</th><th class="num">근속(개월)</th><th class="num">발생</th><th class="num">사용</th><th class="num">조정</th><th class="num">잔여</th><th></th></tr></thead>
+      <thead><tr><th>이름</th><th>입사일</th><th class="num">근속(개월)</th><th class="num">주 소정</th><th class="num">이번 기간 발생</th><th class="num">사용</th><th class="num">조정</th><th class="num">잔여</th><th></th></tr></thead>
       <tbody>${regs.map(({e,s})=>`<tr class="row-click" onclick="openCard(${e.id})">
         <td><span class="name">${esc(e.name)}</span></td>
         <td>${fmtDate(e.joinDate)}</td>
         <td class="num">${s.serviceMonths}</td>
-        <td class="num">${s.accrued}일</td>
-        <td class="num">${fmtD(s.used)}</td>
-        <td class="num">${s.adj?(s.adj>0?'+':'')+s.adj+"일":'-'}</td>
-        <td class="num"><b style="color:${s.remaining<=1?'var(--bad)':s.remaining<=3?'var(--warn)':'var(--navy)'}">${fmtD(s.remaining)}</b></td>
-        <td class="num"><button class="btn sm ghost" onclick="event.stopPropagation(); toggleLeaveAdjRow(${e.id})">조정/내역</button></td></tr>${leaveAdjExpandedId===e.id?`<tr><td colspan="8" style="padding:0"><div style="padding:14px 6px 18px">${renderLeaveAdjPanel(e)}</div></td></tr>`:""}`).join("")}</tbody>
-    </table>`:`<div class="empty"><div class="big">정규직 재직자가 없어요</div></div>`}</div>
+        <td class="num">${fmtLeaveH(s.weeklyHours)}</td>
+        <td class="num">${fmtLeaveH(s.accruedH)}</td>
+        <td class="num">${fmtLeaveH(s.usedH)}</td>
+        <td class="num">${s.adjH?(s.adjH>0?'+':'')+fmtLeaveH(s.adjH):'-'}</td>
+        <td class="num"><b style="color:${s.remaining<=1?'var(--bad)':s.remaining<=3?'var(--warn)':'var(--navy)'}">${fmtLeaveBal(s.balanceH, s.dayHours)}</b></td>
+        <td class="num"><button class="btn sm ghost" onclick="event.stopPropagation(); toggleLeaveAdjRow(${e.id})">조정/내역</button></td></tr>${leaveAdjExpandedId===e.id?`<tr><td colspan="9" style="padding:0"><div style="padding:14px 6px 18px">${renderLeaveAdjPanel(e)}</div></td></tr>`:""}`).join("")}</tbody>
+    </table>`:`<div class="empty"><div class="big">연차 계산 대상 재직자가 없어요</div></div>`}</div>
   </div>
   <div class="legend">
-    <span><b>잔여 연차</b> 일 단위 — 연차 1일, 반차 0.5일 차감</span>
+    <span><b>잔여 연차</b> 시간 단위로 계산 — 연차 1일 = 그 날 근무표 소정근로시간(8h 상한, 20~23시면 3h), 반차 = 그 절반 차감 · 화면은 0.5일 단위 내림 + 정확한 시간</span>
     <span><b>지각·조퇴·외출</b> 연차와 무관 · "급여에서 시간 차감"이면 근무변경 › 급여 정산 요약에 시간으로 집계</span>
     <span><b>출근부</b> 출근은 그대로 두고 칸에 <i class="tb tb-late">지</i><i class="tb tb-early">조</i><i class="tb tb-out">외</i> 표시 · 조퇴한 날은 마감 집계 제외</span>
   </div>`;
@@ -711,6 +692,7 @@ function openLeaveForm(empId, mode, editId){
       <div class="field"><label>종료일</label><input id="l_end" type="date" value="${editing?(editing.endDate||d).slice(0,10):d}" onchange="autoDays()"></div>
       <div class="field"><label>일수</label><input id="l_days" type="number" step="0.5" value="${editing?editing.days:1}"></div>
       <div class="field"><label>&nbsp;</label><div class="hint" style="padding-top:9px" id="l_days_hint">연차·반차만 잔여 연차에서 차감 · 병가/경조사/기타는 차감 없음</div></div>
+      <div class="field" id="l_pay_wrap" style="${DEDUCT_TYPES.includes(t0)?"display:none":""}"><label>급여 처리</label><select id="l_pay">${LEAVE_PAYS.map(p=>`<option ${(editing&&!DEDUCT_TYPES.includes(editing.leaveType)?leavePayOf(editing):(t0==="경조사"?"유급":"무급"))===p?"selected":""}>${p}</option>`).join("")}</select><div class="hint" style="margin-top:4px">무급이면 기본급과 그날 연장근로분(고정연장수당)도 공제 대상</div></div>
       ${memo}
     </div>`;
   } else {
@@ -784,6 +766,8 @@ function timeLeavePreview(){
 function onLeaveType(){
   const t=val("l_type"); const d=document.getElementById("l_days");
   if(t.startsWith("반차")) d.value="0.5"; else autoDays();
+  const pw=document.getElementById("l_pay_wrap"), ps=document.getElementById("l_pay");
+  if(pw){ const paidType=DEDUCT_TYPES.includes(t); pw.style.display=paidType?"none":""; if(ps && !paidType) ps.value = t==="경조사" ? "유급" : "무급"; }
   leaveHalfHint();
 }
 /* 반차 선택 시 — 그 날 근무표 기준으로 실제 근무 구간 안내 */
@@ -835,10 +819,11 @@ function saveLeave(editId){
     const end=val("l_end")||start; if(end<start){ toast("종료일이 시작일보다 빨라요"); return; }
     data={ employeeId:empId, leaveType:val("l_type"), days:Number(val("l_days")||0), startDate:start, endDate:end,
       status:canApprove()?val("l_status"):"대기", memo:val("l_memo")||null };
+    if(!DEDUCT_TYPES.includes(data.leaveType)) data.pay=val("l_pay")||leavePayOf(data);
   }
   if(editId){
     const l=DB.leaves.find(x=>x.id===editId); if(!l) return;
-    ["unit","startTime","endTime","hours","handling"].forEach(k=>delete l[k]);
+    ["unit","startTime","endTime","hours","handling","pay"].forEach(k=>delete l[k]);
     Object.assign(l, data); toast("수정했습니다");
   } else { DB.leaves.push({ id:nextId(), ...data }); toast(isHour?"시간 단위 기록을 등록했습니다":"휴가를 등록했습니다"); }
   syncAll(); saveDB(); closeModal(); render();

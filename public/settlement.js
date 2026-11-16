@@ -96,6 +96,27 @@ function dayRate(cfg, win){
   return null;
 }
 
+/* ---- 무급으로 빠진 날 — 결근(근무변경)·무급 휴가(병가 등) ----
+   일수는 급여변경사항 결근(무급) 칸으로 넘기고(기본급 공제), 그날 연장근로분도 시간으로 같이 적는다.
+   연장근로분 = 근무표 근로시간(휴게 제외) − 8시간(0 미만이면 0). 예) 10:00~20:00 → 근로 9h − 소정 8h = 1h. 반일이면 절반 */
+function unpaidOff(e, ym){
+  const inM=d=>String(d||"").slice(0,7)===ym;
+  const otOf=day=>{ const sc=scheduleOn(e.id, day); if(!sc || !sc.on) return 0; const h=spanHours(sc.start, sc.end); if(h==null) return 0;
+    return Math.max(0, h-breakHours(h)-8); };   // 하루 8시간 넘는 근로 = 연장 (20~23시 같은 짧은 근무일은 0)
+  let leaveDays=0, otH=0; const kinds={};
+  (DB.shiftChanges||[]).filter(c=>c.status==="승인" && c.employeeId===e.id && inM(c.date) && (c.type==="결근" || (c.type==="대체" && absenceOf(c)==="무급")))
+    .forEach(c=>{ otH+=otOf(c.date); });
+  (DB.leaves||[]).filter(l=>l.employeeId===e.id && l.status==="승인" && !isTimeLeave(l) && leavePayOf(l)==="무급").forEach(l=>{
+    const a=(l.startDate||"").slice(0,10), b=(l.endDate||l.startDate||"").slice(0,10);
+    if(a===b){ if(!inM(a)) return; const f=Math.min(1, Number(l.days||1)); leaveDays+=f; otH+=otOf(a)*f; kinds[l.leaveType]=(kinds[l.leaveType]||0)+f; return; }
+    for(let d=a, g=0; d<=b && g<400; d=addDays(d,1), g++){
+      if(!inM(d) || !scheduleOn(e.id, d).on) continue;
+      leaveDays++; otH+=otOf(d); kinds[l.leaveType]=(kinds[l.leaveType]||0)+1;
+    }
+  });
+  return {leaveDays, otH:Math.round(otH*100)/100, kinds};
+}
+
 /* ---- 한 달 정산 ---- */
 function computeSettlement(ym){
   const dim=daysInMonth(ym), M=monthNo(ym);
@@ -127,7 +148,10 @@ function computeSettlement(ym){
       }
     });
     const s=scBy[e.id];
-    r.absent = s ? s.무급 : 0;
+    const uo=unpaidOff(e, ym);
+    r.absent = (s ? s.무급 : 0) + uo.leaveDays;   // 결근 + 무급 휴가
+    r.unpaidLeave = uo.leaveDays; r.unpaidKinds = uo.kinds;
+    r.otCut = ["상용","미신고상용"].includes(cfg.cat) ? uo.otH : 0;   // 월급제만 — 고정연장수당에서 공제할 시간
     r.timeOff = s ? s.시간 : 0; r.timeOffN = s ? s.시간건 : 0;
     r.closePay = r.closeCnt*Number(cfg.closeRate||0);
     r.holPay = cfg.holidayMode==="금액" ? r.holDays*Number(cfg.holidayAmount||0) : 0;
@@ -179,7 +203,7 @@ function renderSettlement(){
         <td class="num">${r.workDays?fmtDays(r.workDays)+"일":"—"}${r.cat==="미신고단시간"&&r.hours?` <span class="hint">${hrs(r.hours)}</span>`:""}</td>
         <td class="num">${holTxt(r)}</td>
         <td class="num">${closeTxt(r)}</td>
-        <td class="num">${r.absent?`<b style="color:var(--bad)">${r.absent}일</b>`:"—"}</td>
+        <td class="num">${r.absent?`<b style="color:var(--bad)">${fmtDays(r.absent)}일</b>${r.unpaidLeave?` <span class="hint">휴가 ${fmtDays(r.unpaidLeave)}</span>`:""}${r.otCut?`<div class="hint">연장 −${hrs(r.otCut)}</div>`:""}`:"—"}</td>
         <td class="num">${r.timeOff?`−${fmtHM(r.timeOff)}`:"—"}</td>
         <td class="num">${payTxt(r)}</td>
         <td class="num"><button class="btn sm ghost" onclick="openPayCfg(${r.e.id})">설정</button></td>
@@ -206,7 +230,7 @@ function renderSettlement(){
   </div>
   ${warnList.length?`<div class="panel" style="margin-bottom:16px;border-color:#FCD34D;background:#FFFBEB"><div class="p-head"><h2>확인 필요 <span class="hint">${warnList.length}건</span></h2></div><ul style="margin:0 0 6px 18px;line-height:1.8">${warnList.join("")}</ul></div>`:""}
   <div class="panel"><div class="att-wrap"><table>
-    <thead><tr><th>직원</th><th class="num">근무일</th><th class="num">휴일근로</th><th class="num">마감</th><th class="num">결근<div class="hint">무급</div></th><th class="num">시간 차감<div class="hint">지각·조퇴·외출</div></th><th class="num">일당 합계·일할</th><th></th></tr></thead>
+    <thead><tr><th>직원</th><th class="num">근무일</th><th class="num">휴일근로</th><th class="num">마감</th><th class="num">결근·무급휴가<div class="hint">기본급·연장 공제</div></th><th class="num">시간 차감<div class="hint">지각·조퇴·외출</div></th><th class="num">일당 합계·일할</th><th></th></tr></thead>
     <tbody>${table||`<tr><td colspan="8"><div class="empty">${M}월에 재직한 직원이 없어요</div></td></tr>`}</tbody>
   </table></div></div>
   <div class="panel" style="margin-top:16px"><div class="p-head"><h2>주민등록번호 채우기 <span class="hint">선택</span></h2></div>
@@ -406,7 +430,9 @@ async function downloadPayrollChanges(){
         }
         if(r.closeCnt && c.closeRate){ ws.getCell(row, c.closeTax==="세후"?col.closeNet:col.closeGross).value=r.closePay; notes.push(`마감 ${r.closeCnt}회 × ${num(c.closeRate)}원(${c.closeTax})`); }
         if(r.timeOff) ws.getCell(row,col.late).value=`${fmtHM(r.timeOff)} (${r.timeOffN}건)`;
-        if(r.absent) ws.getCell(row,col.absent).value=`${r.absent}일`;
+        if(r.absent) ws.getCell(row,col.absent).value = r.otCut ? `${fmtDays(r.absent)}일 (연장 ${hrs(r.otCut)} 공제)` : `${fmtDays(r.absent)}일`;
+        if(r.unpaidLeave) notes.push(`무급 휴가 ${Object.entries(r.unpaidKinds).map(([k,n])=>`${k} ${fmtDays(n)}일`).join("·")}${r.otCut?` · 결근·무급휴가일 연장근로 ${hrs(r.otCut)} 공제`:""}`);
+        else if(r.otCut) notes.push(`결근일 연장근로 ${hrs(r.otCut)} 공제`);
         if(r.joined) notes.push(`${M}/${Number(r.joined.slice(8))} 입사`);
         if(r.left) notes.push(`${M}/${Number(r.left.slice(8))} 퇴사`);
         ws.getCell(row,col.note).value=notes.join(" / ")||null;
